@@ -21,6 +21,45 @@ function generateReferenceCode() {
   return `PLT-${y}${m}${d}-${random}`
 }
 
+function generatePlayfulNickname() {
+  const firstParts = [
+    'Captain',
+    'Mister',
+    'Lady',
+    'Sunny',
+    'Tiny',
+    'Jungle',
+    'Green',
+    'Happy',
+    'Fancy',
+    'Professor',
+    'Sir',
+    'Dancing',
+  ]
+
+  const secondParts = [
+    'Leaf',
+    'Sprout',
+    'Fern',
+    'Buddy',
+    'Queen',
+    'Prince',
+    'Pearl',
+    'Shadow',
+    'Mango',
+    'Coco',
+    'Bamboo',
+    'Monstera',
+  ]
+
+  const first =
+    firstParts[Math.floor(Math.random() * firstParts.length)]
+  const second =
+    secondParts[Math.floor(Math.random() * secondParts.length)]
+
+  return `${first} ${second}`
+}
+
 async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   const objectUrl = URL.createObjectURL(file)
 
@@ -40,8 +79,6 @@ async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
     })
 
     return image
-  } catch (error) {
-    throw error
   } finally {
     URL.revokeObjectURL(objectUrl)
   }
@@ -92,24 +129,21 @@ export default function NewPlantPage() {
   const [locationName, setLocationName] = useState('')
   const [companyId, setCompanyId] = useState('')
   const [nickname, setNickname] = useState('')
-  const [plantCode, setPlantCode] = useState('')
+  const [referenceCode, setReferenceCode] = useState('')
   const [species, setSpecies] = useState('')
   const [status, setStatus] = useState('healthy')
-  const [needsReplacement, setNeedsReplacement] = useState(false)
-  const [isDying, setIsDying] = useState(false)
-  const [isDead, setIsDead] = useState(false)
   const [notes, setNotes] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [aiSuggestedSpecies, setAiSuggestedSpecies] = useState('')
   const [aiConfidence, setAiConfidence] = useState<number | null>(null)
-  const [referenceCode, setReferenceCode] = useState('')
   const [isIdentifying, setIsIdentifying] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setReferenceCode(generateReferenceCode())
+    setNickname(generatePlayfulNickname())
   }, [])
 
   useEffect(() => {
@@ -211,16 +245,12 @@ export default function NewPlantPage() {
         typeof result.confidence === 'number' ? result.confidence : null
       )
 
-      if (!species && result.suggested_species) {
+      if (result.suggested_species) {
         setSpecies(result.suggested_species)
       }
     } catch (err) {
       console.error(err)
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'AI-herkenning mislukt.'
-      )
+      setError(err instanceof Error ? err.message : 'AI-herkenning mislukt.')
     } finally {
       setIsIdentifying(false)
     }
@@ -259,21 +289,18 @@ export default function NewPlantPage() {
       }
 
       const baseValue =
-        plantCode.trim() || nickname.trim() || species.trim() || referenceCode
+        nickname.trim() || species.trim() || referenceCode
       const qrSlug = slugify(baseValue)
 
       const { error } = await supabase.from('plants').insert([
         {
           company_id: companyId,
           location_id: params.id,
-          plant_code: plantCode || null,
-          nickname: nickname || null,
-          species: species || null,
+          plant_code: referenceCode,
+          nickname: nickname.trim() || null,
+          species: species.trim() || null,
           status,
-          needs_replacement: needsReplacement,
-          is_dying: isDying,
-          is_dead: isDead,
-          notes: notes || null,
+          notes: notes.trim() || null,
           qr_slug: qrSlug,
           reference_code: referenceCode,
           photo_path: photoPath,
@@ -350,14 +377,6 @@ export default function NewPlantPage() {
 
           <input
             type="text"
-            placeholder="Plantcode (optioneel)"
-            value={plantCode}
-            onChange={(e) => setPlantCode(e.target.value)}
-            className="w-full rounded-lg border p-3"
-          />
-
-          <input
-            type="text"
             placeholder="Soort"
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
@@ -375,33 +394,6 @@ export default function NewPlantPage() {
             <option value="replacement_needed">Replacement needed</option>
             <option value="dead">Dead</option>
           </select>
-
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={needsReplacement}
-              onChange={(e) => setNeedsReplacement(e.target.checked)}
-            />
-            Needs replacement
-          </label>
-
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={isDying}
-              onChange={(e) => setIsDying(e.target.checked)}
-            />
-            Is dying
-          </label>
-
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={isDead}
-              onChange={(e) => setIsDead(e.target.checked)}
-            />
-            Is dead
-          </label>
 
           <textarea
             placeholder="Notities"
