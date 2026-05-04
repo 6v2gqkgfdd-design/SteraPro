@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.0",
+    "html5-qrcode": "^2.3.8",
     "next": "16.2.4",
     "openai": "^6.35.0",
     "qrcode": "^1.5.4",

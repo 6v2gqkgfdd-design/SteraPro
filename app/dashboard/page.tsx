@@ -28,12 +28,19 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div>
+      <div className="flex flex-wrap gap-3">
         <Link
           href="/companies/new"
           className="inline-block rounded-lg bg-black px-4 py-2 text-white"
         >
           Nieuw bedrijf
+        </Link>
+
+        <Link
+          href="/maintenance"
+          className="inline-block rounded-lg border border-black px-4 py-2 text-black"
+        >
+          Onderhoud
         </Link>
       </div>
 
