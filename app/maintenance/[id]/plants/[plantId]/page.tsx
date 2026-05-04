@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function MaintenancePlantRegistrationPage() {
-  const router = useRouter()
+export default function MaintenancePlantDetailPage() {
   const params = useParams<{ id: string; plantId: string }>()
+  const router = useRouter()
   const supabase = createClient()
 
   const visitId = params.id
@@ -22,72 +22,125 @@ export default function MaintenancePlantRegistrationPage() {
 
   const [watered, setWatered] = useState(false)
   const [pruned, setPruned] = useState(false)
-  const [dusted, setDusted] = useState(false)
-  const [rotated, setRotated] = useState(false)
   const [fed, setFed] = useState(false)
-  const [pestTreated, setPestTreated] = useState(false)
-  const [repotted, setRepotted] = useState(false)
-  const [soilRefreshed, setSoilRefreshed] = useState(false)
-  const [polished, setPolished] = useState(false)
+  const [cleaned, setCleaned] = useState(false)
+  const [rotated, setRotated] = useState(false)
   const [replaced, setReplaced] = useState(false)
-  const [needsReplacement, setNeedsReplacement] = useState(false)
-  const [isDying, setIsDying] = useState(false)
-  const [isDead, setIsDead] = useState(false)
+  const [checked, setChecked] = useState(true)
+  const [healthStatus, setHealthStatus] = useState('healthy')
   const [notes, setNotes] = useState('')
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     async function loadData() {
-      const { data: visit, error: visitError } = await supabase
-        .from('maintenance_visits')
-        .select(`
-          id,
-          title,
-          location_id,
-          locations (
-            id,
-            name
-          )
-        `)
-        .eq('id', visitId)
-        .single()
+      setLoading(true)
+      setError('')
+
+      const [{ data: visit, error: visitError }, { data: plant, error: plantError }, { data: existingVisitPlant, error: visitPlantError }] =
+        await Promise.all([
+          supabase
+            .from('maintenance_visits')
+            .select(`
+              id,
+              title,
+              location_id,
+              locations (
+                id,
+                name
+              )
+            `)
+            .eq('id', visitId)
+            .single(),
+
+          supabase
+            .from('plants')
+            .select(`
+              id,
+              nickname,
+              plant_code,
+              reference_code,
+              species,
+              status,
+              notes,
+              location_id
+            `)
+            .eq('id', plantId)
+            .single(),
+
+          supabase
+            .from('maintenance_visit_plants')
+            .select('*')
+            .eq('visit_id', visitId)
+            .eq('plant_id', plantId)
+            .maybeSingle(),
+        ])
 
       if (visitError || !visit) {
-        setError('Kon onderhoudsbeurt niet ophalen.')
+        setError('Onderhoudsbeurt niet gevonden.')
+        setLoading(false)
         return
       }
 
-      const { data: plant, error: plantError } = await supabase
-        .from('plants')
-        .select('id, nickname, plant_code, reference_code, species, location_id')
-        .eq('id', plantId)
-        .single()
-
       if (plantError || !plant) {
-        setError('Kon plant niet ophalen.')
+        setError('Plant niet gevonden.')
+        setLoading(false)
         return
       }
 
       if (plant.location_id !== visit.location_id) {
         setError('Deze plant hoort niet bij de locatie van deze onderhoudsbeurt.')
+        setLoading(false)
         return
       }
 
-      const { data: existingVisitPlant } = await supabase
-        .from('maintenance_visit_plants')
-        .select('id, notes')
-        .eq('visit_id', visitId)
-        .eq('plant_id', plantId)
-        .maybeSingle()
+      const locationData = visit.locations as any
+      const resolvedLocationName = Array.isArray(locationData)
+        ? (locationData[0]?.name || '')
+        : (locationData?.name || '')
 
       setVisitTitle(visit.title || '')
-      setLocationName(visit.locations?.name || '')
-      setPlantName(plant.nickname || plant.plant_code || plant.reference_code || 'Plant')
+      setLocationName(resolvedLocationName)
+      setPlantName(
+        plant.nickname || plant.plant_code || plant.reference_code || 'Plant'
+      )
       setPlantCode(plant.reference_code || plant.plant_code || '')
       setSpecies(plant.species || '')
       setExistingVisitPlantId(existingVisitPlant?.id || null)
-      setNotes(existingVisitPlant?.notes || '')
+
+      if (visitPlantError) {
+        setError('Kon bestaand onderhoud voor deze plant niet ophalen.')
+      }
+
+      if (existingVisitPlant) {
+        setNotes(existingVisitPlant.notes || '')
+        setWatered(Boolean(existingVisitPlant.watered))
+        setPruned(Boolean(existingVisitPlant.pruned))
+        setFed(Boolean(existingVisitPlant.fed))
+        setCleaned(Boolean(existingVisitPlant.cleaned))
+        setRotated(Boolean(existingVisitPlant.rotated))
+        setReplaced(Boolean(existingVisitPlant.replaced))
+        setChecked(
+          typeof existingVisitPlant.checked === 'boolean'
+            ? existingVisitPlant.checked
+            : true
+        )
+        setHealthStatus(existingVisitPlant.health_status || plant.status || 'healthy')
+      } else {
+        setNotes('')
+        setWatered(false)
+        setPruned(false)
+        setFed(false)
+        setCleaned(false)
+        setRotated(false)
+        setReplaced(false)
+        setChecked(true)
+        setHealthStatus(plant.status || 'healthy')
+      }
+
+      setLoading(false)
     }
 
     if (visitId && plantId) {
@@ -97,145 +150,92 @@ export default function MaintenancePlantRegistrationPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
+    setSaving(true)
     setError('')
 
     try {
-      const derivedStatus = isDead
-        ? 'dead'
-        : needsReplacement || replaced
-        ? 'replacement_needed'
-        : isDying
-        ? 'needs_attention'
-        : 'healthy'
+      const payload = {
+        visit_id: visitId,
+        plant_id: plantId,
+        notes: notes.trim() || null,
+        watered,
+        pruned,
+        fed,
+        cleaned,
+        rotated,
+        replaced,
+        checked,
+        health_status: healthStatus,
+      }
 
-      let visitPlantId = existingVisitPlantId
-
-      if (!visitPlantId) {
-        const { data: insertedVisitPlant, error: visitPlantInsertError } = await supabase
+      if (existingVisitPlantId) {
+        const { error } = await supabase
           .from('maintenance_visit_plants')
-          .insert([
-            {
-              visit_id: visitId,
-              plant_id: plantId,
-              notes: notes || null,
-            },
-          ])
+          .update(payload)
+          .eq('id', existingVisitPlantId)
+
+        if (error) {
+          throw error
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('maintenance_visit_plants')
+          .insert([payload])
           .select('id')
           .single()
 
-        if (visitPlantInsertError || !insertedVisitPlant) {
-          throw new Error(visitPlantInsertError?.message || 'Koppelen aan onderhoud mislukt.')
+        if (error) {
+          throw error
         }
 
-        visitPlantId = insertedVisitPlant.id
-        setExistingVisitPlantId(insertedVisitPlant.id)
-      } else {
-        const { error: visitPlantUpdateError } = await supabase
-          .from('maintenance_visit_plants')
-          .update({
-            notes: notes || null,
-          })
-          .eq('id', visitPlantId)
-
-        if (visitPlantUpdateError) {
-          throw new Error(visitPlantUpdateError.message)
-        }
+        setExistingVisitPlantId(data.id)
       }
 
-      const { error: logError } = await supabase
-        .from('plant_maintenance_logs')
-        .insert([
-          {
-            plant_id: plantId,
-            watered,
-            pruned,
-            dusted,
-            rotated,
-            fed,
-            pest_treated: pestTreated,
-            repotted,
-            soil_refreshed: soilRefreshed,
-            polished,
-            replaced,
-            needs_replacement: needsReplacement,
-            is_dying: isDying,
-            is_dead: isDead,
-            notes: notes || null,
-          },
-        ])
-
-      if (logError) {
-        throw new Error(logError.message)
-      }
-
-      const { error: plantError } = await supabase
+      const { error: plantUpdateError } = await supabase
         .from('plants')
         .update({
-          status: derivedStatus,
-          needs_replacement: needsReplacement || replaced,
-          is_dying: isDying,
-          is_dead: isDead,
+          status: healthStatus,
+          notes: notes.trim() || null,
         })
         .eq('id', plantId)
 
-      if (plantError) {
-        throw new Error(plantError.message)
+      if (plantUpdateError) {
+        throw plantUpdateError
       }
-
-      await supabase.from('maintenance_visit_logs').insert([
-        {
-          visit_id: visitId,
-          event_type: 'plant_maintained',
-          payload: {
-            plant_id: plantId,
-            maintenance_visit_plant_id: visitPlantId,
-            watered,
-            pruned,
-            dusted,
-            rotated,
-            fed,
-            pest_treated: pestTreated,
-            repotted,
-            soil_refreshed: soilRefreshed,
-            polished,
-            replaced,
-            needs_replacement: needsReplacement,
-            is_dying: isDying,
-            is_dead: isDead,
-            notes: notes || null,
-          },
-        },
-      ])
 
       router.push(`/maintenance/${visitId}`)
       router.refresh()
     } catch (err) {
+      console.error(err)
       setError(err instanceof Error ? err.message : 'Opslaan mislukt.')
-      setLoading(false)
+      setSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <main className="p-6">
+        <div className="mx-auto max-w-2xl">
+          <p className="text-sm text-gray-600">Plantgegevens laden...</p>
+        </div>
+      </main>
+    )
   }
 
   return (
     <main className="p-6">
-      <div className="mx-auto max-w-xl space-y-6">
+      <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Onderhoud registreren</h1>
-            {visitTitle && (
-              <p className="text-sm text-gray-600">Onderhoud: {visitTitle}</p>
-            )}
-            {locationName && (
-              <p className="text-sm text-gray-600">Locatie: {locationName}</p>
-            )}
-            {plantName && (
-              <p className="text-sm text-gray-600">Plant: {plantName}</p>
-            )}
-            {(species || plantCode) && (
-              <p className="text-sm text-gray-600">
-                {species || 'Onbekende soort'}
-                {plantCode ? ` • ${plantCode}` : ''}
-              </p>
+            <p className="text-sm text-gray-600">Onderhoud: {visitTitle}</p>
+            <p className="text-sm text-gray-600">Locatie: {locationName}</p>
+            <p className="text-sm text-gray-600">
+              Plant: {plantName}
+              {plantCode ? ` (${plantCode})` : ''}
+            </p>
+            {species && (
+              <p className="text-sm text-gray-600">Soort: {species}</p>
             )}
           </div>
 
@@ -248,97 +248,134 @@ export default function MaintenancePlantRegistrationPage() {
             </Link>
 
             <Link
-              href={`/maintenance/${visitId}`}
+              href="/dashboard"
               className="rounded-lg bg-black px-4 py-2 text-sm text-white"
             >
-              Onderhoud
+              Dashboard
             </Link>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border p-6">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={watered} onChange={(e) => setWatered(e.target.checked)} />
-            Water gegeven
-          </label>
+        <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border p-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => setChecked(e.target.checked)}
+              />
+              <span>Plant gecontroleerd</span>
+            </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={pruned} onChange={(e) => setPruned(e.target.checked)} />
-            Gesnoeid
-          </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={watered}
+                onChange={(e) => setWatered(e.target.checked)}
+              />
+              <span>Water gegeven</span>
+            </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={dusted} onChange={(e) => setDusted(e.target.checked)} />
-            Stofvrij gemaakt
-          </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={pruned}
+                onChange={(e) => setPruned(e.target.checked)}
+              />
+              <span>Gesnoeid</span>
+            </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={rotated} onChange={(e) => setRotated(e.target.checked)} />
-            Gedraaid
-          </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={fed}
+                onChange={(e) => setFed(e.target.checked)}
+              />
+              <span>Voeding toegevoegd</span>
+            </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={fed} onChange={(e) => setFed(e.target.checked)} />
-            Voeding gegeven
-          </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={cleaned}
+                onChange={(e) => setCleaned(e.target.checked)}
+              />
+              <span>Bladeren gereinigd</span>
+            </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={pestTreated} onChange={(e) => setPestTreated(e.target.checked)} />
-            Plagen behandeld
-          </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={rotated}
+                onChange={(e) => setRotated(e.target.checked)}
+              />
+              <span>Gedraaid</span>
+            </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={repotted} onChange={(e) => setRepotted(e.target.checked)} />
-            Verpot
-          </label>
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={replaced}
+                onChange={(e) => setReplaced(e.target.checked)}
+              />
+              <span>Vervangen</span>
+            </label>
+          </div>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={soilRefreshed} onChange={(e) => setSoilRefreshed(e.target.checked)} />
-            Verse aarde toegevoegd
-          </label>
+          <div className="space-y-2">
+            <label htmlFor="health_status" className="block text-sm font-medium">
+              Status na onderhoud
+            </label>
+            <select
+              id="health_status"
+              value={healthStatus}
+              onChange={(e) => setHealthStatus(e.target.value)}
+              className="w-full rounded-lg border px-3 py-2"
+            >
+              <option value="healthy">Healthy</option>
+              <option value="needs_attention">Needs attention</option>
+              <option value="maintenance_due">Maintenance due</option>
+              <option value="replacement_needed">Replacement needed</option>
+              <option value="dead">Dead</option>
+            </select>
+          </div>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={polished} onChange={(e) => setPolished(e.target.checked)} />
-            Opgeblonken
-          </label>
+          <div className="space-y-2">
+            <label htmlFor="notes" className="block text-sm font-medium">
+              Onderhoudsnotities
+            </label>
+            <textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={5}
+              className="w-full rounded-lg border px-3 py-2"
+              placeholder="Bijv. water gegeven, bladeren gereinigd, voeding toegevoegd..."
+            />
+          </div>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={replaced} onChange={(e) => setReplaced(e.target.checked)} />
-            Plant vervangen
-          </label>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50"
+            >
+              {saving ? 'Opslaan...' : 'Onderhoud opslaan'}
+            </button>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={needsReplacement} onChange={(e) => setNeedsReplacement(e.target.checked)} />
-            Moet vervangen worden
-          </label>
+            <Link
+              href={`/maintenance/${visitId}`}
+              className="rounded-lg border px-4 py-2"
+            >
+              Annuleren
+            </Link>
+          </div>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={isDying} onChange={(e) => setIsDying(e.target.checked)} />
-            Plant is stervend
-          </label>
-
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={isDead} onChange={(e) => setIsDead(e.target.checked)} />
-            Plant is dood
-          </label>
-
-          <textarea
-            placeholder="Notities"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border p-3"
-            rows={4}
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-black px-4 py-3 text-white disabled:opacity-50"
-          >
-            {loading ? 'Opslaan...' : 'Onderhoud opslaan'}
-          </button>
-
-          {error && <p className="text-red-600">{error}</p>}
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
         </form>
       </div>
     </main>

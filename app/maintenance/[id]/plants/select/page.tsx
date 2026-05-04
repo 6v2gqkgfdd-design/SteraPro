@@ -35,6 +35,12 @@ export default async function MaintenancePlantSelectPage({
     )
   }
 
+  const currentLocationId = visit.location_id
+  const locationData = visit.locations as any
+  const locationName = Array.isArray(locationData)
+    ? (locationData[0]?.name || 'Onbekende locatie')
+    : (locationData?.name || 'Onbekende locatie')
+
   const { data: plants, error: plantsError } = await supabase
     .from('plants')
     .select(`
@@ -44,7 +50,7 @@ export default async function MaintenancePlantSelectPage({
       reference_code,
       location_id
     `)
-    .eq('location_id', visit.location_id)
+    .eq('location_id', currentLocationId)
     .order('nickname', { ascending: true })
 
   async function addExistingPlant(formData: FormData) {
@@ -67,7 +73,7 @@ export default async function MaintenancePlantSelectPage({
       redirect(`/maintenance/${id}/plants/select?error=Plant niet gevonden`)
     }
 
-    if (existingPlant.location_id !== visit.location_id) {
+    if (existingPlant.location_id !== currentLocationId) {
       redirect(`/maintenance/${id}/plants/select?error=Deze plant hoort niet bij deze locatie`)
     }
 
@@ -84,7 +90,7 @@ export default async function MaintenancePlantSelectPage({
               Onderhoud: {visit.title}
             </p>
             <p className="text-sm text-gray-600">
-              Locatie: {visit.locations?.name ?? 'Onbekende locatie'}
+              Locatie: {locationName}
             </p>
           </div>
 

@@ -53,10 +53,8 @@ function generatePlayfulNickname() {
     'Monstera',
   ]
 
-  const first =
-    firstParts[Math.floor(Math.random() * firstParts.length)]
-  const second =
-    secondParts[Math.floor(Math.random() * secondParts.length)]
+  const first = firstParts[Math.floor(Math.random() * firstParts.length)]
+  const second = secondParts[Math.floor(Math.random() * secondParts.length)]
 
   return `${first} ${second}`
 }
@@ -173,10 +171,15 @@ export default function MaintenanceNewPlantPage() {
         return
       }
 
+      const locationData = data.locations as any
+      const resolvedLocationName = Array.isArray(locationData)
+        ? (locationData[0]?.name || '')
+        : (locationData?.name || '')
+
       setVisitTitle(data.title || '')
       setLocationId(data.location_id || '')
       setCompanyId(data.company_id || '')
-      setLocationName(data.locations?.name || '')
+      setLocationName(resolvedLocationName)
     }
 
     if (visitId) {
@@ -311,8 +314,7 @@ export default function MaintenanceNewPlantPage() {
         photoUrl = publicUrlData.publicUrl
       }
 
-      const baseValue =
-        nickname.trim() || species.trim() || referenceCode
+      const baseValue = nickname.trim() || species.trim() || referenceCode
       const qrSlug = slugify(baseValue)
 
       const { data: insertedPlant, error: plantError } = await supabase

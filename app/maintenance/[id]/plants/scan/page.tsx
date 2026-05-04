@@ -85,9 +85,14 @@ export default function MaintenancePlantScanPage() {
         return
       }
 
+      const locationData = data.locations as any
+      const resolvedLocationName = Array.isArray(locationData)
+        ? (locationData[0]?.name || '')
+        : (locationData?.name || '')
+
       setVisitTitle(data.title || '')
       setLocationId(data.location_id || '')
-      setLocationName(data.locations?.name || '')
+      setLocationName(resolvedLocationName)
       setLoadingVisit(false)
     }
 
@@ -191,7 +196,9 @@ export default function MaintenancePlantScanPage() {
           .stop()
           .catch(() => {})
           .finally(() => {
-            scanner.clear().catch(() => {})
+            try {
+              scanner.clear()
+            } catch {}
           })
       }
     }
@@ -249,7 +256,7 @@ export default function MaintenancePlantScanPage() {
           )}
 
           {scanResult && (
-            <p className="mt-4 text-sm text-gray-600 break-all">
+            <p className="mt-4 break-all text-sm text-gray-600">
               Gescande code: {scanResult}
             </p>
           )}
@@ -262,7 +269,7 @@ export default function MaintenancePlantScanPage() {
         </div>
 
         <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-700">
-          Werkt de scan niet? Controleer of de QR-code een `reference_code` zoals `PLT-...` bevat, of een plant-URL met een plant-id of `reference` query parameter.
+          Werkt de scan niet? Controleer of de QR-code een <code>reference_code</code> zoals <code>PLT-...</code> bevat, of een plant-URL met een plant-id of <code>reference</code> query parameter.
         </div>
       </div>
     </main>
