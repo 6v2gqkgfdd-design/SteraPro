@@ -32,17 +32,37 @@ export default function MaintenanceSegmentError({
             Er ging iets mis bij het laden van deze pagina. Dit kan gebeuren bij
             een trage verbinding, een verlopen sessie, of een tijdelijke storing.
           </p>
-          <p className="text-sm text-[#1A2F6E]/60 mb-10">
+          <p className="text-sm text-[#1A2F6E]/60 mb-4">
             Probeer het opnieuw, of ga terug naar het onderhoudsoverzicht.
-            {error?.digest ? (
-              <>
-                {' '}
-                <span className="font-mono text-[#1A2F6E]/50 break-all">
-                  ref: {error.digest}
-                </span>
-              </>
-            ) : null}
           </p>
+
+          <div className="mb-10 rounded border border-[#1A2F6E]/15 bg-white/60 p-3 text-xs text-[#1A2F6E]/80">
+            <p className="font-semibold uppercase tracking-wide text-[#1A2F6E]/55 mb-1">
+              Technische details
+            </p>
+            {error?.message ? (
+              <p className="font-mono break-words text-[#1A2F6E]">
+                {error.message}
+              </p>
+            ) : (
+              <p className="italic">Geen specifiek foutbericht beschikbaar.</p>
+            )}
+            {error?.digest ? (
+              <p className="mt-1 font-mono break-all text-[#1A2F6E]/55">
+                ref: {error.digest}
+              </p>
+            ) : null}
+            {error?.stack ? (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[#4A7C59]">
+                  Stack trace
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap break-all text-[10px] leading-snug text-[#1A2F6E]/70">
+                  {error.stack}
+                </pre>
+              </details>
+            ) : null}
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
