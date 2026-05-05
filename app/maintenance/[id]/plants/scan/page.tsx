@@ -232,58 +232,52 @@ export default function MaintenancePlantScanPage() {
   }, [loadingVisit, locationId, router, supabase, visitId])
 
   return (
-    <main className="p-6">
+    <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Bestaande plant scannen</h1>
+            <p className="stera-eyebrow mb-2">Onderhoud · Scannen</p>
+            <h1 className="stera-display text-3xl sm:text-4xl">Plant scannen</h1>
             {visitTitle && (
-              <p className="text-sm text-gray-600">
+              <p className="mt-2 text-sm text-stera-ink-soft">
                 Onderhoud: {visitTitle}
               </p>
             )}
             {locationName && (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-stera-ink-soft">
                 Locatie: {locationName}
               </p>
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href={`/maintenance/${visitId}/plants`}
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
               Terug
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
-            >
-              Dashboard
             </Link>
           </div>
         </div>
 
-        <div className="rounded-xl border p-5">
-          <p className="mb-4 text-sm text-gray-600">
+        <div className="stera-card">
+          <p className="mb-4 text-sm text-stera-ink-soft">
             Scan de QR-code van een plant. Bij een geldige code ga je meteen naar het onderhoudsformulier van die plant.
           </p>
 
           <div
             id="qr-reader"
-            className="overflow-hidden rounded-xl border bg-black/5"
+            className="overflow-hidden rounded-xl border border-stera-line bg-stera-cream-deep"
           />
 
           {(loadingVisit || startingScanner) && (
-            <p className="mt-4 text-sm text-gray-600">
+            <p className="mt-4 text-sm text-stera-ink-soft">
               Camera wordt gestart...
             </p>
           )}
 
           {scanResult && (
-            <p className="mt-4 break-all text-sm text-gray-600">
+            <p className="mt-4 break-all text-sm text-stera-ink-soft">
               Gescande code: {scanResult}
             </p>
           )}
@@ -295,8 +289,8 @@ export default function MaintenancePlantScanPage() {
           )}
         </div>
 
-        <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-700">
-          Deze scanner ondersteunt nu drie formaten: <code>PLT-...</code>, een plant-URL met <code>plantId</code> of <code>reference</code>, en short links zoals <code>/p/slug</code>.
+        <div className="rounded-xl border border-stera-line bg-stera-cream-deep p-4 text-xs text-stera-ink-soft">
+          Deze scanner ondersteunt drie formaten: <code className="text-stera-ink">PLT-...</code>, een plant-URL met <code className="text-stera-ink">plantId</code> of <code className="text-stera-ink">reference</code>, en short links zoals <code className="text-stera-ink">/p/slug</code>.
         </div>
       </div>
     </main>

@@ -44,17 +44,20 @@ export default function NewLocationPage() {
   }
 
   return (
-    <main className="p-6">
-      <div className="mx-auto max-w-xl">
-        <h1 className="text-2xl font-bold mb-6">Nieuwe locatie</h1>
+    <main className="bg-stera-cream p-6">
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <p className="stera-eyebrow mb-2">Locatie</p>
+          <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe locatie</h1>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border p-6">
+        <form onSubmit={handleSubmit} className="stera-card space-y-4">
           <input
             type="text"
             placeholder="Naam locatie"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             required
           />
 
@@ -63,7 +66,7 @@ export default function NewLocationPage() {
             placeholder="Verdieping"
             value={floor}
             onChange={(e) => setFloor(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <input
@@ -71,21 +74,21 @@ export default function NewLocationPage() {
             placeholder="Ruimte"
             value={room}
             onChange={(e) => setRoom(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <textarea
             placeholder="Notities"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             rows={4}
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-black px-4 py-3 text-white"
+            className="stera-cta stera-cta-primary disabled:opacity-50"
           >
             {loading ? 'Opslaan...' : 'Locatie opslaan'}
           </button>

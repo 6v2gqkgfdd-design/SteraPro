@@ -37,91 +37,82 @@ export default async function CompanyDetailPage({
     .order('created_at', { ascending: false })
 
   return (
-    <main className="p-6 space-y-6">
-      <div>
-        <Link href="/dashboard" className="text-sm underline">
+    <main className="bg-stera-cream p-6">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <Link href="/dashboard" className="text-sm text-stera-blue underline">
           ← Terug naar dashboard
         </Link>
+
+        <div>
+          <p className="stera-eyebrow mb-2">Bedrijf</p>
+          <h1 className="stera-display text-3xl sm:text-4xl">{company.name}</h1>
+
+          <div className="mt-3 space-y-1 text-sm text-stera-ink-soft">
+            {company.contact_name && <p>Contact: {company.contact_name}</p>}
+            {company.email && <p>E-mail: {company.email}</p>}
+            {company.phone && <p>Telefoon: {company.phone}</p>}
+          </div>
+
+          {company.notes && (
+            <p className="mt-3 text-sm text-stera-ink-soft">
+              {company.notes}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/companies/${company.id}/locations/new`}
+            className="stera-cta stera-cta-primary"
+          >
+            Nieuwe locatie
+          </Link>
+
+          <DeleteCompanyButton companyId={company.id} />
+        </div>
+
+        <section className="space-y-3">
+          <p className="stera-eyebrow">Locaties</p>
+
+          {locationsError ? (
+            <p className="text-red-600">
+              Fout bij ophalen locaties: {locationsError.message}
+            </p>
+          ) : !locations || locations.length === 0 ? (
+            <div className="stera-card">
+              <p className="text-sm text-stera-ink-soft">Nog geen locaties toegevoegd.</p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {locations.map((location) => (
+                <li key={location.id} className="stera-card transition hover:border-stera-blue">
+                  <Link href={`/locations/${location.id}`} className="block">
+                    <p className="font-semibold text-stera-ink">{location.name}</p>
+
+                    {location.floor && (
+                      <p className="mt-1 text-sm text-stera-ink-soft">
+                        Verdieping: {location.floor}
+                      </p>
+                    )}
+
+                    {location.room && (
+                      <p className="text-sm text-stera-ink-soft">
+                        Ruimte: {location.room}
+                      </p>
+                    )}
+
+                    {location.notes && (
+                      <p className="mt-2 text-sm text-stera-ink-soft">
+                        {location.notes}
+                      </p>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
-
-      <div>
-        <h1 className="text-3xl font-bold">{company.name}</h1>
-
-        {company.contact_name && (
-          <p className="mt-2 text-gray-600">
-            Contact: {company.contact_name}
-          </p>
-        )}
-
-        {company.email && (
-          <p className="text-gray-600">
-            E-mail: {company.email}
-          </p>
-        )}
-
-        {company.phone && (
-          <p className="text-gray-600">
-            Telefoon: {company.phone}
-          </p>
-        )}
-
-        {company.notes && (
-          <p className="mt-3 text-gray-700">
-            {company.notes}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href={`/companies/${company.id}/locations/new`}
-          className="inline-block rounded-lg bg-black px-4 py-2 text-white"
-        >
-          Nieuwe locatie
-        </Link>
-
-        <DeleteCompanyButton companyId={company.id} />
-      </div>
-
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Locaties</h2>
-
-        {locationsError ? (
-          <p className="text-red-600">
-            Fout bij ophalen locaties: {locationsError.message}
-          </p>
-        ) : !locations || locations.length === 0 ? (
-          <p>Nog geen locaties toegevoegd.</p>
-        ) : (
-          <ul className="space-y-3">
-            {locations.map((location) => (
-              <li key={location.id} className="rounded-xl border p-4">
-                <Link href={`/locations/${location.id}`} className="block">
-                  <p className="font-semibold">{location.name}</p>
-
-                  {location.floor && (
-                    <p className="text-sm text-gray-600">
-                      Verdieping: {location.floor}
-                    </p>
-                  )}
-
-                  {location.room && (
-                    <p className="text-sm text-gray-600">
-                      Ruimte: {location.room}
-                    </p>
-                  )}
-
-                  {location.notes && (
-                    <p className="mt-2 text-sm text-gray-700">
-                      {location.notes}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </main>
   )
 }

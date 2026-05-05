@@ -42,17 +42,20 @@ export default function NewCompanyPage() {
   }
 
   return (
-    <main className="p-6">
-      <div className="mx-auto max-w-xl">
-        <h1 className="text-2xl font-bold mb-6">Nieuw bedrijf</h1>
+    <main className="bg-stera-cream p-6">
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <p className="stera-eyebrow mb-2">Bedrijf</p>
+          <h1 className="stera-display text-3xl sm:text-4xl">Nieuw bedrijf</h1>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border p-6">
+        <form onSubmit={handleSubmit} className="stera-card space-y-4">
           <input
             type="text"
             placeholder="Bedrijfsnaam"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             required
           />
 
@@ -61,7 +64,7 @@ export default function NewCompanyPage() {
             placeholder="Contactpersoon"
             value={contactName}
             onChange={(e) => setContactName(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <input
@@ -69,7 +72,7 @@ export default function NewCompanyPage() {
             placeholder="E-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <input
@@ -77,21 +80,21 @@ export default function NewCompanyPage() {
             placeholder="Telefoon"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <textarea
             placeholder="Notities"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             rows={4}
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-black px-4 py-3 text-white"
+            className="stera-cta stera-cta-primary disabled:opacity-50"
           >
             {loading ? 'Opslaan...' : 'Bedrijf opslaan'}
           </button>

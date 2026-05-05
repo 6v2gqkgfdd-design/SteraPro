@@ -4,17 +4,17 @@ import { createClient } from '@/lib/supabase/server'
 function getStatusBadgeClass(status: string) {
   switch (status) {
     case 'scheduled':
-      return 'bg-blue-100 text-blue-800 border border-blue-200'
+      return 'bg-stera-blue/10 text-stera-blue border border-stera-blue/30'
     case 'in_progress':
       return 'bg-amber-100 text-amber-800 border border-amber-200'
     case 'paused':
       return 'bg-purple-100 text-purple-800 border border-purple-200'
     case 'completed':
-      return 'bg-green-100 text-green-800 border border-green-200'
+      return 'bg-stera-blue text-white border border-stera-blue'
     case 'cancelled':
       return 'bg-red-100 text-red-800 border border-red-200'
     default:
-      return 'bg-gray-100 text-gray-800 border border-gray-200'
+      return 'bg-stera-cream-deep text-stera-ink-soft border border-stera-line'
   }
 }
 
@@ -78,27 +78,30 @@ export default async function MaintenancePage({
   const error = activeTab === 'completed' ? completedError : plannedError
 
   return (
-    <main className="p-6">
+    <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Onderhoud</h1>
-            <p className="text-sm text-gray-600">
+            <p className="stera-eyebrow mb-2">Onderhoud</p>
+            <h1 className="stera-display text-3xl sm:text-4xl">
+              Geplande en voltooide beurten
+            </h1>
+            <p className="mt-2 text-sm text-stera-ink-soft">
               Beheer geplande en afgewerkte onderhoudsbeurten.
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard"
-              className="rounded-lg border px-4 py-2"
+              className="stera-cta stera-cta-ghost"
             >
               Dashboard
             </Link>
 
             <Link
               href="/maintenance/new"
-              className="rounded-lg bg-black px-4 py-2 text-white"
+              className="stera-cta stera-cta-primary"
             >
               Nieuwe afspraak
             </Link>
@@ -110,8 +113,8 @@ export default async function MaintenancePage({
             href="/maintenance?tab=planned"
             className={
               activeTab === 'planned'
-                ? 'rounded-lg bg-black px-4 py-2 text-sm text-white'
-                : 'rounded-lg border px-4 py-2 text-sm'
+                ? 'stera-cta stera-cta-primary'
+                : 'stera-cta stera-cta-ghost'
             }
           >
             Gepland
@@ -121,8 +124,8 @@ export default async function MaintenancePage({
             href="/maintenance?tab=completed"
             className={
               activeTab === 'completed'
-                ? 'rounded-lg bg-black px-4 py-2 text-sm text-white'
-                : 'rounded-lg border px-4 py-2 text-sm'
+                ? 'stera-cta stera-cta-primary'
+                : 'stera-cta stera-cta-ghost'
             }
           >
             Voltooid
@@ -140,24 +143,24 @@ export default async function MaintenancePage({
             <Link
               key={visit.id}
               href={`/maintenance/${visit.id}`}
-              className="rounded-xl border p-4 hover:bg-gray-50"
+              className="stera-card transition hover:border-stera-blue"
             >
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-semibold">{visit.title}</p>
-                  <p className="text-sm text-gray-600">
+                  <p className="font-semibold text-stera-ink">{visit.title}</p>
+                  <p className="text-sm text-stera-ink-soft">
                     {visit.locations?.name ?? 'Onbekende locatie'}
                   </p>
                 </div>
 
                 <div className="text-right text-sm">
-                  <p>
+                  <p className="text-stera-ink-soft">
                     {visit.scheduled_start
-                      ? new Date(visit.scheduled_start).toLocaleString()
+                      ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
                       : 'Geen datum'}
                   </p>
                   <span
-                    className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                    className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
                       visit.status
                     )}`}
                   >
@@ -169,7 +172,7 @@ export default async function MaintenancePage({
           ))}
 
           {!visits?.length && (
-            <div className="rounded-xl border border-dashed p-6 text-sm text-gray-600">
+            <div className="rounded-xl border border-dashed border-stera-line p-6 text-sm text-stera-ink-soft">
               {activeTab === 'planned'
                 ? 'Nog geen geplande onderhoudsafspraken gevonden.'
                 : 'Nog geen voltooide onderhoudsbeurten gevonden.'}

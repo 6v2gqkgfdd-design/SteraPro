@@ -89,15 +89,18 @@ export default function NewMaintenancePage() {
   }
 
   return (
-    <main className="p-6">
-      <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-2xl font-bold">Nieuwe onderhoudsafspraak</h1>
+    <main className="bg-stera-cream p-6">
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <p className="stera-eyebrow mb-2">Onderhoud</p>
+          <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe afspraak</h1>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border p-6">
+        <form onSubmit={handleSubmit} className="stera-card space-y-4">
           <select
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             required
           >
             <option value="">Kies een locatie</option>
@@ -113,7 +116,7 @@ export default function NewMaintenancePage() {
             placeholder="Titel van het onderhoud"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             required
           />
 
@@ -121,7 +124,7 @@ export default function NewMaintenancePage() {
             type="datetime-local"
             value={scheduledStart}
             onChange={(e) => setScheduledStart(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             required
           />
 
@@ -130,7 +133,7 @@ export default function NewMaintenancePage() {
             value={plannedTasks}
             onChange={(e) => setPlannedTasks(e.target.value)}
             rows={4}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <textarea
@@ -138,7 +141,7 @@ export default function NewMaintenancePage() {
             value={accessNotes}
             onChange={(e) => setAccessNotes(e.target.value)}
             rows={3}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <textarea
@@ -146,13 +149,13 @@ export default function NewMaintenancePage() {
             value={internalNotes}
             onChange={(e) => setInternalNotes(e.target.value)}
             rows={3}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-black px-4 py-3 text-white"
+            className="stera-cta stera-cta-primary disabled:opacity-50"
           >
             {loading ? 'Opslaan...' : 'Afspraak opslaan'}
           </button>

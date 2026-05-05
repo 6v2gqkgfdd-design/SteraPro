@@ -81,30 +81,27 @@ export default async function MaintenancePlantSelectPage({
   }
 
   return (
-    <main className="p-6">
+    <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Bestaande plant kiezen</h1>
-            <p className="text-sm text-gray-600">
-              Onderhoud: {visit.title}
-            </p>
-            <p className="text-sm text-gray-600">
-              Locatie: {locationName}
-            </p>
+            <p className="stera-eyebrow mb-2">Onderhoud · Planten</p>
+            <h1 className="stera-display text-3xl sm:text-4xl">Bestaande plant kiezen</h1>
+            <p className="mt-2 text-sm text-stera-ink-soft">Onderhoud: {visit.title}</p>
+            <p className="text-sm text-stera-ink-soft">Locatie: {locationName}</p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href={`/maintenance/${id}/plants`}
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
               Terug
             </Link>
 
             <Link
               href="/dashboard"
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
+              className="stera-cta stera-cta-secondary"
             >
               Dashboard
             </Link>
@@ -112,7 +109,7 @@ export default async function MaintenancePlantSelectPage({
         </div>
 
         {query?.error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {query.error}
           </div>
         )}
@@ -120,11 +117,11 @@ export default async function MaintenancePlantSelectPage({
         {plantsError ? (
           <p className="text-red-600">Fout bij ophalen van planten.</p>
         ) : !plants || plants.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-sm text-gray-600">
+          <div className="rounded-xl border border-dashed border-stera-line p-6 text-sm text-stera-ink-soft">
             Er zijn nog geen planten geregistreerd op deze locatie.
           </div>
         ) : (
-          <form action={addExistingPlant} className="space-y-5 rounded-xl border p-5">
+          <form action={addExistingPlant} className="stera-card space-y-5">
             <div className="space-y-2">
               <label htmlFor="plant_id" className="block text-sm font-medium">
                 Kies een bestaande plant
@@ -134,7 +131,7 @@ export default async function MaintenancePlantSelectPage({
                 name="plant_id"
                 defaultValue=""
                 required
-                className="w-full rounded-lg border px-3 py-2"
+                className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
               >
                 <option value="" disabled>
                   Selecteer een plant
@@ -150,14 +147,14 @@ export default async function MaintenancePlantSelectPage({
             <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
-                className="rounded-lg bg-black px-4 py-2 text-white"
+                className="stera-cta stera-cta-primary"
               >
                 Verder naar onderhoud
               </button>
 
               <Link
                 href={`/maintenance/${id}/plants`}
-                className="rounded-lg border px-4 py-2"
+                className="stera-cta stera-cta-ghost"
               >
                 Annuleren
               </Link>

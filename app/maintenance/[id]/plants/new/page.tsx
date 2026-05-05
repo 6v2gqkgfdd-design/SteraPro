@@ -353,42 +353,36 @@ export default function MaintenanceNewPlantPage() {
   }
 
   return (
-    <main className="p-6">
-      <div className="mx-auto max-w-xl">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <main className="bg-stera-cream p-6">
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="mb-2 text-2xl font-bold">Nieuwe plant</h1>
+            <p className="stera-eyebrow mb-2">Onderhoud · Nieuwe plant</p>
+            <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe plant</h1>
             {visitTitle && (
-              <p className="text-sm text-gray-600">
+              <p className="mt-2 text-sm text-stera-ink-soft">
                 Onderhoud: {visitTitle}
               </p>
             )}
             {locationName && (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-stera-ink-soft">
                 Locatie: {locationName}
               </p>
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href={`/maintenance/${visitId}/plants`}
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
               Terug
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
-            >
-              Dashboard
             </Link>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border p-6">
-          <div className="rounded-lg bg-gray-50 p-3 text-sm">
+        <form onSubmit={handleSubmit} className="stera-card space-y-4">
+          <div className="rounded-lg bg-stera-cream-deep p-3 text-sm">
             Referentiecode: <strong>{referenceCode || 'Wordt gegenereerd...'}</strong>
           </div>
 
@@ -397,23 +391,23 @@ export default function MaintenanceNewPlantPage() {
             accept="image/*"
             capture="environment"
             onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           {photoPreview && (
             <img
               src={photoPreview}
               alt="Preview van plantfoto"
-              className="rounded-lg border"
+              className="rounded-lg border border-stera-line"
             />
           )}
 
           {isIdentifying && (
-            <p className="text-sm text-gray-600">AI analyseert de plantfoto...</p>
+            <p className="text-sm text-stera-ink-soft">AI analyseert de plantfoto...</p>
           )}
 
           {aiSuggestedSpecies && (
-            <div className="rounded-lg bg-green-50 p-3 text-sm">
+            <div className="rounded-lg bg-stera-blue/10 border border-stera-blue/30 p-3 text-sm">
               AI suggestie: <strong>{aiSuggestedSpecies}</strong>
               {typeof aiConfidence === 'number' && (
                 <span> ({Math.round(aiConfidence * 100)}% zekerheid)</span>
@@ -426,7 +420,7 @@ export default function MaintenanceNewPlantPage() {
             placeholder="Bijnaam / plantnaam"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <input
@@ -434,13 +428,13 @@ export default function MaintenanceNewPlantPage() {
             placeholder="Soort"
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           />
 
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
           >
             <option value="healthy">Healthy</option>
             <option value="needs_attention">Needs attention</option>
@@ -453,14 +447,14 @@ export default function MaintenanceNewPlantPage() {
             placeholder="Notities"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-lg border p-3"
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
             rows={4}
           />
 
           <button
             type="submit"
             disabled={loading || !companyId || !locationId || !referenceCode}
-            className="rounded-lg bg-black px-4 py-3 text-white disabled:opacity-50"
+            className="stera-cta stera-cta-primary disabled:opacity-50"
           >
             {loading ? 'Opslaan...' : 'Plant opslaan'}
           </button>

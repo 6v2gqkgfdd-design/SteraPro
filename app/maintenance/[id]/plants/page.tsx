@@ -37,30 +37,33 @@ export default async function MaintenancePlantsPage({
     : (locationData?.name || 'Onbekende locatie')
 
   return (
-    <main className="p-6">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <main className="bg-stera-cream p-6">
+      <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Planten tijdens onderhoud</h1>
-            <p className="text-sm text-gray-600">
+            <p className="stera-eyebrow mb-2">Onderhoud · Planten</p>
+            <h1 className="stera-display text-3xl sm:text-4xl">
+              Plant toevoegen of scannen
+            </h1>
+            <p className="mt-2 text-sm text-stera-ink-soft">
               Onderhoud: {visit.title}
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-stera-ink-soft">
               Locatie: {locationName}
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href={`/maintenance/${id}`}
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
               Terug
             </Link>
 
             <Link
               href="/dashboard"
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
+              className="stera-cta stera-cta-secondary"
             >
               Dashboard
             </Link>
@@ -70,30 +73,33 @@ export default async function MaintenancePlantsPage({
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href={`/maintenance/${id}/plants/scan`}
-            className="rounded-xl border p-5 transition hover:bg-gray-50"
+            className="stera-card transition hover:border-stera-blue"
           >
-            <h2 className="mb-2 text-lg font-semibold">Plant scannen</h2>
-            <p className="text-sm text-gray-600">
+            <p className="stera-eyebrow mb-3">Optie 1</p>
+            <h2 className="mb-2 text-lg font-bold text-stera-ink">Plant scannen</h2>
+            <p className="text-sm text-stera-ink-soft">
               Scan een bestaande plant via QR-code en open meteen het onderhoudsformulier.
             </p>
           </Link>
 
           <Link
             href={`/maintenance/${id}/plants/select`}
-            className="rounded-xl border p-5 transition hover:bg-gray-50"
+            className="stera-card transition hover:border-stera-blue"
           >
-            <h2 className="mb-2 text-lg font-semibold">Bestaande plant kiezen</h2>
-            <p className="text-sm text-gray-600">
+            <p className="stera-eyebrow mb-3">Optie 2</p>
+            <h2 className="mb-2 text-lg font-bold text-stera-ink">Bestaande plant kiezen</h2>
+            <p className="text-sm text-stera-ink-soft">
               Kies een plant uit de lijst van deze locatie en registreer het onderhoud.
             </p>
           </Link>
 
           <Link
             href={`/maintenance/${id}/plants/new`}
-            className="rounded-xl border p-5 transition hover:bg-gray-50"
+            className="stera-card transition hover:border-stera-blue"
           >
-            <h2 className="mb-2 text-lg font-semibold">Nieuwe plant toevoegen</h2>
-            <p className="text-sm text-gray-600">
+            <p className="stera-eyebrow mb-3">Optie 3</p>
+            <h2 className="mb-2 text-lg font-bold text-stera-ink">Nieuwe plant toevoegen</h2>
+            <p className="text-sm text-stera-ink-soft">
               Voeg een nieuwe plant toe aan deze locatie en registreer daarna meteen het onderhoud.
             </p>
           </Link>

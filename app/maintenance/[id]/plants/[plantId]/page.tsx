@@ -602,39 +602,39 @@ export default function MaintenancePlantDetailPage() {
               <p className="text-sm text-gray-600">Onderhoud: {visitTitle}</p>
             ) : null}
             {locationName ? (
-              <p className="text-sm text-gray-600">Locatie: {locationName}</p>
+              <p className="text-sm text-stera-ink-soft">Locatie: {locationName}</p>
             ) : null}
             {plantName ? (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-stera-ink-soft">
                 Plant: {plantName}
                 {plantCode ? ` (${plantCode})` : ''}
               </p>
             ) : null}
             {species && (
-              <p className="text-sm text-gray-600">Soort: {species}</p>
+              <p className="text-sm text-stera-ink-soft">Soort: {species}</p>
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href={`/maintenance/${visitId}/plants`}
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
               Terug
             </Link>
 
             <Link
               href="/dashboard"
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
+              className="stera-cta stera-cta-secondary"
             >
               Dashboard
             </Link>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border p-6">
+        <form onSubmit={handleSubmit} className="stera-card space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={checked}
@@ -643,7 +643,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Plant gecontroleerd</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={watered}
@@ -652,7 +652,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Water gegeven</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={pruned}
@@ -661,7 +661,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Gesnoeid</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={fed}
@@ -670,7 +670,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Voeding toegevoegd</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={cleaned}
@@ -679,7 +679,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Bladeren gereinigd</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={rotated}
@@ -688,7 +688,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Gedraaid</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={repotted}
@@ -697,7 +697,7 @@ export default function MaintenancePlantDetailPage() {
               <span>Verpot</span>
             </label>
 
-            <label className="flex items-center gap-3 rounded-lg border p-3">
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
                 type="checkbox"
                 checked={replaced}
@@ -715,7 +715,7 @@ export default function MaintenancePlantDetailPage() {
               id="health_status"
               value={healthStatus}
               onChange={(e) => setHealthStatus(e.target.value)}
-              className="w-full rounded-lg border px-3 py-2"
+              className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
             >
               <option value="healthy">Healthy</option>
               <option value="needs_attention">Needs attention</option>
@@ -734,7 +734,7 @@ export default function MaintenancePlantDetailPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
-              className="w-full rounded-lg border px-3 py-2"
+              className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
               placeholder="Bijv. water gegeven, bladeren gereinigd, voeding toegevoegd..."
             />
           </div>
@@ -743,14 +743,14 @@ export default function MaintenancePlantDetailPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50"
+              className="stera-cta stera-cta-primary disabled:opacity-50"
             >
               {saving ? 'Opslaan...' : 'Onderhoud opslaan'}
             </button>
 
             <Link
               href={`/maintenance/${visitId}`}
-              className="rounded-lg border px-4 py-2"
+              className="stera-cta stera-cta-ghost"
             >
               Annuleren
             </Link>
