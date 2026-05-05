@@ -226,15 +226,15 @@ export default function MaintenancePlantDetailPage() {
 
         if (existingVisitPlant) {
           setNotes(existingVisitPlant.notes || '')
-          setWatered(Boolean(existingVisitPlant.watered))
-          setPruned(Boolean(existingVisitPlant.pruned))
-          setFed(Boolean(existingVisitPlant.fed))
-          setCleaned(Boolean(existingVisitPlant.cleaned))
-          setRotated(Boolean(existingVisitPlant.rotated))
-          setReplaced(Boolean(existingVisitPlant.replaced))
+          setWatered(Boolean(existingVisitPlant.action_watered))
+          setPruned(Boolean(existingVisitPlant.action_pruned))
+          setFed(Boolean(existingVisitPlant.action_fed))
+          setCleaned(Boolean(existingVisitPlant.action_cleaned))
+          setRotated(Boolean(existingVisitPlant.action_rotated))
+          setReplaced(Boolean(existingVisitPlant.action_replaced))
           setChecked(
-            typeof existingVisitPlant.checked === 'boolean'
-              ? existingVisitPlant.checked
+            typeof existingVisitPlant.action_checked === 'boolean'
+              ? existingVisitPlant.action_checked
               : true
           )
           setHealthStatus(
@@ -292,13 +292,13 @@ export default function MaintenancePlantDetailPage() {
         visit_id: visitId,
         plant_id: plantId,
         notes: notes.trim() || null,
-        watered,
-        pruned,
-        fed,
-        cleaned,
-        rotated,
-        replaced,
-        checked,
+        action_watered: watered,
+        action_pruned: pruned,
+        action_fed: fed,
+        action_cleaned: cleaned,
+        action_rotated: rotated,
+        action_replaced: replaced,
+        action_checked: checked,
         health_status: healthStatus,
       }
 
