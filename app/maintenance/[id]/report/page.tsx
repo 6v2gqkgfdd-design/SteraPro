@@ -261,11 +261,19 @@ export default async function MaintenanceReportPage({
                     className="rounded border border-stera-line bg-white/60 p-4 print:bg-transparent"
                   >
                     <div className="flex flex-wrap gap-4">
-                      {plant?.photo_url ? (
+                      {vp.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={vp.photo_url}
+                          alt={`Foto van ${plant?.nickname || 'plant'} tijdens dit onderhoud`}
+                          className="h-32 w-32 shrink-0 rounded object-cover"
+                        />
+                      ) : plant?.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={plant.photo_url}
                           alt={plant?.nickname || 'Plant'}
-                          className="h-24 w-24 shrink-0 rounded object-cover"
+                          className="h-24 w-24 shrink-0 rounded object-cover opacity-80"
                         />
                       ) : null}
                       <div className="min-w-0 flex-1">

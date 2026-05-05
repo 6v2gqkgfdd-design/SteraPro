@@ -123,19 +123,33 @@ export default async function MaintenanceDetailPage({
 
           <div className="space-y-3">
             {visitPlants?.map((item: any) => (
-              <div key={item.id} className="rounded-lg border border-stera-line bg-stera-cream-deep p-3">
-                <p className="font-medium">
-                  {item.plants?.nickname || 'Plant'}
-                </p>
-                <p className="text-sm text-stera-ink-soft">
-                  {item.plants?.species || 'Onbekende soort'} • {item.plants?.reference_code}
-                </p>
-                {item.notes ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink-soft">
-                    {item.notes}
-                  </p>
+              <Link
+                key={item.id}
+                href={`/maintenance/${id}/plants/${item.plant_id}`}
+                className="flex flex-wrap gap-3 rounded-lg border border-stera-line bg-stera-cream-deep p-3 transition hover:border-stera-blue"
+              >
+                {item.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.photo_url}
+                    alt="Foto van plant tijdens onderhoud"
+                    className="h-20 w-20 shrink-0 rounded object-cover"
+                  />
                 ) : null}
-              </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    {item.plants?.nickname || 'Plant'}
+                  </p>
+                  <p className="text-sm text-stera-ink-soft">
+                    {item.plants?.species || 'Onbekende soort'} • {item.plants?.reference_code}
+                  </p>
+                  {item.notes ? (
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink-soft">
+                      {item.notes}
+                    </p>
+                  ) : null}
+                </div>
+              </Link>
             ))}
 
             {!visitPlants?.length && (

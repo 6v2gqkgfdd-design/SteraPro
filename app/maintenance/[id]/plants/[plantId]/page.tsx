@@ -5,6 +5,44 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    return await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = () => reject(new Error('Afbeelding kon niet gelezen worden.'))
+      img.src = objectUrl
+    })
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function fileToJpeg(file: File): Promise<File> {
+  if (file.type === 'image/jpeg') return file
+
+  const image = await loadImageFromFile(file)
+  const width = image.naturalWidth || image.width
+  const height = image.naturalHeight || image.height
+  if (!width || !height) throw new Error('Afbeelding zonder afmetingen.')
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas niet beschikbaar.')
+  ctx.drawImage(image, 0, 0, width, height)
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', 0.9)
+  })
+  if (!blob) throw new Error('Conversie naar JPEG mislukt.')
+
+  const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo'
+  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
+}
+
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'ready' }
@@ -106,6 +144,11 @@ export default function MaintenancePlantDetailPage() {
   const [checked, setChecked] = useState(true)
   const [healthStatus, setHealthStatus] = useState('healthy')
   const [notes, setNotes] = useState('')
+
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [photoError, setPhotoError] = useState('')
 
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [saving, setSaving] = useState(false)
@@ -242,6 +285,7 @@ export default function MaintenancePlantDetailPage() {
           setHealthStatus(
             existingVisitPlant.health_status || plant.status || 'healthy'
           )
+          setExistingPhotoUrl(existingVisitPlant.photo_url ?? null)
         } else {
           setNotes('')
           setWatered(false)
@@ -253,6 +297,7 @@ export default function MaintenancePlantDetailPage() {
           setReplaced(false)
           setChecked(true)
           setHealthStatus(plant.status || 'healthy')
+          setExistingPhotoUrl(null)
         }
 
         if (visitPlantError) {
@@ -283,6 +328,34 @@ export default function MaintenancePlantDetailPage() {
     }
   }, [visitId, plantId, supabase])
 
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+    }
+  }, [photoPreview])
+
+  async function handlePhotoChange(file: File | null) {
+    setPhotoError('')
+
+    if (!file) {
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+      setPhotoFile(null)
+      setPhotoPreview('')
+      return
+    }
+
+    try {
+      const jpeg = await fileToJpeg(file)
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+      setPhotoFile(jpeg)
+      setPhotoPreview(URL.createObjectURL(jpeg))
+    } catch (err) {
+      setPhotoError(
+        err instanceof Error ? err.message : 'Foto kon niet ingeladen worden.'
+      )
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!visitId || !plantId) return
@@ -291,7 +364,27 @@ export default function MaintenancePlantDetailPage() {
     setSaveError('')
 
     try {
-      const payload = {
+      let photoPath: string | null | undefined = undefined
+      let photoUrl: string | null | undefined = undefined
+
+      if (photoFile) {
+        const fileName = `visits/${visitId}/${plantId}-${Date.now()}.jpg`
+        const { error: uploadError } = await supabase.storage
+          .from('plant-photos')
+          .upload(fileName, photoFile, {
+            upsert: false,
+            contentType: 'image/jpeg',
+          })
+        if (uploadError) throw new Error(uploadError.message)
+
+        photoPath = fileName
+        const { data: publicUrlData } = supabase.storage
+          .from('plant-photos')
+          .getPublicUrl(fileName)
+        photoUrl = publicUrlData.publicUrl
+      }
+
+      const payload: Record<string, unknown> = {
         visit_id: visitId,
         plant_id: plantId,
         notes: notes.trim() || null,
@@ -304,6 +397,11 @@ export default function MaintenancePlantDetailPage() {
         action_replaced: replaced,
         action_checked: checked,
         health_status: healthStatus,
+      }
+
+      if (photoPath !== undefined) {
+        payload.photo_path = photoPath
+        payload.photo_url = photoUrl
       }
 
       if (existingVisitPlantId) {
@@ -705,6 +803,54 @@ export default function MaintenancePlantDetailPage() {
               />
               <span>Vervangen</span>
             </label>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">
+              Foto van de plant
+            </label>
+            <p className="text-xs text-stera-ink-soft">
+              Neem een foto na het onderhoud — die wordt bewaard bij deze beurt
+              zodat klant en Stera de evolutie zien.
+            </p>
+
+            {(photoPreview || existingPhotoUrl) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photoPreview || existingPhotoUrl || ''}
+                alt="Plantfoto"
+                className="rounded-lg border border-stera-line max-h-72 w-full object-cover"
+              />
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
+                className="w-full rounded-lg border border-stera-line bg-white p-3"
+              />
+              {photoFile && (
+                <button
+                  type="button"
+                  onClick={() => handlePhotoChange(null)}
+                  className="text-sm text-stera-blue underline"
+                >
+                  Wissen
+                </button>
+              )}
+            </div>
+
+            {photoError && (
+              <p className="text-sm text-red-600">{photoError}</p>
+            )}
+
+            {existingPhotoUrl && !photoFile && (
+              <p className="text-xs text-stera-ink-soft">
+                Bestaande foto blijft behouden tot je een nieuwe neemt.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
