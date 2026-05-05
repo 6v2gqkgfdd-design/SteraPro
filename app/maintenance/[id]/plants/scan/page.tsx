@@ -203,15 +203,30 @@ export default function MaintenancePlantScanPage() {
       const scanner = scannerRef.current
       scannerRef.current = null
 
-      if (scanner) {
-        scanner
-          .stop()
-          .catch(() => {})
-          .finally(() => {
-            try {
-              scanner.clear()
-            } catch {}
-          })
+      if (!scanner) return
+
+      // html5-qrcode throws a synchronous string ("Cannot stop, scanner is
+      // not running or paused.") when stop() is called on an already-stopped
+      // scanner. The success callback above stops the scanner before
+      // router.push fires, so this cleanup almost always hits that path.
+      // Wrap the whole stop/clear chain so neither sync throws nor
+      // promise rejections can leak to the route's error boundary.
+      const safeClear = () => {
+        try {
+          scanner.clear()
+        } catch {}
+      }
+
+      try {
+        const stopResult = scanner.stop()
+
+        if (stopResult && typeof stopResult.then === 'function') {
+          stopResult.then(safeClear, safeClear)
+        } else {
+          safeClear()
+        }
+      } catch {
+        safeClear()
       }
     }
   }, [loadingVisit, locationId, router, supabase, visitId])
