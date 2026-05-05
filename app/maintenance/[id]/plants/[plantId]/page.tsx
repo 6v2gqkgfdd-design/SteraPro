@@ -101,6 +101,7 @@ export default function MaintenancePlantDetailPage() {
   const [fed, setFed] = useState(false)
   const [cleaned, setCleaned] = useState(false)
   const [rotated, setRotated] = useState(false)
+  const [repotted, setRepotted] = useState(false)
   const [replaced, setReplaced] = useState(false)
   const [checked, setChecked] = useState(true)
   const [healthStatus, setHealthStatus] = useState('healthy')
@@ -231,6 +232,7 @@ export default function MaintenancePlantDetailPage() {
           setFed(Boolean(existingVisitPlant.action_fed))
           setCleaned(Boolean(existingVisitPlant.action_cleaned))
           setRotated(Boolean(existingVisitPlant.action_rotated))
+          setRepotted(Boolean(existingVisitPlant.action_repotted))
           setReplaced(Boolean(existingVisitPlant.action_replaced))
           setChecked(
             typeof existingVisitPlant.action_checked === 'boolean'
@@ -247,6 +249,7 @@ export default function MaintenancePlantDetailPage() {
           setFed(false)
           setCleaned(false)
           setRotated(false)
+          setRepotted(false)
           setReplaced(false)
           setChecked(true)
           setHealthStatus(plant.status || 'healthy')
@@ -297,6 +300,7 @@ export default function MaintenancePlantDetailPage() {
         action_fed: fed,
         action_cleaned: cleaned,
         action_rotated: rotated,
+        action_repotted: repotted,
         action_replaced: replaced,
         action_checked: checked,
         health_status: healthStatus,
@@ -682,6 +686,15 @@ export default function MaintenancePlantDetailPage() {
                 onChange={(e) => setRotated(e.target.checked)}
               />
               <span>Gedraaid</span>
+            </label>
+
+            <label className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                checked={repotted}
+                onChange={(e) => setRepotted(e.target.checked)}
+              />
+              <span>Verpot</span>
             </label>
 
             <label className="flex items-center gap-3 rounded-lg border p-3">
