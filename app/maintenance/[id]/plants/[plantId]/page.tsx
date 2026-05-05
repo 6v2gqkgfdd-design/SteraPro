@@ -141,6 +141,12 @@ export default function MaintenancePlantDetailPage() {
   const [healthStatus, setHealthStatus] = useState('healthy')
   const [notes, setNotes] = useState('')
 
+  const [followupRepot, setFollowupRepot] = useState(false)
+  const [followupPrune, setFollowupPrune] = useState(false)
+  const [followupReplace, setFollowupReplace] = useState(false)
+  const [followupTreat, setFollowupTreat] = useState(false)
+  const [followupNotes, setFollowupNotes] = useState('')
+
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
@@ -281,6 +287,11 @@ export default function MaintenancePlantDetailPage() {
           setHealthStatus(
             existingVisitPlant.health_status || plant.status || 'healthy'
           )
+          setFollowupRepot(Boolean(existingVisitPlant.followup_repot))
+          setFollowupPrune(Boolean(existingVisitPlant.followup_prune))
+          setFollowupReplace(Boolean(existingVisitPlant.followup_replace))
+          setFollowupTreat(Boolean(existingVisitPlant.followup_treat))
+          setFollowupNotes(existingVisitPlant.followup_notes || '')
           setExistingPhotoUrl(existingVisitPlant.photo_url ?? null)
         } else {
           setNotes('')
@@ -293,6 +304,11 @@ export default function MaintenancePlantDetailPage() {
           setReplaced(false)
           setChecked(true)
           setHealthStatus(plant.status || 'healthy')
+          setFollowupRepot(false)
+          setFollowupPrune(false)
+          setFollowupReplace(false)
+          setFollowupTreat(false)
+          setFollowupNotes('')
           setExistingPhotoUrl(null)
         }
 
@@ -393,6 +409,11 @@ export default function MaintenancePlantDetailPage() {
         action_replaced: replaced,
         action_checked: checked,
         health_status: healthStatus,
+        followup_repot: followupRepot,
+        followup_prune: followupPrune,
+        followup_replace: followupReplace,
+        followup_treat: followupTreat,
+        followup_notes: followupNotes.trim() || null,
       }
 
       if (photoPath !== undefined) {
@@ -769,6 +790,63 @@ export default function MaintenancePlantDetailPage() {
               />
               <span>Vervangen</span>
             </label>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-dashed border-stera-line bg-stera-cream-deep/40 p-4">
+            <div>
+              <p className="stera-eyebrow mb-1">Volgende keer nodig</p>
+              <p className="text-xs text-stera-ink-soft">
+                Vink aan wat tijdens de volgende beurt gedaan moet worden. Dit
+                verschijnt bovenaan de eerstvolgende geplande afspraak op deze
+                locatie als voorbereidingslijst.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={followupRepot}
+                  onChange={(e) => setFollowupRepot(e.target.checked)}
+                />
+                <span>Verpotten — pot + aarde meenemen</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={followupPrune}
+                  onChange={(e) => setFollowupPrune(e.target.checked)}
+                />
+                <span>Snoeien — snoeischaar meenemen</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={followupReplace}
+                  onChange={(e) => setFollowupReplace(e.target.checked)}
+                />
+                <span>Vervangen — nieuwe plant of stek meenemen</span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={followupTreat}
+                  onChange={(e) => setFollowupTreat(e.target.checked)}
+                />
+                <span>Behandeling — verzorgingsmiddel meenemen</span>
+              </label>
+            </div>
+
+            <textarea
+              value={followupNotes}
+              onChange={(e) => setFollowupNotes(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
+              placeholder="Specifieke opmerkingen voor volgende keer (bv. 20 cm pot, witte onderzetter, ...)"
+            />
           </div>
 
           <div className="space-y-2">
