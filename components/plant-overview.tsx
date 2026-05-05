@@ -86,18 +86,29 @@ export function moodMessage(mood: PlantMood, name: string): string {
 }
 
 export function statusLabel(plant: PlantOverviewPlant): string {
-  if (plant.is_dead) return 'Plant is dood'
-  if (plant.is_dying) return 'Plant is stervend'
-  if (plant.needs_replacement) return 'Vervanging nodig'
-  return 'Gezond'
+  switch (getMood(plant)) {
+    case 'dead':
+      return 'Plant is dood'
+    case 'dying':
+      return 'Plant is stervend'
+    case 'needs-attention':
+      return 'Vraagt aandacht'
+    case 'healthy':
+      return 'Gezond'
+  }
 }
 
 export function statusColor(plant: PlantOverviewPlant): string {
-  if (plant.is_dead) return 'bg-red-100 text-red-800 border-red-300'
-  if (plant.is_dying) return 'bg-orange-100 text-orange-800 border-orange-300'
-  if (plant.needs_replacement)
-    return 'bg-yellow-100 text-yellow-800 border-yellow-300'
-  return 'bg-stera-blue/10 text-stera-blue border-stera-blue/30'
+  switch (getMood(plant)) {
+    case 'dead':
+      return 'bg-red-100 text-red-800 border-red-300'
+    case 'dying':
+      return 'bg-orange-100 text-orange-800 border-orange-300'
+    case 'needs-attention':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    case 'healthy':
+      return 'bg-stera-blue/10 text-stera-blue border-stera-blue/30'
+  }
 }
 
 export default function PlantOverview({

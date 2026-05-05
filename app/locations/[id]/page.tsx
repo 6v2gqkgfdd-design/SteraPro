@@ -2,6 +2,12 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteLocationButton from '@/components/delete-location-button'
+import {
+  getMood,
+  statusLabel,
+  statusColor,
+  type PlantOverviewPlant,
+} from '@/components/plant-overview'
 
 export default async function LocationDetailPage({
   params,
@@ -105,28 +111,19 @@ export default async function LocationDetailPage({
                       </p>
                     )}
 
-                    {plant.status && (
-                      <p className="text-sm text-stera-ink-soft">
-                        Status: {plant.status}
-                      </p>
-                    )}
-
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {plant.needs_replacement && (
-                        <span className="rounded bg-yellow-100 px-2 py-1 text-yellow-900">
-                          Vervangen
-                        </span>
-                      )}
-                      {plant.is_dying && (
-                        <span className="rounded bg-orange-100 px-2 py-1 text-orange-900">
-                          Stervend
-                        </span>
-                      )}
-                      {plant.is_dead && (
-                        <span className="rounded bg-red-100 px-2 py-1 text-red-900">
-                          Dood
-                        </span>
-                      )}
+                      {(() => {
+                        const overview = plant as PlantOverviewPlant
+                        const mood = getMood(overview)
+                        if (mood === 'healthy') return null
+                        return (
+                          <span
+                            className={`rounded border px-2 py-1 font-medium ${statusColor(overview)}`}
+                          >
+                            {statusLabel(overview)}
+                          </span>
+                        )
+                      })()}
                     </div>
 
                     {plant.notes && (
