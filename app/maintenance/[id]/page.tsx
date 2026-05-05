@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import MaintenanceActions from './maintenance-actions'
+import VisitConsumables from './visit-consumables'
 
 export default async function MaintenanceDetailPage({
   params,
@@ -94,6 +95,10 @@ export default async function MaintenanceDetailPage({
         <div className="rounded-xl border p-4">
           <h2 className="mb-4 font-semibold">Tijdsregistratie</h2>
           <MaintenanceActions visit={visit} />
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <VisitConsumables visitId={visit.id} />
         </div>
 
         <div className="rounded-xl border p-4">
