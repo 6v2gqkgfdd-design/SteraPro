@@ -278,6 +278,16 @@ export default function NewPlantInRoomPage() {
         throw new Error(plantError?.message || 'Plant opslaan mislukt.')
       }
 
+      // Fire-and-forget: laat Claude verzorgingstips genereren in de
+      // achtergrond. We blokkeren de UX hier niet voor.
+      if (species.trim()) {
+        fetch('/api/plants/care-tips', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ plantId: insertedPlant.id }),
+        }).catch(() => {})
+      }
+
       router.push(`/plants/${insertedPlant.id}`)
       router.refresh()
     } catch (err) {

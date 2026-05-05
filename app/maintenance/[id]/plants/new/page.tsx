@@ -358,6 +358,14 @@ export default function MaintenanceNewPlantPage() {
         throw new Error(plantError?.message || 'Plant opslaan mislukt.')
       }
 
+      if (species.trim()) {
+        fetch('/api/plants/care-tips', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ plantId: insertedPlant.id }),
+        }).catch(() => {})
+      }
+
       router.push(`/maintenance/${visitId}/plants/${insertedPlant.id}`)
       router.refresh()
     } catch (err) {

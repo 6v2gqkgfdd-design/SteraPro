@@ -14,6 +14,7 @@ export type PlantOverviewPlant = {
   is_dead: boolean | null
   is_dying: boolean | null
   needs_replacement: boolean | null
+  care_tips?: string | null
 }
 
 export type PlantOverviewLocation = {
@@ -228,6 +229,15 @@ export default function PlantOverview({
           </div>
         )}
       </dl>
+
+      {plant.care_tips && plant.care_tips.trim() && (
+        <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">
+          <h2 className="stera-eyebrow text-stera-blue mb-3">Verzorgingstips</h2>
+          <p className="text-sm text-stera-ink leading-relaxed whitespace-pre-wrap">
+            {plant.care_tips}
+          </p>
+        </section>
+      )}
 
       {plant.notes && (
         <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">

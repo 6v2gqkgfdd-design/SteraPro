@@ -24,7 +24,7 @@ async function lookupPlant(slug: string): Promise<PublicPlant | null> {
     const { data, error } = await supabase
       .from('plants')
       .select(
-        'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement'
+        'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips'
       )
       .eq('qr_slug', slug)
       .maybeSingle()

@@ -330,6 +330,28 @@ export default function NewPlantPage() {
         throw new Error(error.message)
       }
 
+      // Genereer verzorgingstips in de achtergrond (fire-and-forget) als
+      // we de soort kennen. We hebben hier geen plant-id terug omdat de
+      // insert geen .select() heeft, maar de care-tips route kan ook later
+      // door het openen van /plants/<id> getriggerd worden.
+      if (species.trim()) {
+        const { data: latest } = await supabase
+          .from('plants')
+          .select('id')
+          .eq('reference_code', referenceCode)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (latest?.id) {
+          fetch('/api/plants/care-tips', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ plantId: latest.id }),
+          }).catch(() => {})
+        }
+      }
+
       router.push(`/locations/${params.id}`)
       router.refresh()
     } catch (err) {

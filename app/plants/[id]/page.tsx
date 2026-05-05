@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeletePlantButton from '@/components/delete-plant-button'
+import RegenerateCareTipsButton from '@/components/regenerate-care-tips-button'
 import PlantOverview, {
   type PlantOverviewLocation,
   type PlantOverviewLog,
@@ -33,7 +34,7 @@ export default async function PlantDetailPage({
   const { data: plant, error: plantError } = await supabase
     .from('plants')
     .select(
-      'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement'
+      'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips'
     )
     .eq('id', id)
     .maybeSingle()
@@ -113,6 +114,12 @@ export default async function PlantDetailPage({
               >
                 Plant bewerken
               </Link>
+              {typedPlant.species ? (
+                <RegenerateCareTipsButton
+                  plantId={typedPlant.id}
+                  hasTips={Boolean(typedPlant.care_tips)}
+                />
+              ) : null}
               {typedPlant.qr_slug ? (
                 <Link
                   href={`/p/${typedPlant.qr_slug}`}
