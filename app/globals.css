@@ -136,6 +136,16 @@ h1, h2, h3 {
   border-color: var(--stera-ink);
 }
 
+.stera-cta-danger {
+  background: var(--stera-cream);
+  color: #B11D1D;
+  border: 2px solid #B11D1D;
+}
+.stera-cta-danger:hover {
+  background: #B11D1D;
+  color: var(--stera-cream);
+}
+
 /* ----- Cards / panelen ----- */
 
 .stera-card {

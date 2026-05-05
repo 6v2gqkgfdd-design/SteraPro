@@ -178,7 +178,7 @@ export default function EditRoomPage() {
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+                className="stera-cta stera-cta-danger disabled:opacity-50"
               >
                 {deleting ? 'Verwijderen...' : 'Ruimte verwijderen'}
               </button>

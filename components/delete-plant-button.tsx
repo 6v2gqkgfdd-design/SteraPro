@@ -53,7 +53,7 @@ export default function DeletePlantButton({
       type="button"
       onClick={handleDelete}
       disabled={loading}
-      className="rounded-lg bg-red-600 px-4 py-2 text-white"
+      className="stera-cta stera-cta-danger disabled:opacity-50"
     >
       {loading ? 'Verwijderen...' : 'Plant verwijderen'}
     </button>
