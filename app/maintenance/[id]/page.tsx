@@ -59,7 +59,14 @@ export default async function MaintenanceDetailPage({
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/maintenance/${id}/report`}
+              className="rounded-lg bg-[#1A2F6E] px-4 py-2 text-sm text-white"
+            >
+              Klantrapport
+            </Link>
+
             <Link
               href="/maintenance"
               className="rounded-lg border px-4 py-2 text-sm"
@@ -69,7 +76,7 @@ export default async function MaintenanceDetailPage({
 
             <Link
               href="/dashboard"
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
+              className="rounded-lg border px-4 py-2 text-sm"
             >
               Dashboard
             </Link>
