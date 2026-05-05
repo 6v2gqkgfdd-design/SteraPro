@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import AnimatedPlant, { type PlantMood } from '@/components/animated-plant'
 
 type Plant = {
   id: string
@@ -101,6 +102,32 @@ function statusLabel(plant: Plant): string {
   if (plant.is_dying) return 'Plant is stervend'
   if (plant.needs_replacement) return 'Vervanging nodig'
   return 'Gezond'
+}
+
+function getMood(plant: Plant): PlantMood {
+  if (plant.is_dead || plant.status === 'dead') return 'dead'
+  if (plant.is_dying || plant.status === 'replacement_needed') return 'dying'
+  if (
+    plant.needs_replacement ||
+    plant.status === 'needs_attention' ||
+    plant.status === 'maintenance_due'
+  ) {
+    return 'needs-attention'
+  }
+  return 'healthy'
+}
+
+function moodMessage(mood: PlantMood, name: string): string {
+  switch (mood) {
+    case 'healthy':
+      return `${name} voelt zich kiplekker.`
+    case 'needs-attention':
+      return `${name} kan wat extra aandacht gebruiken.`
+    case 'dying':
+      return `${name} heeft het moeilijk en heeft snel hulp nodig.`
+    case 'dead':
+      return `${name} heeft het laatste blaadje gegeven.`
+  }
 }
 
 function statusColor(plant: Plant): string {
@@ -229,21 +256,33 @@ export default async function PublicPlantPage({
     ? TASK_LABELS.filter(({ key }) => latestLog[key])
     : []
 
+  const mood = getMood(plant)
+
   return (
     <Shell>
       <div className="mx-auto w-full max-w-2xl">
         <p className="stera-eyebrow text-stera-blue mb-3">Plant · QR-overzicht</p>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
-          {title}
-        </h1>
-        {plant.species && plant.species !== title && (
-          <p className="text-base text-stera-ink-soft mb-5">{plant.species}</p>
-        )}
 
-        <div
-          className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusColor(plant)}`}
-        >
-          {statusLabel(plant)}
+        <div className="mb-6 flex flex-col items-center text-center sm:flex-row sm:items-center sm:gap-6 sm:text-left">
+          <div className="w-48 sm:w-56 shrink-0">
+            <AnimatedPlant mood={mood} />
+          </div>
+          <div className="mt-4 sm:mt-0">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              {title}
+            </h1>
+            {plant.species && plant.species !== title && (
+              <p className="mt-1 text-base text-stera-ink-soft">{plant.species}</p>
+            )}
+            <p className="mt-3 text-sm text-stera-ink">
+              {moodMessage(mood, title)}
+            </p>
+            <div
+              className={`mt-3 inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusColor(plant)}`}
+            >
+              {statusLabel(plant)}
+            </div>
+          </div>
         </div>
 
         {plant.photo_url && (
@@ -251,7 +290,7 @@ export default async function PublicPlantPage({
           <img
             src={plant.photo_url}
             alt={title}
-            className="mt-8 w-full max-h-[420px] object-cover border border-stera-line"
+            className="mt-4 w-full max-h-[420px] object-cover border border-stera-line"
           />
         )}
 
