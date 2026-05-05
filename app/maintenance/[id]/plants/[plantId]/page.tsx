@@ -5,20 +5,96 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+type LoadState =
+  | { kind: 'loading' }
+  | { kind: 'ready' }
+  | {
+      kind: 'visit-not-found'
+      visitId?: string
+    }
+  | {
+      kind: 'plant-not-found'
+      visitId?: string
+      plantId?: string
+    }
+  | {
+      kind: 'plant-wrong-location'
+      visitId?: string
+      plantId?: string
+    }
+  | {
+      kind: 'fetch-error'
+      message?: string
+      visitId?: string
+      plantId?: string
+    }
+  | { kind: 'invalid-params' }
+
+function SteraShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="min-h-screen bg-[#F7F4EF] text-[#1A2F6E] flex flex-col">
+      <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-[#1A2F6E]/15">
+        <Link
+          href="/"
+          className="stera-wordmark text-[#1A2F6E] text-base sm:text-lg"
+        >
+          Stéra<span className="text-[#4A7C59]">Pro</span>
+        </Link>
+      </header>
+      <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">{children}</div>
+      <footer className="px-5 py-5 sm:px-10 text-xs text-[#1A2F6E]/60 border-t border-[#1A2F6E]/15">
+        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+      </footer>
+    </main>
+  )
+}
+
+function FallbackCard({
+  eyebrow,
+  title,
+  body,
+  details,
+  actions,
+}: {
+  eyebrow: string
+  title: string
+  body: string
+  details?: React.ReactNode
+  actions: React.ReactNode
+}) {
+  return (
+    <div className="mx-auto w-full max-w-xl">
+      <p className="stera-eyebrow text-[#4A7C59] mb-4">{eyebrow}</p>
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+        {title}
+      </h1>
+      <p className="text-base text-[#1A2F6E]/75 leading-relaxed mb-3">{body}</p>
+      {details ? (
+        <div className="text-sm text-[#1A2F6E]/60 mb-10">{details}</div>
+      ) : (
+        <div className="mb-10" />
+      )}
+      <div className="flex flex-col sm:flex-row gap-3">{actions}</div>
+    </div>
+  )
+}
+
 export default function MaintenancePlantDetailPage() {
   const params = useParams<{ id: string; plantId: string }>()
   const router = useRouter()
   const supabase = createClient()
 
-  const visitId = params.id
-  const plantId = params.plantId
+  const visitId = params?.id
+  const plantId = params?.plantId
 
   const [visitTitle, setVisitTitle] = useState('')
   const [locationName, setLocationName] = useState('')
   const [plantName, setPlantName] = useState('')
   const [plantCode, setPlantCode] = useState('')
   const [species, setSpecies] = useState('')
-  const [existingVisitPlantId, setExistingVisitPlantId] = useState<string | null>(null)
+  const [existingVisitPlantId, setExistingVisitPlantId] = useState<string | null>(
+    null
+  )
 
   const [watered, setWatered] = useState(false)
   const [pruned, setPruned] = useState(false)
@@ -30,20 +106,27 @@ export default function MaintenancePlantDetailPage() {
   const [healthStatus, setHealthStatus] = useState('healthy')
   const [notes, setNotes] = useState('')
 
-  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true)
-      setError('')
+    let cancelled = false
 
-      const [{ data: visit, error: visitError }, { data: plant, error: plantError }, { data: existingVisitPlant, error: visitPlantError }] =
-        await Promise.all([
+    async function loadData() {
+      if (!visitId || !plantId) {
+        setState({ kind: 'invalid-params' })
+        return
+      }
+
+      setState({ kind: 'loading' })
+
+      try {
+        const [visitResult, plantResult, existingResult] = await Promise.all([
           supabase
             .from('maintenance_visits')
-            .select(`
+            .select(
+              `
               id,
               title,
               location_id,
@@ -51,13 +134,15 @@ export default function MaintenancePlantDetailPage() {
                 id,
                 name
               )
-            `)
+            `
+            )
             .eq('id', visitId)
-            .single(),
+            .maybeSingle(),
 
           supabase
             .from('plants')
-            .select(`
+            .select(
+              `
               id,
               nickname,
               plant_code,
@@ -66,9 +151,10 @@ export default function MaintenancePlantDetailPage() {
               status,
               notes,
               location_id
-            `)
+            `
+            )
             .eq('id', plantId)
-            .single(),
+            .maybeSingle(),
 
           supabase
             .from('maintenance_visit_plants')
@@ -78,80 +164,128 @@ export default function MaintenancePlantDetailPage() {
             .maybeSingle(),
         ])
 
-      if (visitError || !visit) {
-        setError('Onderhoudsbeurt niet gevonden.')
-        setLoading(false)
-        return
-      }
+        if (cancelled) return
 
-      if (plantError || !plant) {
-        setError('Plant niet gevonden.')
-        setLoading(false)
-        return
-      }
+        const { data: visit, error: visitError } = visitResult
+        const { data: plant, error: plantError } = plantResult
+        const { data: existingVisitPlant, error: visitPlantError } =
+          existingResult
 
-      if (plant.location_id !== visit.location_id) {
-        setError('Deze plant hoort niet bij de locatie van deze onderhoudsbeurt.')
-        setLoading(false)
-        return
-      }
+        if (visitError) {
+          setState({
+            kind: 'fetch-error',
+            message: visitError.message,
+            visitId,
+            plantId,
+          })
+          return
+        }
 
-      const locationData = visit.locations as any
-      const resolvedLocationName = Array.isArray(locationData)
-        ? (locationData[0]?.name || '')
-        : (locationData?.name || '')
+        if (!visit) {
+          setState({ kind: 'visit-not-found', visitId })
+          return
+        }
 
-      setVisitTitle(visit.title || '')
-      setLocationName(resolvedLocationName)
-      setPlantName(
-        plant.nickname || plant.plant_code || plant.reference_code || 'Plant'
-      )
-      setPlantCode(plant.reference_code || plant.plant_code || '')
-      setSpecies(plant.species || '')
-      setExistingVisitPlantId(existingVisitPlant?.id || null)
+        if (plantError) {
+          setState({
+            kind: 'fetch-error',
+            message: plantError.message,
+            visitId,
+            plantId,
+          })
+          return
+        }
 
-      if (visitPlantError) {
-        setError('Kon bestaand onderhoud voor deze plant niet ophalen.')
-      }
+        if (!plant) {
+          setState({ kind: 'plant-not-found', visitId, plantId })
+          return
+        }
 
-      if (existingVisitPlant) {
-        setNotes(existingVisitPlant.notes || '')
-        setWatered(Boolean(existingVisitPlant.watered))
-        setPruned(Boolean(existingVisitPlant.pruned))
-        setFed(Boolean(existingVisitPlant.fed))
-        setCleaned(Boolean(existingVisitPlant.cleaned))
-        setRotated(Boolean(existingVisitPlant.rotated))
-        setReplaced(Boolean(existingVisitPlant.replaced))
-        setChecked(
-          typeof existingVisitPlant.checked === 'boolean'
-            ? existingVisitPlant.checked
-            : true
+        if (
+          visit.location_id &&
+          plant.location_id &&
+          plant.location_id !== visit.location_id
+        ) {
+          setState({ kind: 'plant-wrong-location', visitId, plantId })
+          return
+        }
+
+        const locationData = visit.locations as unknown
+        const resolvedLocationName = Array.isArray(locationData)
+          ? ((locationData[0] as { name?: string } | undefined)?.name ?? '')
+          : ((locationData as { name?: string } | null | undefined)?.name ?? '')
+
+        setVisitTitle(visit.title || '')
+        setLocationName(resolvedLocationName)
+        setPlantName(
+          plant.nickname || plant.plant_code || plant.reference_code || 'Plant'
         )
-        setHealthStatus(existingVisitPlant.health_status || plant.status || 'healthy')
-      } else {
-        setNotes('')
-        setWatered(false)
-        setPruned(false)
-        setFed(false)
-        setCleaned(false)
-        setRotated(false)
-        setReplaced(false)
-        setChecked(true)
-        setHealthStatus(plant.status || 'healthy')
-      }
+        setPlantCode(plant.reference_code || plant.plant_code || '')
+        setSpecies(plant.species || '')
+        setExistingVisitPlantId(existingVisitPlant?.id ?? null)
 
-      setLoading(false)
+        if (existingVisitPlant) {
+          setNotes(existingVisitPlant.notes || '')
+          setWatered(Boolean(existingVisitPlant.watered))
+          setPruned(Boolean(existingVisitPlant.pruned))
+          setFed(Boolean(existingVisitPlant.fed))
+          setCleaned(Boolean(existingVisitPlant.cleaned))
+          setRotated(Boolean(existingVisitPlant.rotated))
+          setReplaced(Boolean(existingVisitPlant.replaced))
+          setChecked(
+            typeof existingVisitPlant.checked === 'boolean'
+              ? existingVisitPlant.checked
+              : true
+          )
+          setHealthStatus(
+            existingVisitPlant.health_status || plant.status || 'healthy'
+          )
+        } else {
+          setNotes('')
+          setWatered(false)
+          setPruned(false)
+          setFed(false)
+          setCleaned(false)
+          setRotated(false)
+          setReplaced(false)
+          setChecked(true)
+          setHealthStatus(plant.status || 'healthy')
+        }
+
+        if (visitPlantError) {
+          setSaveError(
+            'Bestaande onderhoudsregistratie kon niet opgehaald worden. Je kan een nieuwe maken.'
+          )
+        } else {
+          setSaveError('')
+        }
+
+        setState({ kind: 'ready' })
+      } catch (err) {
+        if (cancelled) return
+        console.error('[maintenance plant load]', err)
+        setState({
+          kind: 'fetch-error',
+          message: err instanceof Error ? err.message : undefined,
+          visitId,
+          plantId,
+        })
+      }
     }
 
-    if (visitId && plantId) {
-      loadData()
+    loadData()
+
+    return () => {
+      cancelled = true
     }
   }, [visitId, plantId, supabase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!visitId || !plantId) return
+
     setSaving(true)
-    setError('')
+    setSaveError('')
 
     try {
       const payload = {
@@ -188,7 +322,7 @@ export default function MaintenancePlantDetailPage() {
           throw error
         }
 
-        setExistingVisitPlantId(data.id)
+        setExistingVisitPlantId(data?.id ?? null)
       }
 
       const { error: plantUpdateError } = await supabase
@@ -206,19 +340,251 @@ export default function MaintenancePlantDetailPage() {
       router.push(`/maintenance/${visitId}`)
       router.refresh()
     } catch (err) {
-      console.error(err)
-      setError(err instanceof Error ? err.message : 'Opslaan mislukt.')
+      console.error('[maintenance plant save]', err)
+      setSaveError(err instanceof Error ? err.message : 'Opslaan mislukt.')
       setSaving(false)
     }
   }
 
-  if (loading) {
+  if (state.kind === 'loading') {
     return (
-      <main className="p-6">
-        <div className="mx-auto max-w-2xl">
-          <p className="text-sm text-gray-600">Plantgegevens laden...</p>
+      <SteraShell>
+        <div className="mx-auto w-full max-w-2xl">
+          <p className="stera-eyebrow text-[#4A7C59] mb-3">
+            Onderhoud · Plant
+          </p>
+          <p className="text-sm text-[#1A2F6E]/70">Plantgegevens laden...</p>
         </div>
-      </main>
+      </SteraShell>
+    )
+  }
+
+  if (state.kind === 'invalid-params') {
+    return (
+      <SteraShell>
+        <FallbackCard
+          eyebrow="Onderhoud · Ongeldige link"
+          title="Onvolledige onderhoudslink"
+          body="Deze link mist een onderhouds- of plant-id. Open de onderhoudsbeurt opnieuw of scan de QR-code van de plant."
+          actions={
+            <>
+              <Link
+                href="/maintenance"
+                className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+              >
+                Onderhoudsoverzicht →
+              </Link>
+              <Link
+                href="/dashboard"
+                className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+              >
+                Dashboard
+              </Link>
+            </>
+          }
+        />
+      </SteraShell>
+    )
+  }
+
+  if (state.kind === 'visit-not-found') {
+    return (
+      <SteraShell>
+        <FallbackCard
+          eyebrow="Onderhoud · Niet gevonden"
+          title="Onderhoudsbeurt niet gevonden"
+          body="We konden geen onderhoudsbeurt vinden bij deze link. Mogelijk is de beurt verwijderd, of ben je niet aangemeld."
+          details={
+            state.visitId ? (
+              <>
+                Onderhouds-id:{' '}
+                <span className="font-mono text-[#1A2F6E] break-all">
+                  {state.visitId}
+                </span>
+              </>
+            ) : null
+          }
+          actions={
+            <>
+              <Link
+                href="/maintenance"
+                className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+              >
+                Onderhoudsoverzicht →
+              </Link>
+              <Link
+                href="/login"
+                className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+              >
+                Inloggen
+              </Link>
+              <Link
+                href="/dashboard"
+                className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+              >
+                Dashboard
+              </Link>
+            </>
+          }
+        />
+      </SteraShell>
+    )
+  }
+
+  if (state.kind === 'plant-not-found') {
+    return (
+      <SteraShell>
+        <FallbackCard
+          eyebrow="Plant · Niet gevonden"
+          title="Plant niet gevonden"
+          body="Deze plant bestaat niet meer of is niet toegankelijk met je huidige sessie. Scan de QR-code opnieuw of kies een plant uit de lijst."
+          details={
+            <>
+              {state.plantId ? (
+                <>
+                  Gescande plant-id:{' '}
+                  <span className="font-mono text-[#1A2F6E] break-all">
+                    {state.plantId}
+                  </span>
+                </>
+              ) : null}
+            </>
+          }
+          actions={
+            <>
+              {state.visitId ? (
+                <>
+                  <Link
+                    href={`/maintenance/${state.visitId}/plants/scan`}
+                    className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+                  >
+                    Opnieuw scannen →
+                  </Link>
+                  <Link
+                    href={`/maintenance/${state.visitId}/plants`}
+                    className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+                  >
+                    Plant kiezen
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/maintenance"
+                  className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+                >
+                  Onderhoudsoverzicht →
+                </Link>
+              )}
+              <Link
+                href="/dashboard"
+                className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+              >
+                Dashboard
+              </Link>
+            </>
+          }
+        />
+      </SteraShell>
+    )
+  }
+
+  if (state.kind === 'plant-wrong-location') {
+    return (
+      <SteraShell>
+        <FallbackCard
+          eyebrow="Plant · Verkeerde locatie"
+          title="Plant hoort niet bij deze onderhoudsbeurt"
+          body="Deze plant staat op een andere locatie dan de huidige onderhoudsbeurt. Scan een plant van de juiste locatie, of voeg de plant eerst toe aan deze locatie."
+          details={
+            state.plantId ? (
+              <>
+                Plant-id:{' '}
+                <span className="font-mono text-[#1A2F6E] break-all">
+                  {state.plantId}
+                </span>
+              </>
+            ) : null
+          }
+          actions={
+            <>
+              {state.visitId ? (
+                <Link
+                  href={`/maintenance/${state.visitId}/plants/scan`}
+                  className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+                >
+                  Opnieuw scannen →
+                </Link>
+              ) : null}
+              {state.visitId ? (
+                <Link
+                  href={`/maintenance/${state.visitId}`}
+                  className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+                >
+                  Terug naar onderhoud
+                </Link>
+              ) : null}
+              <Link
+                href="/dashboard"
+                className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+              >
+                Dashboard
+              </Link>
+            </>
+          }
+        />
+      </SteraShell>
+    )
+  }
+
+  if (state.kind === 'fetch-error') {
+    return (
+      <SteraShell>
+        <FallbackCard
+          eyebrow="Onderhoud · Fout"
+          title="Deze onderhoudspagina kon niet geladen worden"
+          body="Er ging iets mis bij het ophalen van deze plant. Dit kan een tijdelijke storing zijn, of je sessie is verlopen."
+          details={
+            <>
+              {state.message ? (
+                <p className="break-words">{state.message}</p>
+              ) : null}
+              {state.plantId ? (
+                <p className="mt-1">
+                  Plant-id:{' '}
+                  <span className="font-mono text-[#1A2F6E] break-all">
+                    {state.plantId}
+                  </span>
+                </p>
+              ) : null}
+            </>
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => router.refresh()}
+                className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+              >
+                Opnieuw proberen →
+              </button>
+              {state.visitId ? (
+                <Link
+                  href={`/maintenance/${state.visitId}`}
+                  className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+                >
+                  Terug naar onderhoud
+                </Link>
+              ) : null}
+              <Link
+                href="/login"
+                className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+              >
+                Inloggen
+              </Link>
+            </>
+          }
+        />
+      </SteraShell>
     )
   }
 
@@ -228,12 +594,18 @@ export default function MaintenancePlantDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Onderhoud registreren</h1>
-            <p className="text-sm text-gray-600">Onderhoud: {visitTitle}</p>
-            <p className="text-sm text-gray-600">Locatie: {locationName}</p>
-            <p className="text-sm text-gray-600">
-              Plant: {plantName}
-              {plantCode ? ` (${plantCode})` : ''}
-            </p>
+            {visitTitle ? (
+              <p className="text-sm text-gray-600">Onderhoud: {visitTitle}</p>
+            ) : null}
+            {locationName ? (
+              <p className="text-sm text-gray-600">Locatie: {locationName}</p>
+            ) : null}
+            {plantName ? (
+              <p className="text-sm text-gray-600">
+                Plant: {plantName}
+                {plantCode ? ` (${plantCode})` : ''}
+              </p>
+            ) : null}
             {species && (
               <p className="text-sm text-gray-600">Soort: {species}</p>
             )}
@@ -371,9 +743,9 @@ export default function MaintenancePlantDetailPage() {
             </Link>
           </div>
 
-          {error && (
+          {saveError && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {error}
+              {saveError}
             </div>
           )}
         </form>
