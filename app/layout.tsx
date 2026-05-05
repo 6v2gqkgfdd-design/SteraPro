@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Instrument_Sans, Instrument_Serif } from 'next/font/google'
 import './globals.css'
+import AppNav from '@/components/app-nav'
 
 const instrumentSans = Instrument_Sans({
   variable: '--font-instrument-sans',
@@ -42,7 +43,8 @@ export default function RootLayout({
       className={`${instrumentSans.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-stera-cream text-stera-ink">
-        {children}
+        <div className="md:pl-20 pb-24 md:pb-0">{children}</div>
+        <AppNav />
       </body>
     </html>
   )
