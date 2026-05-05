@@ -68,16 +68,9 @@ export default async function RoomDetailPage({
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         {locationData?.id ? (
-          <Link
-            href={`/locations/${locationData.id}`}
-            className="text-sm text-stera-green underline"
-          >
-            ← Terug naar locatie
-          </Link>
+          <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
         ) : (
-          <Link href="/dashboard" className="text-sm text-stera-green underline">
-            ← Terug naar dashboard
-          </Link>
+          <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
         )}
 
         <div>

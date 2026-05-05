@@ -65,6 +65,7 @@ export default async function DashboardPage() {
       eyebrow: 'Zoeken',
       title: 'Plant opzoeken',
       description: 'Zoek op bijnaam, soort, referentiecode of QR-slug.',
+      badge: plantsCount ? `${plantsCount} planten` : null,
     },
     {
       href: '/maintenance',
@@ -86,21 +87,12 @@ export default async function DashboardPage() {
   return (
     <main className="bg-stera-cream px-5 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-6xl space-y-10">
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <p className="stera-eyebrow mb-3">Dashboard</p>
-            <SteraLogo variant="hero" href={null} />
-            <p className="mt-4 text-base text-stera-ink-soft">
-              Ingelogd als {user.email}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-right text-xs text-stera-ink-soft sm:grid-cols-4">
-            <Stat label="Bedrijven" value={companiesCount ?? 0} />
-            <Stat label="Locaties" value={null /* niet uitgelicht */} hide />
-            <Stat label="Planten" value={plantsCount ?? 0} />
-            <Stat label="Voltooid" value={completedCount ?? 0} />
-          </div>
+        <div>
+          <p className="stera-eyebrow mb-3">Dashboard</p>
+          <SteraLogo variant="hero" href={null} />
+          <p className="mt-4 text-base text-stera-ink-soft">
+            Ingelogd als {user.email}
+          </p>
         </div>
 
         <section>
@@ -139,22 +131,3 @@ export default async function DashboardPage() {
   )
 }
 
-function Stat({
-  label,
-  value,
-  hide = false,
-}: {
-  label: string
-  value: number | null
-  hide?: boolean
-}) {
-  if (hide) return <div />
-  return (
-    <div className="rounded-lg border border-stera-line bg-white px-3 py-2 text-left">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
-        {label}
-      </p>
-      <p className="text-lg font-bold text-stera-ink">{value ?? 0}</p>
-    </div>
-  )
-}

@@ -147,9 +147,7 @@ export default function GlobalScanPage() {
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-        <Link href="/dashboard" className="text-sm text-stera-green underline">
-          ← Terug naar dashboard
-        </Link>
+        <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
 
         <div>
           <p className="stera-eyebrow mb-2">Scan</p>

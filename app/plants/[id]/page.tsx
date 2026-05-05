@@ -76,23 +76,11 @@ export default async function PlantDetailPage({
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         {typedPlant.room_id ? (
-          <Link
-            href={`/rooms/${typedPlant.room_id}`}
-            className="text-sm text-stera-green underline"
-          >
-            ← Terug naar ruimte
-          </Link>
+          <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
         ) : typedPlant.location_id ? (
-          <Link
-            href={`/locations/${typedPlant.location_id}`}
-            className="text-sm text-stera-green underline"
-          >
-            ← Terug naar locatie
-          </Link>
+          <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
         ) : (
-          <Link href="/dashboard" className="text-sm text-stera-green underline">
-            ← Terug naar dashboard
-          </Link>
+          <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
         )}
 
         <PlantOverview

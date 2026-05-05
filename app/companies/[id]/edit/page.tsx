@@ -88,12 +88,7 @@ export default function EditCompanyPage() {
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-2xl space-y-6">
-        <Link
-          href={`/companies/${companyId}`}
-          className="text-sm text-stera-green underline"
-        >
-          ← Terug naar bedrijf
-        </Link>
+        <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
 
         <div>
           <p className="stera-eyebrow mb-2">Bedrijf</p>

@@ -51,12 +51,7 @@ export default function NewRoomPage() {
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-2xl space-y-6">
-        <Link
-          href={`/locations/${locationId}`}
-          className="text-sm text-stera-green underline"
-        >
-          ← Terug naar locatie
-        </Link>
+        <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
 
         <div>
           <p className="stera-eyebrow mb-2">Ruimte</p>
