@@ -6,7 +6,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { Html5Qrcode } from 'html5-qrcode'
 import { createClient } from '@/lib/supabase/client'
 
-function extractPlantReference(rawValue: string) {
+type ExtractedPlantReference =
+  | { type: 'plantId'; value: string }
+  | { type: 'reference'; value: string }
+  | { type: 'qrSlug'; value: string }
+
+function extractPlantReference(rawValue: string): ExtractedPlantReference | null {
   const value = rawValue.trim()
 
   if (!value) return null
@@ -17,19 +22,24 @@ function extractPlantReference(rawValue: string) {
 
       const byPlantId = url.searchParams.get('plantId')
       if (byPlantId) {
-        return { type: 'plantId' as const, value: byPlantId }
+        return { type: 'plantId', value: byPlantId }
       }
 
       const byReference = url.searchParams.get('reference')
       if (byReference) {
-        return { type: 'reference' as const, value: byReference }
+        return { type: 'reference', value: byReference }
       }
 
       const parts = url.pathname.split('/').filter(Boolean)
-      const plantsIndex = parts.findIndex((part) => part === 'plants')
 
+      const plantsIndex = parts.findIndex((part) => part === 'plants')
       if (plantsIndex >= 0 && parts[plantsIndex + 1]) {
-        return { type: 'plantId' as const, value: parts[plantsIndex + 1] }
+        return { type: 'plantId', value: parts[plantsIndex + 1] }
+      }
+
+      const shortLinkIndex = parts.findIndex((part) => part === 'p')
+      if (shortLinkIndex >= 0 && parts[shortLinkIndex + 1]) {
+        return { type: 'qrSlug', value: parts[shortLinkIndex + 1] }
       }
     } catch {
       return null
@@ -37,10 +47,10 @@ function extractPlantReference(rawValue: string) {
   }
 
   if (value.startsWith('PLT-')) {
-    return { type: 'reference' as const, value }
+    return { type: 'reference', value }
   }
 
-  return { type: 'reference' as const, value }
+  return { type: 'reference', value }
 }
 
 export default function MaintenancePlantScanPage() {
@@ -140,13 +150,15 @@ export default function MaintenancePlantScanPage() {
 
             let plantQuery = supabase
               .from('plants')
-              .select('id, location_id, reference_code')
+              .select('id, location_id, reference_code, qr_slug')
               .limit(1)
 
             if (extracted.type === 'plantId') {
               plantQuery = plantQuery.eq('id', extracted.value)
-            } else {
+            } else if (extracted.type === 'reference') {
               plantQuery = plantQuery.eq('reference_code', extracted.value)
+            } else {
+              plantQuery = plantQuery.eq('qr_slug', extracted.value)
             }
 
             const { data: plant, error: plantError } = await plantQuery.maybeSingle()
@@ -269,7 +281,7 @@ export default function MaintenancePlantScanPage() {
         </div>
 
         <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-700">
-          Werkt de scan niet? Controleer of de QR-code een <code>reference_code</code> zoals <code>PLT-...</code> bevat, of een plant-URL met een plant-id of <code>reference</code> query parameter.
+          Deze scanner ondersteunt nu drie formaten: <code>PLT-...</code>, een plant-URL met <code>plantId</code> of <code>reference</code>, en short links zoals <code>/p/slug</code>.
         </div>
       </div>
     </main>
