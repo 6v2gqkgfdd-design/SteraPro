@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import SteraLogo from '@/components/stera-logo'
+import WeatherPill from '@/components/weather-pill'
+import { getTodaysWeather } from '@/lib/weather'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -33,6 +35,7 @@ export default async function DashboardPage() {
     { data: upcomingVisits },
     { data: recentVisits },
     { data: flaggedVisitPlants },
+    weather,
   ] = await Promise.all([
     // Vandaag — alleen open beurten (geen voltooide/geannuleerde)
     supabase
@@ -80,6 +83,9 @@ export default async function DashboardPage() {
       .in('health_status', ['needs-attention', 'dying'])
       .order('scanned_at', { ascending: false })
       .limit(20),
+
+    // Weersverwachting (faalveilig — null als API down is)
+    getTodaysWeather(),
   ])
 
   // Dedupe op plant_id: alleen de laatst geziene status telt
@@ -155,6 +161,7 @@ export default async function DashboardPage() {
             {greeting}. Vandaag is het {todayLabel}.
           </p>
           <p className="mt-1 text-sm text-stera-ink-soft">{summaryLine}</p>
+          {weather ? <WeatherPill weather={weather} /> : null}
         </div>
 
         {/* Vandaag */}
