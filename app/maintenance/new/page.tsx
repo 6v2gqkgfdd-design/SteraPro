@@ -4,11 +4,29 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+type Company = {
+  id: string
+  name: string
+}
+
+type Location = {
+  id: string
+  name: string
+  company_id: string
+  floor: string | null
+  room: string | null
+}
+
 export default function NewMaintenancePage() {
   const supabase = createClient()
   const router = useRouter()
 
-  const [locations, setLocations] = useState<any[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
+  const [loadingCompanies, setLoadingCompanies] = useState(true)
+  const [loadingLocations, setLoadingLocations] = useState(false)
+
+  const [companyId, setCompanyId] = useState('')
   const [locationId, setLocationId] = useState('')
   const [title, setTitle] = useState('')
   const [scheduledStart, setScheduledStart] = useState('')
@@ -18,23 +36,66 @@ export default function NewMaintenancePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Load companies once
   useEffect(() => {
-    async function loadLocations() {
+    async function loadCompanies() {
+      setLoadingCompanies(true)
       const { data, error } = await supabase
-        .from('locations')
-        .select('id, name, company_id')
-        .order('name')
+        .from('companies')
+        .select('id, name')
+        .order('name', { ascending: true })
 
       if (error) {
         setError(error.message)
+        setLoadingCompanies(false)
         return
       }
 
-      setLocations(data || [])
+      setCompanies((data ?? []) as Company[])
+      setLoadingCompanies(false)
+    }
+
+    loadCompanies()
+  }, [supabase])
+
+  // Load locations whenever company changes
+  useEffect(() => {
+    if (!companyId) {
+      setLocations([])
+      setLocationId('')
+      return
+    }
+
+    let cancelled = false
+
+    async function loadLocations() {
+      setLoadingLocations(true)
+
+      const { data, error } = await supabase
+        .from('locations')
+        .select('id, name, company_id, floor, room')
+        .eq('company_id', companyId)
+        .order('name', { ascending: true })
+
+      if (cancelled) return
+
+      if (error) {
+        setError(error.message)
+        setLoadingLocations(false)
+        return
+      }
+
+      setLocations((data ?? []) as Location[])
+      setLocationId('')
+      setLoadingLocations(false)
     }
 
     loadLocations()
-  }, [supabase])
+
+    return () => {
+      cancelled = true
+    }
+  }, [companyId, supabase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,11 +103,8 @@ export default function NewMaintenancePage() {
     setError('')
 
     try {
-      const selectedLocation = locations.find((loc) => loc.id === locationId)
-
-      if (!selectedLocation) {
-        throw new Error('Kies eerst een locatie.')
-      }
+      if (!companyId) throw new Error('Kies eerst een bedrijf.')
+      if (!locationId) throw new Error('Kies een locatie.')
 
       const { data: previousVisit } = await supabase
         .from('maintenance_visits')
@@ -61,7 +119,7 @@ export default function NewMaintenancePage() {
         .from('maintenance_visits')
         .insert([
           {
-            company_id: selectedLocation.company_id,
+            company_id: companyId,
             location_id: locationId,
             title,
             scheduled_start: new Date(scheduledStart).toISOString(),
@@ -81,12 +139,15 @@ export default function NewMaintenancePage() {
 
       router.push(`/maintenance/${data.id}`)
       router.refresh()
-
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Opslaan mislukt.')
       setLoading(false)
     }
   }
+
+  const noCompanies = !loadingCompanies && companies.length === 0
+  const noLocations =
+    !!companyId && !loadingLocations && locations.length === 0
 
   return (
     <main className="bg-stera-cream p-6">
@@ -96,65 +157,148 @@ export default function NewMaintenancePage() {
           <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe afspraak</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="stera-card space-y-4">
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-            required
-          >
-            <option value="">Kies een locatie</option>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
+        <form onSubmit={handleSubmit} className="stera-card space-y-5">
+          {/* Step 1 — bedrijf */}
+          <div className="space-y-1">
+            <label htmlFor="company" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              1 · Bedrijf
+            </label>
+            <select
+              id="company"
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+              required
+              disabled={loadingCompanies || noCompanies}
+            >
+              <option value="">
+                {loadingCompanies
+                  ? 'Bedrijven laden...'
+                  : noCompanies
+                    ? 'Nog geen bedrijven beschikbaar'
+                    : 'Kies een bedrijf'}
               </option>
-            ))}
-          </select>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+            {noCompanies && (
+              <p className="text-xs text-stera-ink-soft">
+                Voeg eerst een bedrijf toe via het dashboard.
+              </p>
+            )}
+          </div>
 
-          <input
-            type="text"
-            placeholder="Titel van het onderhoud"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-            required
-          />
+          {/* Step 2 — locatie */}
+          <div className="space-y-1">
+            <label htmlFor="location" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              2 · Locatie
+            </label>
+            <select
+              id="location"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="w-full rounded-lg border border-stera-line bg-white p-3 disabled:bg-stera-cream-deep disabled:text-stera-ink-soft"
+              required
+              disabled={!companyId || loadingLocations || noLocations}
+            >
+              <option value="">
+                {!companyId
+                  ? 'Kies eerst een bedrijf'
+                  : loadingLocations
+                    ? 'Locaties laden...'
+                    : noLocations
+                      ? 'Geen locaties bij dit bedrijf'
+                      : 'Kies een locatie'}
+              </option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                  {location.floor || location.room
+                    ? ` — ${[location.floor, location.room].filter(Boolean).join(' · ')}`
+                    : ''}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <input
-            type="datetime-local"
-            value={scheduledStart}
-            onChange={(e) => setScheduledStart(e.target.value)}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-            required
-          />
+          {/* Step 3 — details */}
+          <div className="space-y-1">
+            <label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              3 · Titel
+            </label>
+            <input
+              id="title"
+              type="text"
+              placeholder="Bijv. Onderhoud lente Q2"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+              required
+            />
+          </div>
 
-          <textarea
-            placeholder="Geplande taken"
-            value={plannedTasks}
-            onChange={(e) => setPlannedTasks(e.target.value)}
-            rows={4}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-          />
+          <div className="space-y-1">
+            <label htmlFor="scheduled_start" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              4 · Datum & tijdstip
+            </label>
+            <input
+              id="scheduled_start"
+              type="datetime-local"
+              value={scheduledStart}
+              onChange={(e) => setScheduledStart(e.target.value)}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+              required
+            />
+          </div>
 
-          <textarea
-            placeholder="Toegang / praktische info"
-            value={accessNotes}
-            onChange={(e) => setAccessNotes(e.target.value)}
-            rows={3}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-          />
+          <div className="space-y-1">
+            <label htmlFor="planned_tasks" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              Geplande taken
+            </label>
+            <textarea
+              id="planned_tasks"
+              placeholder="Wat wil je vandaag doen? Vrij in te vullen."
+              value={plannedTasks}
+              onChange={(e) => setPlannedTasks(e.target.value)}
+              rows={4}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+            />
+          </div>
 
-          <textarea
-            placeholder="Interne opmerkingen"
-            value={internalNotes}
-            onChange={(e) => setInternalNotes(e.target.value)}
-            rows={3}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-          />
+          <div className="space-y-1">
+            <label htmlFor="access_notes" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              Toegang / praktische info
+            </label>
+            <textarea
+              id="access_notes"
+              placeholder="Bijv. badge bij de receptie, parkeren achteraan."
+              value={accessNotes}
+              onChange={(e) => setAccessNotes(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="internal_notes" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              Interne opmerkingen
+            </label>
+            <textarea
+              id="internal_notes"
+              placeholder="Niet zichtbaar voor de klant."
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+            />
+          </div>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !companyId || !locationId}
             className="stera-cta stera-cta-primary disabled:opacity-50"
           >
             {loading ? 'Opslaan...' : 'Afspraak opslaan'}
