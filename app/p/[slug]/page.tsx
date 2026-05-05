@@ -9,6 +9,7 @@ import PlantOverview, {
   type PlantOverviewPlant,
   type PlantOverviewRoom,
 } from '@/components/plant-overview'
+import PlantReportForm from './report-form'
 
 type PublicPlant = PlantOverviewPlant & { room_id?: string | null }
 
@@ -174,22 +175,26 @@ export default async function PublicPlantPage({
 
   return (
     <Shell>
-      <PlantOverview
-        plant={plant}
-        location={location}
-        room={room}
-        latestLog={latestLog}
-        actions={
-          <>
-            <Link href="/login" className="stera-cta stera-cta-primary">
-              Inloggen voor onderhoud →
-            </Link>
-            <Link href="/" className="stera-cta stera-cta-secondary">
-              Terug naar start →
-            </Link>
-          </>
-        }
-      />
+      <div className="mx-auto w-full max-w-2xl space-y-8">
+        <PlantOverview
+          plant={plant}
+          location={location}
+          room={room}
+          latestLog={latestLog}
+          actions={
+            <>
+              <Link href="/login" className="stera-cta stera-cta-primary">
+                Inloggen voor onderhoud →
+              </Link>
+              <Link href="/" className="stera-cta stera-cta-secondary">
+                Terug naar start →
+              </Link>
+            </>
+          }
+        />
+
+        <PlantReportForm slug={slug} />
+      </div>
     </Shell>
   )
 }

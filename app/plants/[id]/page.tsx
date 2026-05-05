@@ -9,6 +9,9 @@ import PlantOverview, {
   type PlantOverviewPlant,
   type PlantOverviewRoom,
 } from '@/components/plant-overview'
+import PlantReportList, {
+  type PlantReportRow,
+} from '@/components/plant-report-list'
 
 type PlantRow = PlantOverviewPlant & {
   room_id?: string | null
@@ -45,32 +48,46 @@ export default async function PlantDetailPage({
 
   const typedPlant = plant as PlantRow
 
-  const [{ data: latestLog }, { data: location }, { data: room }] =
-    await Promise.all([
-      supabase
-        .from('plant_maintenance_logs')
-        .select(
-          'performed_at, watered, pruned, dusted, rotated, fed, pest_treated, repotted, soil_refreshed, polished, notes'
-        )
-        .eq('plant_id', typedPlant.id)
-        .order('performed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      typedPlant.location_id
-        ? supabase
-            .from('locations')
-            .select('id, name, street, number, postal_code, city, country')
-            .eq('id', typedPlant.location_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      typedPlant.room_id
-        ? supabase
-            .from('rooms')
-            .select('id, name, floor')
-            .eq('id', typedPlant.room_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ])
+  const [
+    { data: latestLog },
+    { data: location },
+    { data: room },
+    { data: reports },
+  ] = await Promise.all([
+    supabase
+      .from('plant_maintenance_logs')
+      .select(
+        'performed_at, watered, pruned, dusted, rotated, fed, pest_treated, repotted, soil_refreshed, polished, notes'
+      )
+      .eq('plant_id', typedPlant.id)
+      .order('performed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    typedPlant.location_id
+      ? supabase
+          .from('locations')
+          .select('id, name, street, number, postal_code, city, country')
+          .eq('id', typedPlant.location_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    typedPlant.room_id
+      ? supabase
+          .from('rooms')
+          .select('id, name, floor')
+          .eq('id', typedPlant.room_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('plant_reports')
+      .select(
+        'id, plant_id, issue_type, message, reporter_name, reporter_email, status, created_at, handled_at'
+      )
+      .eq('plant_id', typedPlant.id)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ])
+
+  const reportRows = (reports ?? []) as PlantReportRow[]
 
   return (
     <main className="bg-stera-cream p-6">
@@ -117,6 +134,10 @@ export default async function PlantDetailPage({
             </>
           }
         />
+
+        {reportRows.length > 0 ? (
+          <PlantReportList reports={reportRows} />
+        ) : null}
       </div>
     </main>
   )

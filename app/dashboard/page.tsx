@@ -35,6 +35,7 @@ export default async function DashboardPage() {
     { data: upcomingVisits },
     { data: recentVisits },
     { data: flaggedVisitPlants },
+    { data: openReports },
     weather,
   ] = await Promise.all([
     // Vandaag — alleen open beurten (geen voltooide/geannuleerde)
@@ -83,6 +84,17 @@ export default async function DashboardPage() {
       .in('health_status', ['needs-attention', 'dying'])
       .order('scanned_at', { ascending: false })
       .limit(20),
+
+    // Openstaande klantmeldingen
+    supabase
+      .from('plant_reports')
+      .select(
+        `id, plant_id, issue_type, message, reporter_name, status, created_at,
+         plants ( id, nickname, species, reference_code )`
+      )
+      .in('status', ['new', 'seen'])
+      .order('created_at', { ascending: false })
+      .limit(10),
 
     // Weersverwachting (faalveilig — null als API down is)
     getTodaysWeather(),
@@ -139,6 +151,7 @@ export default async function DashboardPage() {
 
   const todaysCount = todaysVisits?.length ?? 0
   const flaggedCount = flaggedPlants.length
+  const reportCount = openReports?.length ?? 0
 
   const summaryLine = (() => {
     const parts: string[] = []
@@ -148,8 +161,20 @@ export default async function DashboardPage() {
 
     if (flaggedCount === 1) parts.push('1 plant heeft aandacht nodig')
     else if (flaggedCount > 1) parts.push(`${flaggedCount} planten hebben aandacht nodig`)
+
+    if (reportCount === 1) parts.push('1 nieuwe klantmelding')
+    else if (reportCount > 1) parts.push(`${reportCount} nieuwe klantmeldingen`)
+
     return parts.join(' · ')
   })()
+
+  const REPORT_LABELS: Record<string, string> = {
+    replace: 'Plant moet vervangen worden',
+    sick: 'Plant lijkt ziek',
+    damaged: 'Plant is beschadigd',
+    pest: 'Ongedierte / aantasting',
+    other: 'Andere opmerking',
+  }
 
   return (
     <main className="bg-stera-cream px-5 py-8 sm:px-8 sm:py-12">
@@ -162,6 +187,63 @@ export default async function DashboardPage() {
           <p className="mt-1 text-sm text-stera-ink-soft">{summaryLine}</p>
           {weather ? <WeatherPill weather={weather} /> : null}
         </div>
+
+        {/* Klantmeldingen — alleen als er openstaande zijn */}
+        {openReports && openReports.length > 0 ? (
+          <section className="space-y-3">
+            <p className="stera-eyebrow text-amber-700">Klantmeldingen</p>
+            <ul className="space-y-3">
+              {openReports.map((row: any) => {
+                const plant = Array.isArray(row.plants)
+                  ? row.plants[0]
+                  : row.plants
+                const plantName =
+                  plant?.nickname ||
+                  plant?.species ||
+                  plant?.reference_code ||
+                  'Plant'
+                const label = REPORT_LABELS[row.issue_type] || row.issue_type
+                const isNew = row.status === 'new'
+                return (
+                  <li key={row.id}>
+                    <Link
+                      href={`/plants/${row.plant_id}`}
+                      className="stera-card block transition hover:border-stera-green"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-stera-ink">
+                            {plantName}
+                          </p>
+                          <p className="mt-1 text-sm text-stera-ink-soft">
+                            {label}
+                            {row.reporter_name
+                              ? ` · door ${row.reporter_name}`
+                              : ''}
+                          </p>
+                          {row.message ? (
+                            <p className="mt-2 line-clamp-2 text-sm text-stera-ink-soft">
+                              {row.message}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
+                            isNew
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-stera-cream-deep text-stera-ink'
+                          }`}
+                        >
+                          {isNew ? 'Nieuw' : 'Gezien'}
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
 
         {/* Vandaag */}
         <section className="space-y-3">
