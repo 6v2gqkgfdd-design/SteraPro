@@ -34,7 +34,7 @@ export default async function DashboardPage() {
     { data: recentVisits },
     { data: flaggedVisitPlants },
   ] = await Promise.all([
-    // Vandaag
+    // Vandaag — alleen open beurten (geen voltooide/geannuleerde)
     supabase
       .from('maintenance_visits')
       .select(
@@ -43,6 +43,7 @@ export default async function DashboardPage() {
       )
       .gte('scheduled_start', startOfTodayIso)
       .lt('scheduled_start', startOfTomorrowIso)
+      .in('status', ['scheduled', 'in_progress', 'paused'])
       .order('scheduled_start', { ascending: true }),
 
     // Komende 7 dagen (na vandaag)
