@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import SteraLogo from '@/components/stera-logo'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -37,6 +38,15 @@ export default async function DashboardPage() {
     supabase.from('plants').select('id', { count: 'exact', head: true }),
   ])
 
+  const maintenanceBadge =
+    plannedCount && completedCount
+      ? `${plannedCount} gepland · ${completedCount} voltooid`
+      : plannedCount
+        ? `${plannedCount} gepland`
+        : completedCount
+          ? `${completedCount} voltooid`
+          : null
+
   const tiles: Array<{
     href: string
     eyebrow: string
@@ -57,18 +67,12 @@ export default async function DashboardPage() {
       description: 'Zoek op bijnaam, soort, referentiecode of QR-slug.',
     },
     {
-      href: '/maintenance?tab=planned',
+      href: '/maintenance',
       eyebrow: 'Onderhoud',
-      title: 'Geplande onderhouden',
-      description: 'Bekijk wat eraan komt of start een lopende beurt.',
-      badge: plannedCount ? `${plannedCount} gepland` : null,
-    },
-    {
-      href: '/maintenance?tab=completed',
-      eyebrow: 'Rapporten',
-      title: 'Voltooide beurten',
-      description: 'Open een afgeronde beurt en het bijhorende klantrapport.',
-      badge: completedCount ? `${completedCount} voltooid` : null,
+      title: 'Onderhoud',
+      description:
+        'Plan een afspraak in, bekijk geplande beurten of open afgeronde rapporten.',
+      badge: maintenanceBadge,
     },
     {
       href: '/companies',
@@ -77,24 +81,16 @@ export default async function DashboardPage() {
       description: 'Beheer bedrijven, locaties en ruimtes.',
       badge: companiesCount ? `${companiesCount} bedrijven` : null,
     },
-    {
-      href: '/maintenance/new',
-      eyebrow: 'Nieuw',
-      title: 'Onderhoud plannen',
-      description: 'Maak een nieuwe afspraak met cascade bedrijf → locatie.',
-    },
   ]
 
   return (
-    <main className="bg-stera-cream p-6">
-      <div className="mx-auto max-w-5xl space-y-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+    <main className="bg-stera-cream px-5 py-8 sm:px-8 sm:py-12">
+      <div className="mx-auto max-w-6xl space-y-10">
+        <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <p className="stera-eyebrow mb-2">Dashboard</p>
-            <h1 className="stera-display text-4xl sm:text-5xl">
-              Stera<span className="text-stera-green"> Pro</span>
-            </h1>
-            <p className="mt-3 text-sm text-stera-ink-soft">
+            <p className="stera-eyebrow mb-3">Dashboard</p>
+            <SteraLogo variant="hero" href={null} />
+            <p className="mt-4 text-base text-stera-ink-soft">
               Ingelogd als {user.email}
             </p>
           </div>

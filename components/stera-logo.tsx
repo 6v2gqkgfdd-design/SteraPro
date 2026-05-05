@@ -3,18 +3,20 @@
 import Link from 'next/link'
 import { useState } from 'react'
 
-type Variant = 'default' | 'compact' | 'inverted'
+type Variant = 'default' | 'compact' | 'inverted' | 'hero'
 
 const HEIGHT_CLASS: Record<Variant, string> = {
   default: 'h-7 sm:h-8',
   compact: 'h-6',
   inverted: 'h-7 sm:h-8',
+  hero: 'h-12 sm:h-16',
 }
 
 const TEXT_SIZE: Record<Variant, string> = {
   default: 'text-2xl sm:text-3xl',
   compact: 'text-xl',
   inverted: 'text-2xl sm:text-3xl',
+  hero: 'text-4xl sm:text-5xl',
 }
 
 /**

@@ -36,11 +36,23 @@
   --font-display: var(--font-instrument-serif);
 }
 
+html {
+  /* Schaal mobiel iets groter zodat formulieren en kaarten lekker
+     beeldvullend zijn. rem-units in Tailwind nemen dit automatisch over. */
+  font-size: 17px;
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 16px;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
-  line-height: 1.55;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -58,7 +70,7 @@ body {
   font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--stera-green);
 }
@@ -67,8 +79,9 @@ body {
   font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
   font-weight: 400;
   letter-spacing: -0.01em;
-  line-height: 1.05;
+  line-height: 1.02;
   color: var(--stera-green);
+  font-size: clamp(2.4rem, 9vw, 4.4rem);
 }
 
 h1, h2, h3 {
@@ -129,7 +142,7 @@ h1, h2, h3 {
   background: var(--stera-paper);
   border: 1px solid var(--stera-line);
   border-radius: 0.875rem;
-  padding: 1.25rem;
+  padding: 1.5rem;
 }
 
 /* ----- Print-modus voor het klantrapport ----- */
