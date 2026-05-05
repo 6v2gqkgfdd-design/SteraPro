@@ -45,14 +45,14 @@ export default function NewCompanyPage() {
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <p className="stera-eyebrow mb-2">Bedrijf</p>
-          <h1 className="stera-display text-3xl sm:text-4xl">Nieuw bedrijf</h1>
+          <p className="stera-eyebrow mb-2">Klant</p>
+          <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe klant</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="stera-card space-y-4">
           <input
             type="text"
-            placeholder="Bedrijfsnaam"
+            placeholder="Naam klant"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full rounded-lg border border-stera-line bg-white p-3"
@@ -96,7 +96,7 @@ export default function NewCompanyPage() {
             disabled={loading}
             className="stera-cta stera-cta-primary disabled:opacity-50"
           >
-            {loading ? 'Opslaan...' : 'Bedrijf opslaan'}
+            {loading ? 'Opslaan...' : 'Klant opslaan'}
           </button>
 
           {error && <p className="text-red-600">{error}</p>}

@@ -72,7 +72,7 @@ export default async function RoomDetailPage({
           <h1 className="stera-display text-3xl sm:text-4xl">{room.name}</h1>
 
           <div className="mt-3 space-y-1 text-sm text-stera-ink-soft">
-            {company?.name && <p>Bedrijf: {company.name}</p>}
+            {company?.name && <p>Klant: {company.name}</p>}
             {locationData?.name && <p>Locatie: {locationData.name}</p>}
             {room.floor && <p>Verdieping: {room.floor}</p>}
           </div>

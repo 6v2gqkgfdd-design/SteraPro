@@ -37,7 +37,7 @@ export default function EditCompanyPage() {
       if (cancelled) return
 
       if (error || !data) {
-        setError(error?.message || 'Bedrijf niet gevonden.')
+        setError(error?.message || 'Klant niet gevonden.')
         setLoading(false)
         return
       }
@@ -90,8 +90,8 @@ export default function EditCompanyPage() {
       <div className="mx-auto max-w-2xl space-y-6">
 
         <div>
-          <p className="stera-eyebrow mb-2">Bedrijf</p>
-          <h1 className="stera-display text-3xl sm:text-4xl">Bedrijf bewerken</h1>
+          <p className="stera-eyebrow mb-2">Klant</p>
+          <h1 className="stera-display text-3xl sm:text-4xl">Klant bewerken</h1>
         </div>
 
         {loading ? (
@@ -100,7 +100,7 @@ export default function EditCompanyPage() {
           <form onSubmit={handleSubmit} className="stera-card space-y-4">
             <input
               type="text"
-              placeholder="Bedrijfsnaam"
+              placeholder="Naam klant"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-stera-line bg-white p-3"

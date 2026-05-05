@@ -299,7 +299,7 @@ export default function MaintenanceNewPlantPage() {
 
     try {
       if (!companyId || !locationId) {
-        throw new Error('Locatie of bedrijf ontbreekt voor deze onderhoudsbeurt.')
+        throw new Error('Locatie of klant ontbreekt voor deze onderhoudsbeurt.')
       }
 
       let photoPath: string | null = null

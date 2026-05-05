@@ -103,7 +103,7 @@ export default function NewMaintenancePage() {
     setError('')
 
     try {
-      if (!companyId) throw new Error('Kies eerst een bedrijf.')
+      if (!companyId) throw new Error('Kies eerst een klant.')
       if (!locationId) throw new Error('Kies een locatie.')
 
       const { data: previousVisit } = await supabase
@@ -158,10 +158,10 @@ export default function NewMaintenancePage() {
         </div>
 
         <form onSubmit={handleSubmit} className="stera-card space-y-5">
-          {/* Step 1 — bedrijf */}
+          {/* Step 1 — klant */}
           <div className="space-y-1">
             <label htmlFor="company" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
-              1 · Bedrijf
+              1 · Klant
             </label>
             <select
               id="company"
@@ -173,10 +173,10 @@ export default function NewMaintenancePage() {
             >
               <option value="">
                 {loadingCompanies
-                  ? 'Bedrijven laden...'
+                  ? 'Klanten laden...'
                   : noCompanies
-                    ? 'Nog geen bedrijven beschikbaar'
-                    : 'Kies een bedrijf'}
+                    ? 'Nog geen klanten beschikbaar'
+                    : 'Kies een klant'}
               </option>
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
@@ -186,7 +186,7 @@ export default function NewMaintenancePage() {
             </select>
             {noCompanies && (
               <p className="text-xs text-stera-ink-soft">
-                Voeg eerst een bedrijf toe via het dashboard.
+                Voeg eerst een klant toe via het menu.
               </p>
             )}
           </div>
@@ -206,11 +206,11 @@ export default function NewMaintenancePage() {
             >
               <option value="">
                 {!companyId
-                  ? 'Kies eerst een bedrijf'
+                  ? 'Kies eerst een klant'
                   : loadingLocations
                     ? 'Locaties laden...'
                     : noLocations
-                      ? 'Geen locaties bij dit bedrijf'
+                      ? 'Geen locaties bij deze klant'
                       : 'Kies een locatie'}
               </option>
               {locations.map((location) => (

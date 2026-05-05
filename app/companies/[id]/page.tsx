@@ -41,7 +41,7 @@ export default async function CompanyDetailPage({
       <div className="mx-auto max-w-4xl space-y-6">
 
         <div>
-          <p className="stera-eyebrow mb-2">Bedrijf</p>
+          <p className="stera-eyebrow mb-2">Klant</p>
           <h1 className="stera-display text-3xl sm:text-4xl">{company.name}</h1>
 
           <div className="mt-3 space-y-1 text-sm text-stera-ink-soft">
@@ -69,7 +69,7 @@ export default async function CompanyDetailPage({
             href={`/companies/${company.id}/edit`}
             className="stera-cta stera-cta-secondary"
           >
-            Bedrijf bewerken
+            Klant bewerken
           </Link>
 
           <DeleteCompanyButton companyId={company.id} />

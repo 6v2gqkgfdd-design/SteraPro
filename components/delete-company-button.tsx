@@ -15,7 +15,7 @@ export default function DeleteCompanyButton({
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      'Ben je zeker dat je dit bedrijf wilt verwijderen?'
+      'Ben je zeker dat je deze klant wilt verwijderen?'
     )
 
     if (!confirmed) return
@@ -44,7 +44,7 @@ export default function DeleteCompanyButton({
       disabled={loading}
       className="stera-cta stera-cta-danger disabled:opacity-50"
     >
-      {loading ? 'Verwijderen...' : 'Bedrijf verwijderen'}
+      {loading ? 'Verwijderen...' : 'Klant verwijderen'}
     </button>
   )
 }
