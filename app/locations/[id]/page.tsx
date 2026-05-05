@@ -74,7 +74,6 @@ export default async function LocationDetailPage({
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <Link href="/dashboard" className="stera-cta stera-cta-ghost">← Dashboard</Link>
 
         <div>
           <p className="stera-eyebrow mb-2">Locatie</p>

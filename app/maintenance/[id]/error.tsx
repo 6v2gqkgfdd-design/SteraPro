@@ -142,13 +142,7 @@ export default function MaintenanceSegmentError({
             >
               Onderhoudsoverzicht
             </Link>
-            <Link
-              href="/dashboard"
-              className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
-            >
-              Dashboard
-            </Link>
-          </div>
+            </div>
 
           <div className="mt-10 text-xs text-stera-ink-soft">
             Niet ingelogd?{' '}

@@ -75,10 +75,6 @@ export default async function PlantDetailPage({
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-        <Link href="/dashboard" className="stera-cta stera-cta-ghost">
-          ← Dashboard
-        </Link>
-
         <PlantOverview
           plant={typedPlant}
           location={(location ?? null) as PlantOverviewLocation}

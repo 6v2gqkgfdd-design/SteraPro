@@ -32,7 +32,7 @@ export default function SteraLogo({
   variant = 'default',
   href = '/',
   className = '',
-  withProSuffix = true,
+  withProSuffix = false,
 }: {
   variant?: Variant
   href?: string | null

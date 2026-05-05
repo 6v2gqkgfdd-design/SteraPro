@@ -99,13 +99,7 @@ export default async function MaintenancePlantSelectPage({
               Terug
             </Link>
 
-            <Link
-              href="/dashboard"
-              className="stera-cta stera-cta-secondary"
-            >
-              Dashboard
-            </Link>
-          </div>
+            </div>
         </div>
 
         {query?.error && (

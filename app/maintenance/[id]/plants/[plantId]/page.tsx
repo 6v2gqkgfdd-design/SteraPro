@@ -472,13 +472,7 @@ export default function MaintenancePlantDetailPage() {
               >
                 Onderhoudsoverzicht →
               </Link>
-              <Link
-                href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
-              >
-                Dashboard
-              </Link>
-            </>
+              </>
           }
         />
       </SteraShell>
@@ -516,13 +510,7 @@ export default function MaintenancePlantDetailPage() {
               >
                 Inloggen
               </Link>
-              <Link
-                href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
-              >
-                Dashboard
-              </Link>
-            </>
+              </>
           }
         />
       </SteraShell>
@@ -573,13 +561,7 @@ export default function MaintenancePlantDetailPage() {
                   Onderhoudsoverzicht →
                 </Link>
               )}
-              <Link
-                href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
-              >
-                Dashboard
-              </Link>
-            </>
+              </>
           }
         />
       </SteraShell>
@@ -621,13 +603,7 @@ export default function MaintenancePlantDetailPage() {
                   Terug naar onderhoud
                 </Link>
               ) : null}
-              <Link
-                href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
-              >
-                Dashboard
-              </Link>
-            </>
+              </>
           }
         />
       </SteraShell>
@@ -717,13 +693,7 @@ export default function MaintenancePlantDetailPage() {
               Terug
             </Link>
 
-            <Link
-              href="/dashboard"
-              className="stera-cta stera-cta-secondary"
-            >
-              Dashboard
-            </Link>
-          </div>
+            </div>
         </div>
 
         <form onSubmit={handleSubmit} className="stera-card space-y-6">

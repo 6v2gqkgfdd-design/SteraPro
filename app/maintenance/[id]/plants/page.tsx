@@ -61,13 +61,7 @@ export default async function MaintenancePlantsPage({
               Terug
             </Link>
 
-            <Link
-              href="/dashboard"
-              className="stera-cta stera-cta-secondary"
-            >
-              Dashboard
-            </Link>
-          </div>
+            </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">

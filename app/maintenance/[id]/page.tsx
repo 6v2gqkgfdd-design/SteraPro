@@ -75,13 +75,7 @@ export default async function MaintenanceDetailPage({
               Overzicht
             </Link>
 
-            <Link
-              href="/dashboard"
-              className="stera-cta stera-cta-ghost"
-            >
-              Dashboard
-            </Link>
-          </div>
+            </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

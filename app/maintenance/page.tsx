@@ -93,13 +93,6 @@ export default async function MaintenancePage({
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/dashboard"
-              className="stera-cta stera-cta-ghost"
-            >
-              Dashboard
-            </Link>
-
-            <Link
               href="/maintenance/new"
               className="stera-cta stera-cta-primary"
             >
