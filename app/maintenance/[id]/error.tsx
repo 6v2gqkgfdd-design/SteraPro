@@ -1,7 +1,28 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+
+function describeError(error: unknown) {
+  if (error == null) return 'null'
+  if (typeof error !== 'object') return String(error)
+
+  const own: Record<string, unknown> = {}
+  for (const key of Object.getOwnPropertyNames(error)) {
+    try {
+      own[key] = (error as Record<string, unknown>)[key]
+    } catch (err) {
+      own[key] = `<unreadable: ${String(err)}>`
+    }
+  }
+
+  try {
+    return JSON.stringify(own, null, 2)
+  } catch {
+    return String(error)
+  }
+}
 
 export default function MaintenanceSegmentError({
   error,
@@ -10,9 +31,21 @@ export default function MaintenanceSegmentError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const pathname = usePathname()
+  const [ua, setUa] = useState('')
+
   useEffect(() => {
     console.error('[maintenance segment error]', error)
+    if (typeof navigator !== 'undefined') {
+      setUa(navigator.userAgent)
+    }
   }, [error])
+
+  const dump = describeError(error)
+  const constructorName =
+    error && typeof error === 'object'
+      ? (error as { constructor?: { name?: string } }).constructor?.name ?? 'Object'
+      : typeof error
 
   return (
     <main className="min-h-screen bg-[#F7F4EF] text-[#1A2F6E] flex flex-col">
@@ -36,24 +69,56 @@ export default function MaintenanceSegmentError({
             Probeer het opnieuw, of ga terug naar het onderhoudsoverzicht.
           </p>
 
-          <div className="mb-10 rounded border border-[#1A2F6E]/15 bg-white/60 p-3 text-xs text-[#1A2F6E]/80">
-            <p className="font-semibold uppercase tracking-wide text-[#1A2F6E]/55 mb-1">
+          <div className="mb-10 rounded border border-[#1A2F6E]/15 bg-white/60 p-3 text-xs text-[#1A2F6E]/80 space-y-2">
+            <p className="font-semibold uppercase tracking-wide text-[#1A2F6E]/55">
               Technische details
             </p>
-            {error?.message ? (
-              <p className="font-mono break-words text-[#1A2F6E]">
-                {error.message}
-              </p>
-            ) : (
-              <p className="italic">Geen specifiek foutbericht beschikbaar.</p>
-            )}
+
+            <p className="break-words">
+              <span className="font-mono text-[#1A2F6E]/55">type:</span>{' '}
+              <span className="font-mono text-[#1A2F6E]">{constructorName}</span>
+            </p>
+
+            <p className="break-words">
+              <span className="font-mono text-[#1A2F6E]/55">message:</span>{' '}
+              <span className="font-mono text-[#1A2F6E]">
+                {error?.message ? error.message : '(leeg)'}
+              </span>
+            </p>
+
             {error?.digest ? (
-              <p className="mt-1 font-mono break-all text-[#1A2F6E]/55">
+              <p className="font-mono break-all text-[#1A2F6E]/70">
                 ref: {error.digest}
               </p>
+            ) : (
+              <p className="italic">geen digest aanwezig</p>
+            )}
+
+            {pathname ? (
+              <p className="break-all">
+                <span className="font-mono text-[#1A2F6E]/55">path:</span>{' '}
+                <span className="font-mono text-[#1A2F6E]">{pathname}</span>
+              </p>
             ) : null}
+
+            {ua ? (
+              <p className="break-all">
+                <span className="font-mono text-[#1A2F6E]/55">ua:</span>{' '}
+                <span className="font-mono text-[#1A2F6E]/70">{ua}</span>
+              </p>
+            ) : null}
+
+            <details>
+              <summary className="cursor-pointer text-[#4A7C59]">
+                Volledig error-object
+              </summary>
+              <pre className="mt-2 whitespace-pre-wrap break-all text-[10px] leading-snug text-[#1A2F6E]/70">
+                {dump}
+              </pre>
+            </details>
+
             {error?.stack ? (
-              <details className="mt-2">
+              <details>
                 <summary className="cursor-pointer text-[#4A7C59]">
                   Stack trace
                 </summary>
