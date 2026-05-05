@@ -6,9 +6,12 @@ import PlantOverview, {
   type PlantOverviewLocation,
   type PlantOverviewLog,
   type PlantOverviewPlant,
+  type PlantOverviewRoom,
 } from '@/components/plant-overview'
 
-async function lookupPlant(slug: string): Promise<PlantOverviewPlant | null> {
+type PublicPlant = PlantOverviewPlant & { room_id?: string | null }
+
+async function lookupPlant(slug: string): Promise<PublicPlant | null> {
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -21,13 +24,13 @@ async function lookupPlant(slug: string): Promise<PlantOverviewPlant | null> {
     const { data, error } = await supabase
       .from('plants')
       .select(
-        'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, is_dead, is_dying, needs_replacement'
+        'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement'
       )
       .eq('qr_slug', slug)
       .maybeSingle()
 
     if (error || !data) return null
-    return data as PlantOverviewPlant
+    return data as PublicPlant
   } catch {
     return null
   }
@@ -58,10 +61,26 @@ async function lookupLocation(
     const supabase = await createClient()
     const { data } = await supabase
       .from('locations')
-      .select('id, name, floor, room')
+      .select('id, name, street, number, postal_code, city, country')
       .eq('id', locationId)
       .maybeSingle()
     return (data as PlantOverviewLocation) ?? null
+  } catch {
+    return null
+  }
+}
+
+async function lookupRoom(
+  roomId: string
+): Promise<PlantOverviewRoom> {
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('rooms')
+      .select('id, name, floor')
+      .eq('id', roomId)
+      .maybeSingle()
+    return (data as PlantOverviewRoom) ?? null
   } catch {
     return null
   }
@@ -151,9 +170,10 @@ export default async function PublicPlantPage({
     return <NotFoundView slug={slug} />
   }
 
-  const [latestLog, location] = await Promise.all([
+  const [latestLog, location, room] = await Promise.all([
     lookupLatestLog(plant.id),
     plant.location_id ? lookupLocation(plant.location_id) : Promise.resolve(null),
+    plant.room_id ? lookupRoom(plant.room_id) : Promise.resolve(null),
   ])
 
   return (
@@ -161,6 +181,7 @@ export default async function PublicPlantPage({
       <PlantOverview
         plant={plant}
         location={location}
+        room={room}
         latestLog={latestLog}
         actions={
           <>

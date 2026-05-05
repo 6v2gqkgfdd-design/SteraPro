@@ -19,8 +19,17 @@ export type PlantOverviewPlant = {
 export type PlantOverviewLocation = {
   id: string
   name: string | null
+  street?: string | null
+  number?: string | null
+  postal_code?: string | null
+  city?: string | null
+  country?: string | null
+} | null
+
+export type PlantOverviewRoom = {
+  id: string
+  name: string | null
   floor: string | null
-  room: string | null
 } | null
 
 export type PlantOverviewLog = {
@@ -114,11 +123,13 @@ export function statusColor(plant: PlantOverviewPlant): string {
 export default function PlantOverview({
   plant,
   location,
+  room,
   latestLog,
   actions,
 }: {
   plant: PlantOverviewPlant
   location: PlantOverviewLocation
+  room?: PlantOverviewRoom
   latestLog: PlantOverviewLog
   actions?: React.ReactNode
 }) {
@@ -183,11 +194,29 @@ export default function PlantOverview({
             <dt className="stera-eyebrow text-stera-ink-soft">Locatie</dt>
             <dd className="mt-1 text-sm text-stera-ink">
               {location.name}
-              {(location.floor || location.room) && (
-                <span className="text-stera-ink-soft">
-                  {' · '}
-                  {[location.floor, location.room].filter(Boolean).join(' · ')}
+              {(location.street || location.city) && (
+                <span className="block text-stera-ink-soft">
+                  {[
+                    [location.street, location.number].filter(Boolean).join(' '),
+                    [location.postal_code, location.city]
+                      .filter(Boolean)
+                      .join(' '),
+                  ]
+                    .filter((p) => typeof p === 'string' && p.trim().length > 0)
+                    .join(', ')}
                 </span>
+              )}
+            </dd>
+          </div>
+        )}
+
+        {room?.name && (
+          <div>
+            <dt className="stera-eyebrow text-stera-ink-soft">Ruimte</dt>
+            <dd className="mt-1 text-sm text-stera-ink">
+              {room.name}
+              {room.floor && (
+                <span className="text-stera-ink-soft"> · {room.floor}</span>
               )}
             </dd>
           </div>

@@ -68,6 +68,13 @@ export default async function CompanyDetailPage({
             Nieuwe locatie
           </Link>
 
+          <Link
+            href={`/companies/${company.id}/edit`}
+            className="stera-cta stera-cta-secondary"
+          >
+            Bedrijf bewerken
+          </Link>
+
           <DeleteCompanyButton companyId={company.id} />
         </div>
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -23,61 +24,28 @@ function generateReferenceCode() {
 
 function generatePlayfulNickname() {
   const firstParts = [
-    'Captain',
-    'Mister',
-    'Lady',
-    'Sunny',
-    'Tiny',
-    'Jungle',
-    'Green',
-    'Happy',
-    'Fancy',
-    'Professor',
-    'Sir',
-    'Dancing',
+    'Captain', 'Mister', 'Lady', 'Sunny', 'Tiny', 'Jungle', 'Green',
+    'Happy', 'Fancy', 'Professor', 'Sir', 'Dancing',
   ]
-
   const secondParts = [
-    'Leaf',
-    'Sprout',
-    'Fern',
-    'Buddy',
-    'Queen',
-    'Prince',
-    'Pearl',
-    'Shadow',
-    'Mango',
-    'Coco',
-    'Bamboo',
-    'Monstera',
+    'Leaf', 'Sprout', 'Fern', 'Buddy', 'Queen', 'Prince', 'Pearl',
+    'Shadow', 'Mango', 'Coco', 'Bamboo', 'Monstera',
   ]
-
-  const first =
-    firstParts[Math.floor(Math.random() * firstParts.length)]
-  const second =
-    secondParts[Math.floor(Math.random() * secondParts.length)]
-
+  const first = firstParts[Math.floor(Math.random() * firstParts.length)]
+  const second = secondParts[Math.floor(Math.random() * secondParts.length)]
   return `${first} ${second}`
 }
 
 async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   const objectUrl = URL.createObjectURL(file)
-
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image()
-
       img.onload = () => resolve(img)
       img.onerror = () =>
-        reject(
-          new Error(
-            'Deze afbeelding kon niet gelezen worden. Gebruik bij voorkeur een JPG of PNG foto.'
-          )
-        )
-
+        reject(new Error('Deze afbeelding kon niet gelezen worden.'))
       img.src = objectUrl
     })
-
     return image
   } finally {
     URL.revokeObjectURL(objectUrl)
@@ -85,51 +53,42 @@ async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 }
 
 async function fileToJpeg(file: File): Promise<File> {
-  if (file.type === 'image/jpeg') {
-    return file
-  }
+  if (file.type === 'image/jpeg') return file
 
   const image = await loadImageFromFile(file)
-
   const width = image.naturalWidth || image.width
   const height = image.naturalHeight || image.height
-
-  if (!width || !height) {
-    throw new Error('Afbeelding heeft geen geldige afmetingen.')
-  }
+  if (!width || !height) throw new Error('Afbeelding zonder afmetingen.')
 
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-
   const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    throw new Error('Canvas context niet beschikbaar.')
-  }
-
+  if (!ctx) throw new Error('Canvas niet beschikbaar.')
   ctx.drawImage(image, 0, 0, width, height)
 
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, 'image/jpeg', 0.9)
   })
-
-  if (!blob) {
-    throw new Error('Kon afbeelding niet converteren naar JPEG.')
-  }
+  if (!blob) throw new Error('Kon afbeelding niet converteren.')
 
   const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo'
   return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
 }
 
-export default function NewPlantPage() {
-  const router = useRouter()
+export default function NewPlantInRoomPage() {
   const params = useParams<{ id: string }>()
+  const router = useRouter()
   const supabase = createClient()
 
+  const roomId = params?.id
+
+  const [roomName, setRoomName] = useState('')
+  const [locationId, setLocationId] = useState('')
   const [locationName, setLocationName] = useState('')
   const [companyId, setCompanyId] = useState('')
-  const [rooms, setRooms] = useState<Array<{ id: string; name: string | null }>>([])
-  const [roomId, setRoomId] = useState('')
+  const [contextLoading, setContextLoading] = useState(true)
+
   const [nickname, setNickname] = useState('')
   const [referenceCode, setReferenceCode] = useState('')
   const [species, setSpecies] = useState('')
@@ -149,43 +108,57 @@ export default function NewPlantPage() {
   }, [])
 
   useEffect(() => {
-    async function loadContext() {
-      const [{ data: location, error: locationErr }, { data: roomList }] =
-        await Promise.all([
-          supabase
-            .from('locations')
-            .select('id, name, company_id')
-            .eq('id', params.id)
-            .single(),
-          supabase
-            .from('rooms')
-            .select('id, name')
-            .eq('location_id', params.id)
-            .order('created_at', { ascending: true }),
-        ])
+    if (!roomId) return
 
-      if (locationErr || !location) {
-        setError('Kon locatie niet ophalen.')
+    let cancelled = false
+
+    async function loadContext() {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select(
+          `
+          id,
+          name,
+          location_id,
+          locations (
+            id,
+            name,
+            company_id
+          )
+          `
+        )
+        .eq('id', roomId)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (error || !data) {
+        setError(error?.message || 'Ruimte niet gevonden.')
+        setContextLoading(false)
         return
       }
 
-      setLocationName(location.name)
-      setCompanyId(location.company_id)
-      setRooms(roomList ?? [])
-      // Default naar de eerste ruimte zodat de gebruiker meteen kan opslaan.
-      if (roomList && roomList.length > 0) {
-        setRoomId(roomList[0].id)
-      }
+      const loc = Array.isArray(data.locations)
+        ? data.locations[0]
+        : data.locations
+
+      setRoomName(data.name ?? '')
+      setLocationId(data.location_id ?? '')
+      setLocationName(loc?.name ?? '')
+      setCompanyId(loc?.company_id ?? '')
+      setContextLoading(false)
     }
 
     loadContext()
-  }, [params.id, supabase])
+
+    return () => {
+      cancelled = true
+    }
+  }, [roomId, supabase])
 
   useEffect(() => {
     return () => {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview)
-      }
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
     }
   }, [photoPreview])
 
@@ -195,9 +168,7 @@ export default function NewPlantPage() {
     setError('')
 
     if (!file) {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview)
-      }
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
       setPhotoFile(null)
       setPhotoPreview('')
       return
@@ -207,17 +178,11 @@ export default function NewPlantPage() {
 
     try {
       const jpegFile = await fileToJpeg(file)
-
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview)
-      }
-
-      const previewUrl = URL.createObjectURL(jpegFile)
-      setPhotoPreview(previewUrl)
+      if (photoPreview) URL.revokeObjectURL(photoPreview)
+      setPhotoPreview(URL.createObjectURL(jpegFile))
       setPhotoFile(jpegFile)
 
-      const tempFileName = `temp/${params.id}-${Date.now()}.jpg`
-
+      const tempFileName = `temp/${roomId}-${Date.now()}.jpg`
       const { error: uploadError } = await supabase.storage
         .from('plant-photos')
         .upload(tempFileName, jpegFile, {
@@ -225,44 +190,27 @@ export default function NewPlantPage() {
           contentType: 'image/jpeg',
         })
 
-      if (uploadError) {
-        throw new Error(uploadError.message)
-      }
+      if (uploadError) throw new Error(uploadError.message)
 
       const { data: publicUrlData } = supabase.storage
         .from('plant-photos')
         .getPublicUrl(tempFileName)
 
       const imageUrl = publicUrlData?.publicUrl
-
-      if (!imageUrl) {
-        throw new Error('Kon geen publieke afbeeldings-URL ophalen.')
-      }
+      if (!imageUrl) throw new Error('Geen publieke URL.')
 
       const response = await fetch('/api/plants/identify', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageUrl,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl }),
       })
 
       const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'AI-herkenning mislukt.')
-      }
+      if (!response.ok) throw new Error(result.error || 'AI-herkenning mislukt.')
 
       setAiSuggestedSpecies(result.suggested_species || '')
-      setAiConfidence(
-        typeof result.confidence === 'number' ? result.confidence : null
-      )
-
-      if (result.suggested_species) {
-        setSpecies(result.suggested_species)
-      }
+      setAiConfidence(typeof result.confidence === 'number' ? result.confidence : null)
+      if (result.suggested_species) setSpecies(result.suggested_species)
     } catch (err) {
       console.error(err)
       setError(err instanceof Error ? err.message : 'AI-herkenning mislukt.')
@@ -273,6 +221,8 @@ export default function NewPlantPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!roomId || !locationId || !companyId) return
+
     setLoading(true)
     setError('')
 
@@ -281,8 +231,7 @@ export default function NewPlantPage() {
       let photoUrl: string | null = null
 
       if (photoFile) {
-        const fileName = `${params.id}/${referenceCode}-${Date.now()}.jpg`
-
+        const fileName = `${locationId}/${referenceCode}-${Date.now()}.jpg`
         const { error: uploadError } = await supabase.storage
           .from('plant-photos')
           .upload(fileName, photoFile, {
@@ -290,95 +239,79 @@ export default function NewPlantPage() {
             contentType: 'image/jpeg',
           })
 
-        if (uploadError) {
-          throw new Error(uploadError.message)
-        }
+        if (uploadError) throw new Error(uploadError.message)
 
         photoPath = fileName
-
         const { data: publicUrlData } = supabase.storage
           .from('plant-photos')
           .getPublicUrl(fileName)
-
         photoUrl = publicUrlData.publicUrl
       }
 
-      const baseValue =
-        nickname.trim() || species.trim() || referenceCode
+      const baseValue = nickname.trim() || species.trim() || referenceCode
       const qrSlug = slugify(baseValue)
 
-      const { error } = await supabase.from('plants').insert([
-        {
-          company_id: companyId,
-          location_id: params.id,
-          room_id: roomId || null,
-          plant_code: referenceCode,
-          nickname: nickname.trim() || null,
-          species: species.trim() || null,
-          status,
-          notes: notes.trim() || null,
-          qr_slug: qrSlug,
-          reference_code: referenceCode,
-          photo_path: photoPath,
-          photo_url: photoUrl,
-          ai_suggested_species: aiSuggestedSpecies || null,
-          ai_confidence: aiConfidence,
-        },
-      ])
+      const { data: insertedPlant, error: plantError } = await supabase
+        .from('plants')
+        .insert([
+          {
+            company_id: companyId,
+            location_id: locationId,
+            room_id: roomId,
+            plant_code: referenceCode,
+            nickname: nickname.trim() || null,
+            species: species.trim() || null,
+            status,
+            notes: notes.trim() || null,
+            qr_slug: qrSlug,
+            reference_code: referenceCode,
+            photo_path: photoPath,
+            photo_url: photoUrl,
+            ai_suggested_species: aiSuggestedSpecies || null,
+            ai_confidence: aiConfidence,
+          },
+        ])
+        .select('id')
+        .single()
 
-      if (error) {
-        throw new Error(error.message)
+      if (plantError || !insertedPlant) {
+        throw new Error(plantError?.message || 'Plant opslaan mislukt.')
       }
 
-      router.push(`/locations/${params.id}`)
+      router.push(`/plants/${insertedPlant.id}`)
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Opslaan mislukt.')
       setLoading(false)
-      return
     }
   }
 
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-2xl space-y-6">
+        <Link
+          href={`/rooms/${roomId}`}
+          className="text-sm text-stera-blue underline"
+        >
+          ← Terug naar ruimte
+        </Link>
+
         <div>
           <p className="stera-eyebrow mb-2">Plant</p>
           <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe plant</h1>
-          {locationName && (
+          {contextLoading ? (
+            <p className="mt-2 text-sm text-stera-ink-soft">Context laden...</p>
+          ) : (
             <p className="mt-2 text-sm text-stera-ink-soft">
-              Locatie: {locationName}
+              Locatie: {locationName} · Ruimte: {roomName}
             </p>
           )}
         </div>
 
         <form onSubmit={handleSubmit} className="stera-card space-y-4">
           <div className="rounded-lg bg-stera-cream-deep p-3 text-sm">
-            Referentiecode: <strong>{referenceCode || 'Wordt gegenereerd...'}</strong>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
-              Ruimte
-            </label>
-            <select
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              className="w-full rounded-lg border border-stera-line bg-white p-3"
-              required
-              disabled={rooms.length === 0}
-            >
-              <option value="">
-                {rooms.length === 0
-                  ? 'Geen ruimtes — voeg er eerst een toe'
-                  : 'Kies een ruimte'}
-              </option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name || 'Ruimte'}
-                </option>
-              ))}
-            </select>
+            Referentiecode:{' '}
+            <strong>{referenceCode || 'Wordt gegenereerd...'}</strong>
           </div>
 
           <input
@@ -392,13 +325,15 @@ export default function NewPlantPage() {
           {photoPreview && (
             <img
               src={photoPreview}
-              alt="Preview van plantfoto"
+              alt="Preview"
               className="rounded-lg border border-stera-line"
             />
           )}
 
           {isIdentifying && (
-            <p className="text-sm text-stera-ink-soft">AI analyseert de plantfoto...</p>
+            <p className="text-sm text-stera-ink-soft">
+              AI analyseert de plantfoto...
+            </p>
           )}
 
           {aiSuggestedSpecies && (
@@ -412,7 +347,7 @@ export default function NewPlantPage() {
 
           <input
             type="text"
-            placeholder="Bijnaam / plantnaam"
+            placeholder="Bijnaam"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             className="w-full rounded-lg border border-stera-line bg-white p-3"
@@ -431,11 +366,11 @@ export default function NewPlantPage() {
             onChange={(e) => setStatus(e.target.value)}
             className="w-full rounded-lg border border-stera-line bg-white p-3"
           >
-            <option value="healthy">Healthy</option>
-            <option value="needs_attention">Needs attention</option>
-            <option value="maintenance_due">Maintenance due</option>
-            <option value="replacement_needed">Replacement needed</option>
-            <option value="dead">Dead</option>
+            <option value="healthy">Gezond</option>
+            <option value="needs_attention">Vraagt aandacht</option>
+            <option value="maintenance_due">Onderhoud vereist</option>
+            <option value="replacement_needed">Vervanging nodig</option>
+            <option value="dead">Dood</option>
           </select>
 
           <textarea
@@ -448,7 +383,7 @@ export default function NewPlantPage() {
 
           <button
             type="submit"
-            disabled={loading || !companyId || !referenceCode}
+            disabled={loading || contextLoading || !companyId || !locationId || !roomId}
             className="stera-cta stera-cta-primary disabled:opacity-50"
           >
             {loading ? 'Opslaan...' : 'Plant opslaan'}

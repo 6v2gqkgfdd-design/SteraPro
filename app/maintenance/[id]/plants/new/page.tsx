@@ -130,6 +130,8 @@ export default function MaintenanceNewPlantPage() {
   const [locationId, setLocationId] = useState('')
   const [locationName, setLocationName] = useState('')
   const [companyId, setCompanyId] = useState('')
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string | null }>>([])
+  const [roomId, setRoomId] = useState('')
 
   const [nickname, setNickname] = useState('')
   const [referenceCode, setReferenceCode] = useState('')
@@ -180,6 +182,18 @@ export default function MaintenanceNewPlantPage() {
       setLocationId(data.location_id || '')
       setCompanyId(data.company_id || '')
       setLocationName(resolvedLocationName)
+
+      if (data.location_id) {
+        const { data: roomList } = await supabase
+          .from('rooms')
+          .select('id, name')
+          .eq('location_id', data.location_id)
+          .order('created_at', { ascending: true })
+        setRooms(roomList ?? [])
+        if (roomList && roomList.length > 0) {
+          setRoomId(roomList[0].id)
+        }
+      }
     }
 
     if (visitId) {
@@ -323,6 +337,7 @@ export default function MaintenanceNewPlantPage() {
           {
             company_id: companyId,
             location_id: locationId,
+            room_id: roomId || null,
             plant_code: referenceCode,
             nickname: nickname.trim() || null,
             species: species.trim() || null,
@@ -384,6 +399,30 @@ export default function MaintenanceNewPlantPage() {
         <form onSubmit={handleSubmit} className="stera-card space-y-4">
           <div className="rounded-lg bg-stera-cream-deep p-3 text-sm">
             Referentiecode: <strong>{referenceCode || 'Wordt gegenereerd...'}</strong>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              Ruimte
+            </label>
+            <select
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              className="w-full rounded-lg border border-stera-line bg-white p-3"
+              required
+              disabled={rooms.length === 0}
+            >
+              <option value="">
+                {rooms.length === 0
+                  ? 'Geen ruimtes — voeg er eerst een toe op de locatie'
+                  : 'Kies een ruimte'}
+              </option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name || 'Ruimte'}
+                </option>
+              ))}
+            </select>
           </div>
 
           <input

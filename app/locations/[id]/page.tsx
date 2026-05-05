@@ -2,12 +2,13 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteLocationButton from '@/components/delete-location-button'
-import {
-  getMood,
-  statusLabel,
-  statusColor,
-  type PlantOverviewPlant,
-} from '@/components/plant-overview'
+
+type RoomRow = {
+  id: string
+  name: string | null
+  floor: string | null
+  notes: string | null
+}
 
 export default async function LocationDetailPage({
   params,
@@ -36,11 +37,39 @@ export default async function LocationDetailPage({
     notFound()
   }
 
-  const { data: plants, error: plantsError } = await supabase
-    .from('plants')
-    .select('*')
+  // Fetch all rooms with plant counts in two queries (no joinable count yet).
+  const { data: rooms } = await supabase
+    .from('rooms')
+    .select('id, name, floor, notes, created_at')
     .eq('location_id', id)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true })
+
+  const roomIds = (rooms ?? []).map((r) => r.id)
+  const { data: plantsForCount } = roomIds.length
+    ? await supabase
+        .from('plants')
+        .select('id, room_id')
+        .in('room_id', roomIds)
+    : { data: [] }
+
+  const plantCountByRoom = new Map<string, number>()
+  for (const plant of plantsForCount ?? []) {
+    if (!plant.room_id) continue
+    plantCountByRoom.set(
+      plant.room_id,
+      (plantCountByRoom.get(plant.room_id) ?? 0) + 1
+    )
+  }
+
+  const fullAddress = [
+    [location.street, location.number].filter(Boolean).join(' '),
+    [location.postal_code, location.city].filter(Boolean).join(' '),
+    location.country && location.country !== 'BE'
+      ? location.country
+      : undefined,
+  ]
+    .filter((part) => typeof part === 'string' && part.trim().length > 0)
+    .join(', ')
 
   return (
     <main className="bg-stera-cream p-6">
@@ -55,10 +84,11 @@ export default async function LocationDetailPage({
         <div>
           <p className="stera-eyebrow mb-2">Locatie</p>
           <h1 className="stera-display text-3xl sm:text-4xl">{location.name}</h1>
-          <div className="mt-3 space-y-1 text-sm text-stera-ink-soft">
-            {location.floor && <p>Verdieping: {location.floor}</p>}
-            {location.room && <p>Ruimte: {location.room}</p>}
-          </div>
+
+          {fullAddress && (
+            <p className="mt-3 text-sm text-stera-ink-soft">{fullAddress}</p>
+          )}
+
           {location.notes && (
             <p className="mt-3 text-sm text-stera-ink-soft">{location.notes}</p>
           )}
@@ -66,15 +96,22 @@ export default async function LocationDetailPage({
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href={`/locations/${location.id}/plants/new`}
+            href={`/locations/${location.id}/rooms/new`}
             className="stera-cta stera-cta-primary"
           >
-            Nieuwe plant
+            Nieuwe ruimte
+          </Link>
+
+          <Link
+            href={`/locations/${location.id}/edit`}
+            className="stera-cta stera-cta-secondary"
+          >
+            Locatie bewerken
           </Link>
 
           <Link
             href={`/locations/${location.id}/qr`}
-            className="stera-cta stera-cta-secondary"
+            className="stera-cta stera-cta-ghost"
           >
             QR-labels
           </Link>
@@ -86,54 +123,48 @@ export default async function LocationDetailPage({
         </div>
 
         <section className="space-y-3">
-          <p className="stera-eyebrow">Planten</p>
+          <p className="stera-eyebrow">Ruimtes</p>
 
-          {plantsError ? (
-            <p className="text-red-600">
-              Fout bij ophalen planten: {plantsError.message}
-            </p>
-          ) : !plants || plants.length === 0 ? (
+          {!rooms || rooms.length === 0 ? (
             <div className="stera-card">
-              <p className="text-sm text-stera-ink-soft">Nog geen planten toegevoegd.</p>
+              <p className="text-sm text-stera-ink-soft">
+                Nog geen ruimtes aangemaakt. Klik op{' '}
+                <span className="font-semibold">Nieuwe ruimte</span> om er een toe
+                te voegen (bv. receptie, vergaderzaal, lokaal 3.04).
+              </p>
             </div>
           ) : (
             <ul className="space-y-3">
-              {plants.map((plant) => (
-                <li key={plant.id} className="stera-card transition hover:border-stera-blue">
-                  <Link href={`/plants/${plant.id}`} className="block">
-                    <p className="font-semibold text-stera-ink">
-                      {plant.nickname || plant.plant_code || 'Zonder naam'}
-                    </p>
-
-                    {plant.species && (
-                      <p className="mt-1 text-sm text-stera-ink-soft">
-                        {plant.species}
-                      </p>
-                    )}
-
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {(() => {
-                        const overview = plant as PlantOverviewPlant
-                        const mood = getMood(overview)
-                        if (mood === 'healthy') return null
-                        return (
-                          <span
-                            className={`rounded border px-2 py-1 font-medium ${statusColor(overview)}`}
-                          >
-                            {statusLabel(overview)}
-                          </span>
-                        )
-                      })()}
-                    </div>
-
-                    {plant.notes && (
-                      <p className="mt-2 text-sm text-stera-ink-soft">
-                        {plant.notes}
-                      </p>
-                    )}
-                  </Link>
-                </li>
-              ))}
+              {(rooms as RoomRow[]).map((room) => {
+                const plantCount = plantCountByRoom.get(room.id) ?? 0
+                return (
+                  <li
+                    key={room.id}
+                    className="stera-card transition hover:border-stera-blue"
+                  >
+                    <Link href={`/rooms/${room.id}`} className="block">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="font-semibold text-stera-ink">
+                          {room.name || 'Ruimte'}
+                        </p>
+                        <p className="text-xs text-stera-ink-soft">
+                          {plantCount} {plantCount === 1 ? 'plant' : 'planten'}
+                        </p>
+                      </div>
+                      {room.floor && (
+                        <p className="mt-1 text-sm text-stera-ink-soft">
+                          Verdieping: {room.floor}
+                        </p>
+                      )}
+                      {room.notes && (
+                        <p className="mt-2 text-sm text-stera-ink-soft">
+                          {room.notes}
+                        </p>
+                      )}
+                    </Link>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>
