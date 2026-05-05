@@ -38,52 +38,52 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F4EF] text-[#1A2F6E] flex flex-col">
-      <header className="px-6 py-6 sm:px-10 sm:py-8 border-b border-[#1A2F6E]/15">
-        <Link href="/" className="stera-wordmark text-[#1A2F6E] text-lg">
-          Stéra<span className="text-[#4A7C59]">Pro</span>
+    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink flex flex-col">
+      <header className="px-6 py-6 sm:px-10 sm:py-8 border-b border-stera-line">
+        <Link href="/" className="stera-wordmark text-stera-ink text-lg">
+          Stéra<span className="text-stera-blue">Pro</span>
         </Link>
       </header>
 
       <div className="flex-1 flex items-center justify-center px-6 py-12 sm:py-20">
         <div className="w-full max-w-md">
-          <p className="stera-eyebrow text-[#4A7C59] mb-4">Plantbeheer</p>
+          <p className="stera-eyebrow text-stera-blue mb-4">Plantbeheer</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Account aanmaken
           </h1>
-          <p className="text-sm text-[#1A2F6E]/70 mb-10 leading-relaxed">
+          <p className="text-sm text-stera-ink-soft mb-10 leading-relaxed">
             Begin met StéraPro en houd al je locaties en planten in één plek bij.
           </p>
 
           <form onSubmit={handleSignup} className="space-y-5">
             <div>
-              <label className="stera-eyebrow text-[#1A2F6E]/70 mb-2 block">
+              <label className="stera-eyebrow text-stera-ink-soft mb-2 block">
                 E-mailadres
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-[#1A2F6E]/30 bg-white px-4 py-3 text-[#1A2F6E] focus:border-[#1A2F6E] focus:outline-none focus:ring-0"
+                className="w-full border border-stera-blue/30 bg-white px-4 py-3 text-stera-ink focus:border-stera-blue focus:outline-none focus:ring-0"
                 required
                 autoComplete="email"
               />
             </div>
 
             <div>
-              <label className="stera-eyebrow text-[#1A2F6E]/70 mb-2 block">
+              <label className="stera-eyebrow text-stera-ink-soft mb-2 block">
                 Wachtwoord
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-[#1A2F6E]/30 bg-white px-4 py-3 text-[#1A2F6E] focus:border-[#1A2F6E] focus:outline-none focus:ring-0"
+                className="w-full border border-stera-blue/30 bg-white px-4 py-3 text-stera-ink focus:border-stera-blue focus:outline-none focus:ring-0"
                 minLength={6}
                 required
                 autoComplete="new-password"
               />
-              <p className="mt-2 text-xs text-[#1A2F6E]/60">
+              <p className="mt-2 text-xs text-stera-ink-soft">
                 Minimaal 6 tekens.
               </p>
             </div>
@@ -91,13 +91,13 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="stera-cta w-full bg-[#1A2F6E] px-4 py-4 text-sm text-white transition-colors hover:bg-[#13245a] disabled:opacity-60"
+              className="stera-cta w-full bg-stera-blue px-4 py-4 text-sm text-white transition-colors hover:bg-[#0010C0] disabled:opacity-60"
             >
               {loading ? 'Bezig…' : 'Account aanmaken →'}
             </button>
 
             {message && (
-              <p className="border border-[#4A7C59]/40 bg-[#4A7C59]/10 px-3 py-2 text-sm text-[#2f5a3e]">
+              <p className="border border-stera-blue/40 bg-stera-blue/10 px-3 py-2 text-sm text-stera-blue">
                 {message}
               </p>
             )}
@@ -108,11 +108,11 @@ export default function SignupPage() {
             )}
           </form>
 
-          <p className="mt-8 text-sm text-[#1A2F6E]/70">
+          <p className="mt-8 text-sm text-stera-ink-soft">
             Al een account?{' '}
             <Link
               href="/login"
-              className="font-semibold text-[#1A2F6E] underline underline-offset-4 hover:text-[#4A7C59]"
+              className="font-semibold text-stera-ink underline underline-offset-4 hover:text-stera-blue"
             >
               Inloggen
             </Link>
@@ -120,7 +120,7 @@ export default function SignupPage() {
         </div>
       </div>
 
-      <footer className="px-6 py-6 sm:px-10 text-xs text-[#1A2F6E]/60 border-t border-[#1A2F6E]/15">
+      <footer className="px-6 py-6 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
         © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
       </footer>
     </main>

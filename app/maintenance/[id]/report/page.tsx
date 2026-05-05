@@ -158,9 +158,9 @@ export default async function MaintenanceReportPage({
   const reportDate = formatDate(visit.ended_at || visit.scheduled_start || visit.created_at)
 
   return (
-    <main className="min-h-screen bg-[#F7F4EF] text-[#1A2F6E] print:bg-white">
+    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink print:bg-white">
       <div className="mx-auto max-w-3xl px-5 py-8 sm:px-10 sm:py-12 print:px-0 print:py-0">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1A2F6E]/15 pb-6 mb-8 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stera-line pb-6 mb-8 print:hidden">
           <Link
             href={`/maintenance/${id}`}
             className="text-sm underline"
@@ -171,65 +171,65 @@ export default async function MaintenanceReportPage({
         </div>
 
         <header className="mb-10">
-          <p className="stera-eyebrow text-[#4A7C59] mb-3">Onderhoudsrapport</p>
+          <p className="stera-eyebrow text-stera-blue mb-3">Onderhoudsrapport</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
             {visit.title || 'Onderhoudsbeurt'}
           </h1>
           {reportDate ? (
-            <p className="text-base text-[#1A2F6E]/80">{reportDate}</p>
+            <p className="text-base text-stera-ink-soft">{reportDate}</p>
           ) : null}
         </header>
 
         <section className="mb-10 grid gap-6 sm:grid-cols-2">
           <div>
-            <p className="stera-eyebrow text-[#4A7C59] mb-2">Klant</p>
+            <p className="stera-eyebrow text-stera-blue mb-2">Klant</p>
             <p className="font-semibold">{company?.name || '—'}</p>
             {company?.contact_name ? (
-              <p className="text-sm text-[#1A2F6E]/75">t.a.v. {company.contact_name}</p>
+              <p className="text-sm text-stera-ink-soft">t.a.v. {company.contact_name}</p>
             ) : null}
           </div>
 
           <div>
-            <p className="stera-eyebrow text-[#4A7C59] mb-2">Locatie</p>
+            <p className="stera-eyebrow text-stera-blue mb-2">Locatie</p>
             <p className="font-semibold">{location?.name || '—'}</p>
             {(location?.floor || location?.room) ? (
-              <p className="text-sm text-[#1A2F6E]/75">
+              <p className="text-sm text-stera-ink-soft">
                 {[location?.floor, location?.room].filter(Boolean).join(' · ')}
               </p>
             ) : null}
           </div>
         </section>
 
-        <section className="mb-10 rounded border border-[#1A2F6E]/15 bg-white/60 p-5 print:bg-transparent">
-          <p className="stera-eyebrow text-[#4A7C59] mb-3">Tijdsregistratie</p>
+        <section className="mb-10 rounded border border-stera-line bg-white/60 p-5 print:bg-transparent">
+          <p className="stera-eyebrow text-stera-blue mb-3">Tijdsregistratie</p>
           <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-sm">
             {startedAt ? (
               <div className="flex justify-between sm:block">
-                <dt className="text-[#1A2F6E]/60">Start</dt>
+                <dt className="text-stera-ink-soft">Start</dt>
                 <dd className="font-medium">{startedAt}</dd>
               </div>
             ) : null}
             {endedAt ? (
               <div className="flex justify-between sm:block">
-                <dt className="text-[#1A2F6E]/60">Einde</dt>
+                <dt className="text-stera-ink-soft">Einde</dt>
                 <dd className="font-medium">{endedAt}</dd>
               </div>
             ) : null}
             {duration ? (
               <div className="flex justify-between sm:block">
-                <dt className="text-[#1A2F6E]/60">Werkduur</dt>
+                <dt className="text-stera-ink-soft">Werkduur</dt>
                 <dd className="font-medium">{duration}</dd>
               </div>
             ) : null}
             {typeof visit.pause_total_minutes === 'number' && visit.pause_total_minutes > 0 ? (
               <div className="flex justify-between sm:block">
-                <dt className="text-[#1A2F6E]/60">Pauze</dt>
+                <dt className="text-stera-ink-soft">Pauze</dt>
                 <dd className="font-medium">{visit.pause_total_minutes} min</dd>
               </div>
             ) : null}
             {!startedAt && scheduledFor ? (
               <div className="flex justify-between sm:block">
-                <dt className="text-[#1A2F6E]/60">Gepland voor</dt>
+                <dt className="text-stera-ink-soft">Gepland voor</dt>
                 <dd className="font-medium">{scheduledFor}</dd>
               </div>
             ) : null}
@@ -238,18 +238,18 @@ export default async function MaintenanceReportPage({
 
         {visit.planned_tasks ? (
           <section className="mb-10">
-            <p className="stera-eyebrow text-[#4A7C59] mb-3">Geplande taken</p>
-            <p className="whitespace-pre-wrap text-sm text-[#1A2F6E]/85 leading-relaxed">
+            <p className="stera-eyebrow text-stera-blue mb-3">Geplande taken</p>
+            <p className="whitespace-pre-wrap text-sm text-stera-ink leading-relaxed">
               {visit.planned_tasks}
             </p>
           </section>
         ) : null}
 
         <section className="mb-10">
-          <p className="stera-eyebrow text-[#4A7C59] mb-3">Behandelde planten</p>
+          <p className="stera-eyebrow text-stera-blue mb-3">Behandelde planten</p>
 
           {!visitPlants || visitPlants.length === 0 ? (
-            <p className="text-sm text-[#1A2F6E]/70">Geen planten geregistreerd.</p>
+            <p className="text-sm text-stera-ink-soft">Geen planten geregistreerd.</p>
           ) : (
             <ul className="space-y-4">
               {visitPlants.map((vp: any) => {
@@ -258,7 +258,7 @@ export default async function MaintenanceReportPage({
                 return (
                   <li
                     key={vp.id}
-                    className="rounded border border-[#1A2F6E]/15 bg-white/60 p-4 print:bg-transparent"
+                    className="rounded border border-stera-line bg-white/60 p-4 print:bg-transparent"
                   >
                     <div className="flex flex-wrap gap-4">
                       {plant?.photo_url ? (
@@ -273,16 +273,16 @@ export default async function MaintenanceReportPage({
                           {plant?.nickname || plant?.reference_code || plant?.plant_code || 'Plant'}
                         </p>
                         {plant?.species ? (
-                          <p className="text-sm text-[#1A2F6E]/70">{plant.species}</p>
+                          <p className="text-sm text-stera-ink-soft">{plant.species}</p>
                         ) : null}
                         {plant?.reference_code ? (
-                          <p className="text-xs font-mono text-[#1A2F6E]/55">
+                          <p className="text-xs font-mono text-stera-ink-soft">
                             {plant.reference_code}
                           </p>
                         ) : null}
 
                         {vp.new_plant ? (
-                          <p className="mt-2 inline-block rounded bg-[#4A7C59]/15 px-2 py-0.5 text-xs font-medium text-[#4A7C59]">
+                          <p className="mt-2 inline-block rounded bg-stera-blue/10 px-2 py-0.5 text-xs font-medium text-stera-blue">
                             Nieuw toegevoegd
                           </p>
                         ) : null}
@@ -292,7 +292,7 @@ export default async function MaintenanceReportPage({
                             {actions.map((label) => (
                               <li
                                 key={label}
-                                className="rounded border border-[#1A2F6E]/20 px-2 py-0.5 text-xs"
+                                className="rounded border border-stera-line px-2 py-0.5 text-xs"
                               >
                                 {label}
                               </li>
@@ -302,7 +302,7 @@ export default async function MaintenanceReportPage({
 
                         {vp.health_status && HEALTH_LABELS[vp.health_status] ? (
                           <p className="mt-2 text-sm">
-                            <span className="text-[#1A2F6E]/60">Status na onderhoud: </span>
+                            <span className="text-stera-ink-soft">Status na onderhoud: </span>
                             <span className="font-medium">
                               {HEALTH_LABELS[vp.health_status]}
                             </span>
@@ -310,7 +310,7 @@ export default async function MaintenanceReportPage({
                         ) : null}
 
                         {vp.notes ? (
-                          <p className="mt-2 whitespace-pre-wrap text-sm text-[#1A2F6E]/85">
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink">
                             {vp.notes}
                           </p>
                         ) : null}
@@ -324,12 +324,12 @@ export default async function MaintenanceReportPage({
         </section>
 
         <section className="mb-10">
-          <p className="stera-eyebrow text-[#4A7C59] mb-3">Verbruiksgoederen</p>
+          <p className="stera-eyebrow text-stera-blue mb-3">Verbruiksgoederen</p>
 
           {!consumables || consumables.length === 0 ? (
-            <p className="text-sm text-[#1A2F6E]/70">Geen verbruiksgoederen geregistreerd.</p>
+            <p className="text-sm text-stera-ink-soft">Geen verbruiksgoederen geregistreerd.</p>
           ) : (
-            <ul className="divide-y divide-[#1A2F6E]/10 rounded border border-[#1A2F6E]/15 bg-white/60 print:bg-transparent">
+            <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white/60 print:bg-transparent">
               {consumables.map((c: any) => {
                 const catalog = Array.isArray(c.consumable_catalog)
                   ? c.consumable_catalog[0]
@@ -343,7 +343,7 @@ export default async function MaintenanceReportPage({
                       {c.unit ? ` ${c.unit}` : ''}
                     </span>
                     {c.notes ? (
-                      <span className="basis-full text-xs text-[#1A2F6E]/70">
+                      <span className="basis-full text-xs text-stera-ink-soft">
                         {c.notes}
                       </span>
                     ) : null}
@@ -356,16 +356,16 @@ export default async function MaintenanceReportPage({
 
         {visit.general_notes ? (
           <section className="mb-10">
-            <p className="stera-eyebrow text-[#4A7C59] mb-3">Algemene notities</p>
-            <p className="whitespace-pre-wrap text-sm text-[#1A2F6E]/85 leading-relaxed">
+            <p className="stera-eyebrow text-stera-blue mb-3">Algemene notities</p>
+            <p className="whitespace-pre-wrap text-sm text-stera-ink leading-relaxed">
               {visit.general_notes}
             </p>
           </section>
         ) : null}
 
-        <footer className="mt-12 border-t border-[#1A2F6E]/15 pt-6 text-xs text-[#1A2F6E]/60">
-          <p className="stera-wordmark text-[#1A2F6E] text-sm mb-1">
-            Stéra<span className="text-[#4A7C59]">Pro</span>
+        <footer className="mt-12 border-t border-stera-line pt-6 text-xs text-stera-ink-soft">
+          <p className="stera-wordmark text-stera-ink text-sm mb-1">
+            Stéra<span className="text-stera-blue">Pro</span>
           </p>
           <p>Opgemaakt door Stera · Plantbeheer voor professionals</p>
           {visit.report_sent_at ? (

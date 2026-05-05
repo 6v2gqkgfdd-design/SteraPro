@@ -46,15 +46,16 @@ export default async function MaintenanceDetailPage({
   }
 
   return (
-    <main className="p-6">
+    <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{visit.title}</h1>
-            <p className="text-sm text-gray-600">
+            <p className="stera-eyebrow mb-2">Onderhoud</p>
+            <h1 className="stera-display text-3xl sm:text-4xl">{visit.title}</h1>
+            <p className="mt-2 text-sm text-stera-ink-soft">
               {visit.locations?.name ?? 'Onbekende locatie'} •{' '}
               {visit.scheduled_start
-                ? new Date(visit.scheduled_start).toLocaleString()
+                ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
                 : 'Geen datum'}
             </p>
           </div>
@@ -62,21 +63,21 @@ export default async function MaintenanceDetailPage({
           <div className="flex flex-wrap gap-3">
             <Link
               href={`/maintenance/${id}/report`}
-              className="rounded-lg bg-[#1A2F6E] px-4 py-2 text-sm text-white"
+              className="stera-cta stera-cta-primary"
             >
               Klantrapport
             </Link>
 
             <Link
               href="/maintenance"
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
-              Onderhoudsoverzicht
+              Overzicht
             </Link>
 
             <Link
               href="/dashboard"
-              className="rounded-lg border px-4 py-2 text-sm"
+              className="stera-cta stera-cta-ghost"
             >
               Dashboard
             </Link>
@@ -84,60 +85,61 @@ export default async function MaintenanceDetailPage({
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border p-4">
-            <h2 className="mb-2 font-semibold">Vorige keer</h2>
-            <p className="whitespace-pre-wrap text-sm text-gray-700">
+          <div className="stera-card">
+            <p className="stera-eyebrow mb-2">Vorige keer</p>
+            <p className="whitespace-pre-wrap text-sm text-stera-ink-soft">
               {visit.previous_visit_summary || 'Geen vorige samenvatting beschikbaar.'}
             </p>
           </div>
 
-          <div className="rounded-xl border p-4">
-            <h2 className="mb-2 font-semibold">Vandaag te doen</h2>
-            <p className="whitespace-pre-wrap text-sm text-gray-700">
+          <div className="stera-card">
+            <p className="stera-eyebrow mb-2">Vandaag te doen</p>
+            <p className="whitespace-pre-wrap text-sm text-stera-ink-soft">
               {visit.planned_tasks || 'Geen geplande taken ingevuld.'}
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border p-4">
-          <h2 className="mb-4 font-semibold">Tijdsregistratie</h2>
+        <div className="stera-card">
+          <p className="stera-eyebrow mb-3">Tijdsregistratie</p>
           <MaintenanceActions visit={visit} />
         </div>
 
-        <div className="rounded-xl border p-4">
+        <div className="stera-card">
           <VisitConsumables visitId={visit.id} />
         </div>
 
-        <div className="rounded-xl border p-4">
+        <div className="stera-card">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold">Behandelde planten</h2>
+            <p className="stera-eyebrow">Behandelde planten</p>
 
             <Link
               href={`/maintenance/${id}/plants`}
-              className="rounded-lg bg-black px-4 py-2 text-sm text-white"
+              className="stera-cta stera-cta-primary"
             >
               Plant toevoegen / scannen
             </Link>
-
           </div>
 
           <div className="space-y-3">
             {visitPlants?.map((item: any) => (
-              <div key={item.id} className="rounded-lg border p-3">
+              <div key={item.id} className="rounded-lg border border-stera-line bg-stera-cream-deep p-3">
                 <p className="font-medium">
                   {item.plants?.nickname || 'Plant'}
                 </p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-stera-ink-soft">
                   {item.plants?.species || 'Onbekende soort'} • {item.plants?.reference_code}
                 </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
-                  {item.notes || 'Nog geen notities.'}
-                </p>
+                {item.notes ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink-soft">
+                    {item.notes}
+                  </p>
+                ) : null}
               </div>
             ))}
 
             {!visitPlants?.length && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-stera-ink-soft">
                 Nog geen planten toegevoegd aan deze onderhoudsbeurt.
               </p>
             )}

@@ -107,7 +107,7 @@ function statusColor(plant: Plant): string {
   if (plant.is_dead) return 'bg-red-100 text-red-800 border-red-300'
   if (plant.is_dying) return 'bg-orange-100 text-orange-800 border-orange-300'
   if (plant.needs_replacement) return 'bg-yellow-100 text-yellow-800 border-yellow-300'
-  return 'bg-[#4A7C59]/10 text-[#2f5a3e] border-[#4A7C59]/30'
+  return 'bg-stera-blue/10 text-stera-blue border-stera-blue/30'
 }
 
 function plantTitle(plant: Plant): string {
@@ -145,14 +145,14 @@ export async function generateMetadata({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#F7F4EF] text-[#1A2F6E] flex flex-col">
-      <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-[#1A2F6E]/15">
-        <Link href="/" className="stera-wordmark text-[#1A2F6E] text-base sm:text-lg">
-          Stéra<span className="text-[#4A7C59]">Pro</span>
+    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink flex flex-col">
+      <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
+        <Link href="/" className="stera-wordmark text-stera-ink text-base sm:text-lg">
+          Stéra<span className="text-stera-blue">Pro</span>
         </Link>
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-16">{children}</div>
-      <footer className="px-5 py-5 sm:px-10 text-xs text-[#1A2F6E]/60 border-t border-[#1A2F6E]/15">
+      <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
         © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
       </footer>
     </main>
@@ -163,29 +163,29 @@ function NotFoundView({ slug }: { slug: string }) {
   return (
     <Shell>
       <div className="mx-auto w-full max-w-xl">
-        <p className="stera-eyebrow text-[#4A7C59] mb-4">QR-code · Niet gevonden</p>
+        <p className="stera-eyebrow text-stera-blue mb-4">QR-code · Niet gevonden</p>
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
           QR-code niet herkend
         </h1>
-        <p className="text-base text-[#1A2F6E]/75 leading-relaxed mb-3">
+        <p className="text-base text-stera-ink-soft leading-relaxed mb-3">
           We konden geen plant vinden voor deze QR-code. De plant is mogelijk
           verwijderd, of de code is nog niet aan een plant gekoppeld in Stera Pro.
         </p>
-        <p className="text-sm text-[#1A2F6E]/60 mb-10">
+        <p className="text-sm text-stera-ink-soft mb-10">
           Gescande code:{' '}
-          <span className="font-mono text-[#1A2F6E] break-all">{slug}</span>
+          <span className="font-mono text-stera-ink break-all">{slug}</span>
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
             href="/login"
-            className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+            className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
           >
             Inloggen voor onderhoud →
           </Link>
           <Link
             href="/"
-            className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+            className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
           >
             Terug naar start →
           </Link>
@@ -232,12 +232,12 @@ export default async function PublicPlantPage({
   return (
     <Shell>
       <div className="mx-auto w-full max-w-2xl">
-        <p className="stera-eyebrow text-[#4A7C59] mb-3">Plant · QR-overzicht</p>
+        <p className="stera-eyebrow text-stera-blue mb-3">Plant · QR-overzicht</p>
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
           {title}
         </h1>
         {plant.species && plant.species !== title && (
-          <p className="text-base text-[#1A2F6E]/75 mb-5">{plant.species}</p>
+          <p className="text-base text-stera-ink-soft mb-5">{plant.species}</p>
         )}
 
         <div
@@ -251,34 +251,34 @@ export default async function PublicPlantPage({
           <img
             src={plant.photo_url}
             alt={title}
-            className="mt-8 w-full max-h-[420px] object-cover border border-[#1A2F6E]/15"
+            className="mt-8 w-full max-h-[420px] object-cover border border-stera-line"
           />
         )}
 
-        <dl className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8 border-t border-[#1A2F6E]/15 pt-6">
+        <dl className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8 border-t border-stera-line pt-6">
           {plant.reference_code && (
             <div>
-              <dt className="stera-eyebrow text-[#1A2F6E]/60">Referentie</dt>
-              <dd className="mt-1 text-sm text-[#1A2F6E] font-mono">
+              <dt className="stera-eyebrow text-stera-ink-soft">Referentie</dt>
+              <dd className="mt-1 text-sm text-stera-ink font-mono">
                 {plant.reference_code}
               </dd>
             </div>
           )}
           {plant.plant_code && plant.plant_code !== plant.reference_code && (
             <div>
-              <dt className="stera-eyebrow text-[#1A2F6E]/60">Plantcode</dt>
-              <dd className="mt-1 text-sm text-[#1A2F6E] font-mono">
+              <dt className="stera-eyebrow text-stera-ink-soft">Plantcode</dt>
+              <dd className="mt-1 text-sm text-stera-ink font-mono">
                 {plant.plant_code}
               </dd>
             </div>
           )}
           {location?.name && (
             <div>
-              <dt className="stera-eyebrow text-[#1A2F6E]/60">Locatie</dt>
-              <dd className="mt-1 text-sm text-[#1A2F6E]">
+              <dt className="stera-eyebrow text-stera-ink-soft">Locatie</dt>
+              <dd className="mt-1 text-sm text-stera-ink">
                 {location.name}
                 {(location.floor || location.room) && (
-                  <span className="text-[#1A2F6E]/70">
+                  <span className="text-stera-ink-soft">
                     {' · '}
                     {[location.floor, location.room].filter(Boolean).join(' · ')}
                   </span>
@@ -288,26 +288,26 @@ export default async function PublicPlantPage({
           )}
           {plant.status && (
             <div>
-              <dt className="stera-eyebrow text-[#1A2F6E]/60">Conditie</dt>
-              <dd className="mt-1 text-sm text-[#1A2F6E]">{plant.status}</dd>
+              <dt className="stera-eyebrow text-stera-ink-soft">Conditie</dt>
+              <dd className="mt-1 text-sm text-stera-ink">{plant.status}</dd>
             </div>
           )}
         </dl>
 
         {plant.notes && (
-          <section className="mt-8 border border-[#1A2F6E]/15 bg-white p-5 sm:p-6">
-            <h2 className="stera-eyebrow text-[#4A7C59] mb-3">Notities</h2>
-            <p className="text-sm text-[#1A2F6E]/85 leading-relaxed whitespace-pre-wrap">
+          <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">
+            <h2 className="stera-eyebrow text-stera-blue mb-3">Notities</h2>
+            <p className="text-sm text-stera-ink leading-relaxed whitespace-pre-wrap">
               {plant.notes}
             </p>
           </section>
         )}
 
-        <section className="mt-8 border border-[#1A2F6E]/15 bg-white p-5 sm:p-6">
-          <h2 className="stera-eyebrow text-[#4A7C59] mb-3">Laatste onderhoud</h2>
+        <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">
+          <h2 className="stera-eyebrow text-stera-blue mb-3">Laatste onderhoud</h2>
           {latestLog ? (
             <>
-              <p className="text-sm text-[#1A2F6E]/80">
+              <p className="text-sm text-stera-ink-soft">
                 {new Date(latestLog.performed_at).toLocaleString('nl-BE', {
                   dateStyle: 'long',
                   timeStyle: 'short',
@@ -318,25 +318,25 @@ export default async function PublicPlantPage({
                   {performedTasks.map(({ key, label }) => (
                     <span
                       key={key}
-                      className="border border-[#1A2F6E]/20 px-2 py-1 uppercase tracking-wider"
+                      className="border border-stera-line px-2 py-1 uppercase tracking-wider"
                     >
                       {label}
                     </span>
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-xs text-[#1A2F6E]/60">
+                <p className="mt-3 text-xs text-stera-ink-soft">
                   Geen specifieke handelingen geregistreerd.
                 </p>
               )}
               {latestLog.notes && (
-                <p className="mt-4 text-sm text-[#1A2F6E]/80 leading-relaxed whitespace-pre-wrap">
+                <p className="mt-4 text-sm text-stera-ink-soft leading-relaxed whitespace-pre-wrap">
                   {latestLog.notes}
                 </p>
               )}
             </>
           ) : (
-            <p className="text-sm text-[#1A2F6E]/70">
+            <p className="text-sm text-stera-ink-soft">
               Nog geen onderhoud geregistreerd voor deze plant.
             </p>
           )}
@@ -345,19 +345,19 @@ export default async function PublicPlantPage({
         <div className="mt-10 flex flex-col sm:flex-row gap-3">
           <Link
             href="/login"
-            className="stera-cta inline-flex items-center justify-center bg-[#1A2F6E] px-6 py-4 text-sm text-white hover:bg-[#13245a]"
+            className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
           >
             Inloggen voor onderhoud →
           </Link>
           <Link
             href="/"
-            className="stera-cta inline-flex items-center justify-center border border-[#1A2F6E] px-6 py-4 text-sm text-[#1A2F6E] hover:bg-[#1A2F6E] hover:text-white"
+            className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
           >
             Terug naar start →
           </Link>
         </div>
 
-        <p className="mt-8 text-xs text-[#1A2F6E]/50">
+        <p className="mt-8 text-xs text-stera-ink-soft">
           QR-slug: <span className="font-mono break-all">{plant.qr_slug}</span>
         </p>
       </div>
