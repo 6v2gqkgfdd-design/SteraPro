@@ -82,7 +82,6 @@ export default async function MaintenancePage({
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="stera-eyebrow mb-2">Onderhoud</p>
             <h1 className="stera-display text-3xl sm:text-4xl">
               Geplande en voltooide beurten
             </h1>

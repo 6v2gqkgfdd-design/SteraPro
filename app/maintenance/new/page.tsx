@@ -153,7 +153,6 @@ export default function NewMaintenancePage() {
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <p className="stera-eyebrow mb-2">Onderhoud</p>
           <h1 className="stera-display text-3xl sm:text-4xl">Nieuwe afspraak</h1>
         </div>
 

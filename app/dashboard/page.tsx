@@ -155,7 +155,6 @@ export default async function DashboardPage() {
     <main className="bg-stera-cream px-5 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-4xl space-y-8">
         <div>
-          <p className="stera-eyebrow mb-3">Home</p>
           <SteraLogo variant="hero" href={null} />
           <p className="mt-4 text-base text-stera-ink">
             {greeting}. Vandaag is het {todayLabel}.

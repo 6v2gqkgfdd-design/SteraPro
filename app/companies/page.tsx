@@ -25,7 +25,6 @@ export default async function CompaniesPage() {
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="stera-eyebrow mb-2">Klanten</p>
             <h1 className="stera-display text-3xl sm:text-4xl">Klanten</h1>
           </div>
           <Link href="/companies/new" className="stera-cta stera-cta-primary">

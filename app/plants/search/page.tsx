@@ -88,7 +88,6 @@ export default function PlantSearchPage() {
       <div className="mx-auto max-w-3xl space-y-6">
 
         <div>
-          <p className="stera-eyebrow mb-2">Zoeken</p>
           <h1 className="stera-display text-3xl sm:text-4xl">Plant opzoeken</h1>
           <p className="mt-2 text-sm text-stera-ink-soft">
             Zoek op bijnaam, soort, referentiecode of QR-slug.

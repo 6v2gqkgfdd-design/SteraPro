@@ -149,7 +149,6 @@ export default function GlobalScanPage() {
       <div className="mx-auto max-w-3xl space-y-6">
 
         <div>
-          <p className="stera-eyebrow mb-2">Scan</p>
           <h1 className="stera-display text-3xl sm:text-4xl">Plant scannen</h1>
           <p className="mt-2 text-sm text-stera-ink-soft">
             Richt de camera op de QR-code van een plant. Je gaat meteen naar de
