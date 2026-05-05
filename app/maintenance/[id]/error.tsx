@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import SteraLogo from '@/components/stera-logo'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -50,9 +51,7 @@ export default function MaintenanceSegmentError({
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
-        <Link href="/" className="stera-wordmark text-stera-ink text-base sm:text-lg">
-          Stéra<span className="text-stera-green">Pro</span>
-        </Link>
+        <SteraLogo variant="default" />
       </header>
 
       <div className="flex-1 px-5 py-10 sm:px-10 sm:py-16">

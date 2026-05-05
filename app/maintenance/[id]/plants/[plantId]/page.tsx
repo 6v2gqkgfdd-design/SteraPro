@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import SteraLogo from '@/components/stera-logo'
 
 async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   const objectUrl = URL.createObjectURL(file)
@@ -72,12 +73,7 @@ function SteraShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
-        <Link
-          href="/"
-          className="stera-wordmark text-stera-ink text-base sm:text-lg"
-        >
-          Stéra<span className="text-stera-green">Pro</span>
-        </Link>
+        <SteraLogo variant="default" />
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">{children}</div>
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">

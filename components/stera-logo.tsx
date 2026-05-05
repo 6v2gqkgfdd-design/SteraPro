@@ -19,10 +19,10 @@ const TEXT_SIZE: Record<Variant, string> = {
 
 /**
  * Render the Stera logo. Tries the real wordmark file at
- * /stera-wordmark.png first; if that fails (file not yet uploaded),
+ * /stera-logo.png first; if that fails (file not yet uploaded),
  * falls back to a styled text wordmark in Instrument Serif italic.
  *
- * Drop the official PNG/SVG into /public/stera-wordmark.png to use the
+ * Drop the official PNG/SVG into /public/stera-logo.png to use the
  * real artwork everywhere it shows up. Add /public/stera-icon.png for
  * the standalone "S" icon variant.
  */
@@ -59,7 +59,7 @@ export default function SteraLogo({
     <span className={`inline-flex items-baseline gap-2 ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/stera-wordmark.png"
+        src="/stera-logo.png"
         alt="Stera"
         className={`${heightCls} w-auto select-none`}
         onError={() => setImageFailed(true)}

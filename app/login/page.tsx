@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import SteraLogo from '@/components/stera-logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -36,9 +37,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-6 py-6 sm:px-10 sm:py-8 border-b border-stera-line">
-        <Link href="/" className="stera-wordmark text-stera-ink text-lg">
-          Stéra<span className="text-stera-green">Pro</span>
-        </Link>
+        <SteraLogo variant="default" />
       </header>
 
       <div className="flex-1 flex items-center justify-center px-6 py-12 sm:py-20">

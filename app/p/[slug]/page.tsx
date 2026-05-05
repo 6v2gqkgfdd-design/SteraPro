@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import SteraLogo from '@/components/stera-logo'
 import PlantOverview, {
   plantTitle,
   type PlantOverviewLocation,
@@ -113,12 +114,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
-        <Link
-          href="/"
-          className="stera-wordmark text-stera-ink text-base sm:text-lg"
-        >
-          Stéra<span className="text-stera-green">Pro</span>
-        </Link>
+        <SteraLogo variant="default" />
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-16">{children}</div>
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">

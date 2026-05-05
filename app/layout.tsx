@@ -24,7 +24,10 @@ export const metadata: Metadata = {
     'Stera Pro is het plantbeheerplatform van Stera. Beheer locaties, planten en onderhoud — van scan tot rapport.',
   applicationName: 'Stera Pro',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/stera-logo-short.png', type: 'image/png', sizes: '1000x1000' },
+    ],
+    apple: '/stera-logo-short.png',
   },
 }
 
