@@ -90,7 +90,7 @@ export default function EditCompanyPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <Link
           href={`/companies/${companyId}`}
-          className="text-sm text-stera-blue underline"
+          className="text-sm text-stera-green underline"
         >
           ← Terug naar bedrijf
         </Link>

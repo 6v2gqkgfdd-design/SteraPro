@@ -38,16 +38,16 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink flex flex-col">
+    <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-6 py-6 sm:px-10 sm:py-8 border-b border-stera-line">
         <Link href="/" className="stera-wordmark text-stera-ink text-lg">
-          Stéra<span className="text-stera-blue">Pro</span>
+          Stéra<span className="text-stera-green">Pro</span>
         </Link>
       </header>
 
       <div className="flex-1 flex items-center justify-center px-6 py-12 sm:py-20">
         <div className="w-full max-w-md">
-          <p className="stera-eyebrow text-stera-blue mb-4">Plantbeheer</p>
+          <p className="stera-eyebrow text-stera-green mb-4">Plantbeheer</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
             Account aanmaken
           </h1>
@@ -64,7 +64,7 @@ export default function SignupPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-stera-blue/30 bg-white px-4 py-3 text-stera-ink focus:border-stera-blue focus:outline-none focus:ring-0"
+                className="w-full border border-stera-green/30 bg-white px-4 py-3 text-stera-ink focus:border-stera-green focus:outline-none focus:ring-0"
                 required
                 autoComplete="email"
               />
@@ -78,7 +78,7 @@ export default function SignupPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-stera-blue/30 bg-white px-4 py-3 text-stera-ink focus:border-stera-blue focus:outline-none focus:ring-0"
+                className="w-full border border-stera-green/30 bg-white px-4 py-3 text-stera-ink focus:border-stera-green focus:outline-none focus:ring-0"
                 minLength={6}
                 required
                 autoComplete="new-password"
@@ -91,13 +91,13 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="stera-cta w-full bg-stera-blue px-4 py-4 text-sm text-white transition-colors hover:bg-[#0010C0] disabled:opacity-60"
+              className="stera-cta w-full bg-stera-green px-4 py-4 text-sm text-white transition-colors hover:bg-stera-green-deep disabled:opacity-60"
             >
               {loading ? 'Bezig…' : 'Account aanmaken →'}
             </button>
 
             {message && (
-              <p className="border border-stera-blue/40 bg-stera-blue/10 px-3 py-2 text-sm text-stera-blue">
+              <p className="border border-stera-green/40 bg-stera-green/10 px-3 py-2 text-sm text-stera-green">
                 {message}
               </p>
             )}
@@ -112,7 +112,7 @@ export default function SignupPage() {
             Al een account?{' '}
             <Link
               href="/login"
-              className="font-semibold text-stera-ink underline underline-offset-4 hover:text-stera-blue"
+              className="font-semibold text-stera-ink underline underline-offset-4 hover:text-stera-green"
             >
               Inloggen
             </Link>

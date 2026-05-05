@@ -76,7 +76,7 @@ export default async function LocationDetailPage({
       <div className="mx-auto max-w-4xl space-y-6">
         <Link
           href={`/companies/${location.company_id}`}
-          className="text-sm text-stera-blue underline"
+          className="text-sm text-stera-green underline"
         >
           ← Terug naar bedrijf
         </Link>
@@ -140,7 +140,7 @@ export default async function LocationDetailPage({
                 return (
                   <li
                     key={room.id}
-                    className="stera-card transition hover:border-stera-blue"
+                    className="stera-card transition hover:border-stera-green"
                   >
                     <Link href={`/rooms/${room.id}`} className="block">
                       <div className="flex items-baseline justify-between gap-3">

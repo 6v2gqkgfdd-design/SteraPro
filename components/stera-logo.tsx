@@ -18,7 +18,7 @@ export default function SteraLogo({
   className?: string
 }) {
   const inverted = variant === 'inverted'
-  const tone = inverted ? 'text-white' : 'text-stera-blue'
+  const tone = inverted ? 'text-white' : 'text-stera-green'
   const proTone = inverted ? 'text-white/80' : 'text-stera-ink/80'
   const sizeCls = SIZE[variant]
 

@@ -48,16 +48,16 @@ export default function MaintenanceSegmentError({
       : typeof error
 
   return (
-    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink flex flex-col">
+    <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
         <Link href="/" className="stera-wordmark text-stera-ink text-base sm:text-lg">
-          Stéra<span className="text-stera-blue">Pro</span>
+          Stéra<span className="text-stera-green">Pro</span>
         </Link>
       </header>
 
       <div className="flex-1 px-5 py-10 sm:px-10 sm:py-16">
         <div className="mx-auto w-full max-w-xl">
-          <p className="stera-eyebrow text-stera-blue mb-4">Onderhoud · Fout</p>
+          <p className="stera-eyebrow text-stera-green mb-4">Onderhoud · Fout</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
             Deze onderhoudspagina kon niet geladen worden
           </h1>
@@ -109,7 +109,7 @@ export default function MaintenanceSegmentError({
             ) : null}
 
             <details>
-              <summary className="cursor-pointer text-stera-blue">
+              <summary className="cursor-pointer text-stera-green">
                 Volledig error-object
               </summary>
               <pre className="mt-2 whitespace-pre-wrap break-all text-[10px] leading-snug text-stera-ink-soft">
@@ -119,7 +119,7 @@ export default function MaintenanceSegmentError({
 
             {error?.stack ? (
               <details>
-                <summary className="cursor-pointer text-stera-blue">
+                <summary className="cursor-pointer text-stera-green">
                   Stack trace
                 </summary>
                 <pre className="mt-2 whitespace-pre-wrap break-all text-[10px] leading-snug text-stera-ink-soft">
@@ -133,19 +133,19 @@ export default function MaintenanceSegmentError({
             <button
               type="button"
               onClick={() => reset()}
-              className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+              className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
             >
               Opnieuw proberen →
             </button>
             <Link
               href="/maintenance"
-              className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+              className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
             >
               Onderhoudsoverzicht
             </Link>
             <Link
               href="/dashboard"
-              className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+              className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
             >
               Dashboard
             </Link>
@@ -153,7 +153,7 @@ export default function MaintenanceSegmentError({
 
           <div className="mt-10 text-xs text-stera-ink-soft">
             Niet ingelogd?{' '}
-            <Link href="/login" className="underline hover:text-stera-blue">
+            <Link href="/login" className="underline hover:text-stera-green">
               Inloggen
             </Link>
           </div>

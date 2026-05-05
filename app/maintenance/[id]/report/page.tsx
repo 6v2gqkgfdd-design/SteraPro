@@ -158,7 +158,7 @@ export default async function MaintenanceReportPage({
   const reportDate = formatDate(visit.ended_at || visit.scheduled_start || visit.created_at)
 
   return (
-    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink print:bg-white">
+    <main className="min-h-screen bg-stera-cream text-stera-ink print:bg-white">
       <div className="mx-auto max-w-3xl px-5 py-8 sm:px-10 sm:py-12 print:px-0 print:py-0">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stera-line pb-6 mb-8 print:hidden">
           <Link
@@ -171,7 +171,7 @@ export default async function MaintenanceReportPage({
         </div>
 
         <header className="mb-10">
-          <p className="stera-eyebrow text-stera-blue mb-3">Onderhoudsrapport</p>
+          <p className="stera-eyebrow text-stera-green mb-3">Onderhoudsrapport</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
             {visit.title || 'Onderhoudsbeurt'}
           </h1>
@@ -182,7 +182,7 @@ export default async function MaintenanceReportPage({
 
         <section className="mb-10 grid gap-6 sm:grid-cols-2">
           <div>
-            <p className="stera-eyebrow text-stera-blue mb-2">Klant</p>
+            <p className="stera-eyebrow text-stera-green mb-2">Klant</p>
             <p className="font-semibold">{company?.name || '—'}</p>
             {company?.contact_name ? (
               <p className="text-sm text-stera-ink-soft">t.a.v. {company.contact_name}</p>
@@ -190,7 +190,7 @@ export default async function MaintenanceReportPage({
           </div>
 
           <div>
-            <p className="stera-eyebrow text-stera-blue mb-2">Locatie</p>
+            <p className="stera-eyebrow text-stera-green mb-2">Locatie</p>
             <p className="font-semibold">{location?.name || '—'}</p>
             {(location?.floor || location?.room) ? (
               <p className="text-sm text-stera-ink-soft">
@@ -201,7 +201,7 @@ export default async function MaintenanceReportPage({
         </section>
 
         <section className="mb-10 rounded border border-stera-line bg-white/60 p-5 print:bg-transparent">
-          <p className="stera-eyebrow text-stera-blue mb-3">Tijdsregistratie</p>
+          <p className="stera-eyebrow text-stera-green mb-3">Tijdsregistratie</p>
           <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-sm">
             {startedAt ? (
               <div className="flex justify-between sm:block">
@@ -238,7 +238,7 @@ export default async function MaintenanceReportPage({
 
         {visit.planned_tasks ? (
           <section className="mb-10">
-            <p className="stera-eyebrow text-stera-blue mb-3">Geplande taken</p>
+            <p className="stera-eyebrow text-stera-green mb-3">Geplande taken</p>
             <p className="whitespace-pre-wrap text-sm text-stera-ink leading-relaxed">
               {visit.planned_tasks}
             </p>
@@ -246,7 +246,7 @@ export default async function MaintenanceReportPage({
         ) : null}
 
         <section className="mb-10">
-          <p className="stera-eyebrow text-stera-blue mb-3">Behandelde planten</p>
+          <p className="stera-eyebrow text-stera-green mb-3">Behandelde planten</p>
 
           {!visitPlants || visitPlants.length === 0 ? (
             <p className="text-sm text-stera-ink-soft">Geen planten geregistreerd.</p>
@@ -290,7 +290,7 @@ export default async function MaintenanceReportPage({
                         ) : null}
 
                         {vp.new_plant ? (
-                          <p className="mt-2 inline-block rounded bg-stera-blue/10 px-2 py-0.5 text-xs font-medium text-stera-blue">
+                          <p className="mt-2 inline-block rounded bg-stera-green/10 px-2 py-0.5 text-xs font-medium text-stera-green">
                             Nieuw toegevoegd
                           </p>
                         ) : null}
@@ -332,7 +332,7 @@ export default async function MaintenanceReportPage({
         </section>
 
         <section className="mb-10">
-          <p className="stera-eyebrow text-stera-blue mb-3">Verbruiksgoederen</p>
+          <p className="stera-eyebrow text-stera-green mb-3">Verbruiksgoederen</p>
 
           {!consumables || consumables.length === 0 ? (
             <p className="text-sm text-stera-ink-soft">Geen verbruiksgoederen geregistreerd.</p>
@@ -364,7 +364,7 @@ export default async function MaintenanceReportPage({
 
         {visit.general_notes ? (
           <section className="mb-10">
-            <p className="stera-eyebrow text-stera-blue mb-3">Algemene notities</p>
+            <p className="stera-eyebrow text-stera-green mb-3">Algemene notities</p>
             <p className="whitespace-pre-wrap text-sm text-stera-ink leading-relaxed">
               {visit.general_notes}
             </p>
@@ -373,7 +373,7 @@ export default async function MaintenanceReportPage({
 
         <footer className="mt-12 border-t border-stera-line pt-6 text-xs text-stera-ink-soft">
           <p className="stera-wordmark text-stera-ink text-sm mb-1">
-            Stéra<span className="text-stera-blue">Pro</span>
+            Stéra<span className="text-stera-green">Pro</span>
           </p>
           <p>Opgemaakt door Stera · Plantbeheer voor professionals</p>
           {visit.report_sent_at ? (

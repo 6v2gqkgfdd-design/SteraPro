@@ -117,7 +117,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           href="/"
           className="stera-wordmark text-stera-ink text-base sm:text-lg"
         >
-          Stéra<span className="text-stera-blue">Pro</span>
+          Stéra<span className="text-stera-green">Pro</span>
         </Link>
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-16">{children}</div>
@@ -132,7 +132,7 @@ function NotFoundView({ slug }: { slug: string }) {
   return (
     <Shell>
       <div className="mx-auto w-full max-w-xl">
-        <p className="stera-eyebrow text-stera-blue mb-4">QR-code · Niet gevonden</p>
+        <p className="stera-eyebrow text-stera-green mb-4">QR-code · Niet gevonden</p>
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
           QR-code niet herkend
         </h1>

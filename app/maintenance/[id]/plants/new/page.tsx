@@ -410,7 +410,7 @@ export default function MaintenanceNewPlantPage() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               Ruimte
             </label>
             <select
@@ -454,7 +454,7 @@ export default function MaintenanceNewPlantPage() {
           )}
 
           {aiSuggestedSpecies && (
-            <div className="rounded-lg bg-stera-blue/10 border border-stera-blue/30 p-3 text-sm">
+            <div className="rounded-lg bg-stera-green/10 border border-stera-green/30 p-3 text-sm">
               AI suggestie: <strong>{aiSuggestedSpecies}</strong>
               {typeof aiConfidence === 'number' && (
                 <span> ({Math.round(aiConfidence * 100)}% zekerheid)</span>

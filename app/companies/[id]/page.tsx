@@ -39,7 +39,7 @@ export default async function CompanyDetailPage({
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <Link href="/dashboard" className="text-sm text-stera-blue underline">
+        <Link href="/dashboard" className="text-sm text-stera-green underline">
           ← Terug naar dashboard
         </Link>
 
@@ -92,7 +92,7 @@ export default async function CompanyDetailPage({
           ) : (
             <ul className="space-y-3">
               {locations.map((location) => (
-                <li key={location.id} className="stera-card transition hover:border-stera-blue">
+                <li key={location.id} className="stera-card transition hover:border-stera-green">
                   <Link href={`/locations/${location.id}`} className="block">
                     <p className="font-semibold text-stera-ink">{location.name}</p>
 

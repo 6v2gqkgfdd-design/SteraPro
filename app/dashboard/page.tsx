@@ -92,7 +92,7 @@ export default async function DashboardPage() {
           <div>
             <p className="stera-eyebrow mb-2">Dashboard</p>
             <h1 className="stera-display text-4xl sm:text-5xl">
-              Stera<span className="text-stera-blue"> Pro</span>
+              Stera<span className="text-stera-green"> Pro</span>
             </h1>
             <p className="mt-3 text-sm text-stera-ink-soft">
               Ingelogd als {user.email}
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
               <li key={tile.href}>
                 <Link
                   href={tile.href}
-                  className="stera-card flex h-full flex-col justify-between transition hover:border-stera-blue"
+                  className="stera-card flex h-full flex-col justify-between transition hover:border-stera-green"
                 >
                   <div>
                     <p className="stera-eyebrow mb-2">{tile.eyebrow}</p>
@@ -125,11 +125,11 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   {tile.badge ? (
-                    <p className="mt-4 inline-flex items-center self-start rounded-full bg-stera-blue/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-blue">
+                    <p className="mt-4 inline-flex items-center self-start rounded-full bg-stera-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
                       {tile.badge}
                     </p>
                   ) : (
-                    <span className="mt-4 inline-flex items-center self-start text-sm text-stera-blue">
+                    <span className="mt-4 inline-flex items-center self-start text-sm text-stera-green">
                       Openen →
                     </span>
                   )}

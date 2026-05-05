@@ -78,19 +78,19 @@ export default async function PlantDetailPage({
         {typedPlant.room_id ? (
           <Link
             href={`/rooms/${typedPlant.room_id}`}
-            className="text-sm text-stera-blue underline"
+            className="text-sm text-stera-green underline"
           >
             ← Terug naar ruimte
           </Link>
         ) : typedPlant.location_id ? (
           <Link
             href={`/locations/${typedPlant.location_id}`}
-            className="text-sm text-stera-blue underline"
+            className="text-sm text-stera-green underline"
           >
             ← Terug naar locatie
           </Link>
         ) : (
-          <Link href="/dashboard" className="text-sm text-stera-blue underline">
+          <Link href="/dashboard" className="text-sm text-stera-green underline">
             ← Terug naar dashboard
           </Link>
         )}

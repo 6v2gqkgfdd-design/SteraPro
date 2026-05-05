@@ -117,7 +117,7 @@ export function statusColor(plant: PlantOverviewPlant): string {
     case 'needs-attention':
       return 'bg-yellow-100 text-yellow-800 border-yellow-300'
     case 'healthy':
-      return 'bg-stera-blue/10 text-stera-blue border-stera-blue/30'
+      return 'bg-stera-green/10 text-stera-green border-stera-green/30'
   }
 }
 
@@ -232,7 +232,7 @@ export default function PlantOverview({
 
       {plant.care_tips && plant.care_tips.trim() && (
         <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">
-          <h2 className="stera-eyebrow text-stera-blue mb-3">Verzorgingstips</h2>
+          <h2 className="stera-eyebrow text-stera-green mb-3">Verzorgingstips</h2>
           <p className="text-sm text-stera-ink leading-relaxed whitespace-pre-wrap">
             {plant.care_tips}
           </p>
@@ -241,7 +241,7 @@ export default function PlantOverview({
 
       {plant.notes && (
         <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">
-          <h2 className="stera-eyebrow text-stera-blue mb-3">Notities</h2>
+          <h2 className="stera-eyebrow text-stera-green mb-3">Notities</h2>
           <p className="text-sm text-stera-ink leading-relaxed whitespace-pre-wrap">
             {plant.notes}
           </p>
@@ -249,7 +249,7 @@ export default function PlantOverview({
       )}
 
       <section className="mt-8 border border-stera-line bg-white p-5 sm:p-6">
-        <h2 className="stera-eyebrow text-stera-blue mb-3">Laatste onderhoud</h2>
+        <h2 className="stera-eyebrow text-stera-green mb-3">Laatste onderhoud</h2>
         {latestLog ? (
           <>
             <p className="text-sm text-stera-ink-soft">

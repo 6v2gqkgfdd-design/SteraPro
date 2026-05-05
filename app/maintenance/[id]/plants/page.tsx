@@ -73,7 +73,7 @@ export default async function MaintenancePlantsPage({
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href={`/maintenance/${id}/plants/scan`}
-            className="stera-card transition hover:border-stera-blue"
+            className="stera-card transition hover:border-stera-green"
           >
             <p className="stera-eyebrow mb-3">Optie 1</p>
             <h2 className="mb-2 text-lg font-bold text-stera-ink">Plant scannen</h2>
@@ -84,7 +84,7 @@ export default async function MaintenancePlantsPage({
 
           <Link
             href={`/maintenance/${id}/plants/select`}
-            className="stera-card transition hover:border-stera-blue"
+            className="stera-card transition hover:border-stera-green"
           >
             <p className="stera-eyebrow mb-3">Optie 2</p>
             <h2 className="mb-2 text-lg font-bold text-stera-ink">Bestaande plant kiezen</h2>
@@ -95,7 +95,7 @@ export default async function MaintenancePlantsPage({
 
           <Link
             href={`/maintenance/${id}/plants/new`}
-            className="stera-card transition hover:border-stera-blue"
+            className="stera-card transition hover:border-stera-green"
           >
             <p className="stera-eyebrow mb-3">Optie 3</p>
             <h2 className="mb-2 text-lg font-bold text-stera-ink">Nieuwe plant toevoegen</h2>

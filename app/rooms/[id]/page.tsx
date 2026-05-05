@@ -70,12 +70,12 @@ export default async function RoomDetailPage({
         {locationData?.id ? (
           <Link
             href={`/locations/${locationData.id}`}
-            className="text-sm text-stera-blue underline"
+            className="text-sm text-stera-green underline"
           >
             ← Terug naar locatie
           </Link>
         ) : (
-          <Link href="/dashboard" className="text-sm text-stera-blue underline">
+          <Link href="/dashboard" className="text-sm text-stera-green underline">
             ← Terug naar dashboard
           </Link>
         )}
@@ -125,7 +125,7 @@ export default async function RoomDetailPage({
               {plants.map((plant) => (
                 <li
                   key={plant.id}
-                  className="stera-card transition hover:border-stera-blue"
+                  className="stera-card transition hover:border-stera-green"
                 >
                   <Link href={`/plants/${plant.id}`} className="block">
                     <p className="font-semibold text-stera-ink">

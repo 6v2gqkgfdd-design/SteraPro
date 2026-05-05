@@ -301,7 +301,7 @@ export default function NewPlantInRoomPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <Link
           href={`/rooms/${roomId}`}
-          className="text-sm text-stera-blue underline"
+          className="text-sm text-stera-green underline"
         >
           ← Terug naar ruimte
         </Link>
@@ -347,7 +347,7 @@ export default function NewPlantInRoomPage() {
           )}
 
           {aiSuggestedSpecies && (
-            <div className="rounded-lg bg-stera-blue/10 border border-stera-blue/30 p-3 text-sm">
+            <div className="rounded-lg bg-stera-green/10 border border-stera-green/30 p-3 text-sm">
               AI suggestie: <strong>{aiSuggestedSpecies}</strong>
               {typeof aiConfidence === 'number' && (
                 <span> ({Math.round(aiConfidence * 100)}% zekerheid)</span>

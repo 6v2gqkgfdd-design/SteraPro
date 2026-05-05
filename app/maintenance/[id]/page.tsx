@@ -126,7 +126,7 @@ export default async function MaintenanceDetailPage({
               <Link
                 key={item.id}
                 href={`/maintenance/${id}/plants/${item.plant_id}`}
-                className="flex flex-wrap gap-3 rounded-lg border border-stera-line bg-stera-cream-deep p-3 transition hover:border-stera-blue"
+                className="flex flex-wrap gap-3 rounded-lg border border-stera-line bg-stera-cream-deep p-3 transition hover:border-stera-green"
               >
                 {item.photo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element

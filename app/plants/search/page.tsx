@@ -86,7 +86,7 @@ export default function PlantSearchPage() {
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-        <Link href="/dashboard" className="text-sm text-stera-blue underline">
+        <Link href="/dashboard" className="text-sm text-stera-green underline">
           ← Terug naar dashboard
         </Link>
 
@@ -129,7 +129,7 @@ export default function PlantSearchPage() {
               return (
                 <li
                   key={p.id}
-                  className="stera-card transition hover:border-stera-blue"
+                  className="stera-card transition hover:border-stera-green"
                 >
                   <Link href={`/plants/${p.id}`} className="block">
                     <p className="font-semibold text-stera-ink">

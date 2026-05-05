@@ -86,7 +86,7 @@ export default function EditPlantPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <Link
           href={`/plants/${plantId}`}
-          className="text-sm text-stera-blue underline"
+          className="text-sm text-stera-green underline"
         >
           ← Terug naar plant
         </Link>
@@ -101,7 +101,7 @@ export default function EditPlantPage() {
         ) : (
           <form onSubmit={handleSubmit} className="stera-card space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
                 Bijnaam
               </label>
               <input
@@ -113,7 +113,7 @@ export default function EditPlantPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
                 Soort
               </label>
               <input
@@ -125,7 +125,7 @@ export default function EditPlantPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
                 Status
               </label>
               <select
@@ -142,7 +142,7 @@ export default function EditPlantPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+              <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
                 Notities
               </label>
               <textarea

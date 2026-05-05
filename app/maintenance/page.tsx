@@ -4,13 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 function getStatusBadgeClass(status: string) {
   switch (status) {
     case 'scheduled':
-      return 'bg-stera-blue/10 text-stera-blue border border-stera-blue/30'
+      return 'bg-stera-green/10 text-stera-green border border-stera-green/30'
     case 'in_progress':
       return 'bg-amber-100 text-amber-800 border border-amber-200'
     case 'paused':
       return 'bg-purple-100 text-purple-800 border border-purple-200'
     case 'completed':
-      return 'bg-stera-blue text-white border border-stera-blue'
+      return 'bg-stera-green text-white border border-stera-green'
     case 'cancelled':
       return 'bg-red-100 text-red-800 border border-red-200'
     default:
@@ -143,7 +143,7 @@ export default async function MaintenancePage({
             <Link
               key={visit.id}
               href={`/maintenance/${visit.id}`}
-              className="stera-card transition hover:border-stera-blue"
+              className="stera-card transition hover:border-stera-green"
             >
               <div className="flex items-center justify-between gap-4">
                 <div>

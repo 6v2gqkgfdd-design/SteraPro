@@ -1,18 +1,23 @@
 @import "tailwindcss";
 
-/* Stera brand tokens — afgeleid van stera.be (mobiele versie). */
+/* Stera brand tokens — direct afgeleid van het Stera-themaschema:
+   crème achtergrond, donkergroen voor logo + accenten + primaire knoppen,
+   zwarte body-tekst. */
 :root {
-  --background: #F5F0E8;
-  --foreground: #111111;
+  --background: #FFFDF7;
+  --foreground: #000000;
 
-  --stera-cream: #F5F0E8;        /* Hoofdachtergrond */
-  --stera-cream-deep: #ECE4D5;    /* Ietsje warmer voor accenten/cards */
-  --stera-paper: #FFFFFF;         /* Witte content blocks */
-  --stera-blue: #0019F7;          /* Electric blue, primaire merkkleur */
-  --stera-blue-dark: #0010C0;     /* Hover/active op blauwe knoppen */
-  --stera-ink: #111111;           /* Body/koppen */
-  --stera-ink-soft: #444444;      /* Secundaire tekst */
-  --stera-line: rgba(17, 17, 17, 0.12); /* Subtiele lijntjes/borders */
+  --stera-cream: #FFFDF7;
+  --stera-cream-deep: #F1EFE8;
+  --stera-paper: #FFFFFF;
+
+  --stera-green: #426F52;
+  --stera-green-soft: #608A6E;
+  --stera-green-deep: #2F5840;
+
+  --stera-ink: #000000;
+  --stera-ink-soft: #4D4D4D;
+  --stera-line: rgba(0, 0, 0, 0.12);
 }
 
 @theme inline {
@@ -21,20 +26,20 @@
   --color-stera-cream: var(--stera-cream);
   --color-stera-cream-deep: var(--stera-cream-deep);
   --color-stera-paper: var(--stera-paper);
-  --color-stera-blue: var(--stera-blue);
-  --color-stera-blue-dark: var(--stera-blue-dark);
+  --color-stera-green: var(--stera-green);
+  --color-stera-green-soft: var(--stera-green-soft);
+  --color-stera-green-deep: var(--stera-green-deep);
   --color-stera-ink: var(--stera-ink);
   --color-stera-ink-soft: var(--stera-ink-soft);
-  --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-archivo-black), "Archivo Black", "Arial Black",
-    sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-instrument-sans);
+  --font-serif: var(--font-instrument-serif);
+  --font-display: var(--font-instrument-serif);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
@@ -42,25 +47,33 @@ body {
 /* ----- Typografische helpers in Stera-stijl ----- */
 
 .stera-wordmark {
-  font-family: var(--font-archivo-black), "Archivo Black", "Arial Black",
-    sans-serif;
-  letter-spacing: 0;
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  font-weight: 900;
+  font-weight: 700;
+  font-style: italic;
 }
 
 .stera-eyebrow {
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--stera-blue);
+  font-weight: 600;
+  color: var(--stera-green);
 }
 
 .stera-display {
-  font-weight: 800;
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  font-weight: 400;
   letter-spacing: -0.01em;
   line-height: 1.05;
+  color: var(--stera-green);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  color: var(--stera-green);
 }
 
 /* ----- Knoppen / CTAs ----- */
@@ -70,41 +83,41 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.12em;
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.78rem;
-  border-radius: 0.5rem;
+  border-radius: 999px;
   padding: 0.85rem 1.4rem;
   transition: background-color 120ms ease, color 120ms ease,
     border-color 120ms ease, transform 120ms ease;
 }
 
 .stera-cta-primary {
-  background: var(--stera-blue);
-  color: #ffffff;
-  border: 2px solid var(--stera-blue);
+  background: var(--stera-green);
+  color: var(--stera-cream);
+  border: 2px solid var(--stera-green);
 }
 .stera-cta-primary:hover {
-  background: var(--stera-blue-dark);
-  border-color: var(--stera-blue-dark);
+  background: var(--stera-cream);
+  color: var(--stera-green);
 }
 
 .stera-cta-secondary {
-  background: #ffffff;
-  color: var(--stera-blue);
-  border: 2px solid var(--stera-blue);
+  background: var(--stera-cream);
+  color: var(--stera-green);
+  border: 2px solid var(--stera-green);
 }
 .stera-cta-secondary:hover {
-  background: var(--stera-blue);
-  color: #ffffff;
+  background: var(--stera-green);
+  color: var(--stera-cream);
 }
 
 .stera-cta-ghost {
   background: transparent;
   color: var(--stera-ink);
-  border: 2px solid var(--stera-line);
+  border: 1px solid var(--stera-line);
 }
 .stera-cta-ghost:hover {
   border-color: var(--stera-ink);
@@ -115,7 +128,7 @@ body {
 .stera-card {
   background: var(--stera-paper);
   border: 1px solid var(--stera-line);
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   padding: 1.25rem;
 }
 

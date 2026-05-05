@@ -70,13 +70,13 @@ type LoadState =
 
 function SteraShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#F5F0E8] text-stera-ink flex flex-col">
+    <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
         <Link
           href="/"
           className="stera-wordmark text-stera-ink text-base sm:text-lg"
         >
-          Stéra<span className="text-stera-blue">Pro</span>
+          Stéra<span className="text-stera-green">Pro</span>
         </Link>
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">{children}</div>
@@ -102,7 +102,7 @@ function FallbackCard({
 }) {
   return (
     <div className="mx-auto w-full max-w-xl">
-      <p className="stera-eyebrow text-stera-blue mb-4">{eyebrow}</p>
+      <p className="stera-eyebrow text-stera-green mb-4">{eyebrow}</p>
       <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
         {title}
       </h1>
@@ -452,7 +452,7 @@ export default function MaintenancePlantDetailPage() {
     return (
       <SteraShell>
         <div className="mx-auto w-full max-w-2xl">
-          <p className="stera-eyebrow text-stera-blue mb-3">
+          <p className="stera-eyebrow text-stera-green mb-3">
             Onderhoud · Plant
           </p>
           <p className="text-sm text-stera-ink-soft">Plantgegevens laden...</p>
@@ -472,13 +472,13 @@ export default function MaintenancePlantDetailPage() {
             <>
               <Link
                 href="/maintenance"
-                className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+                className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
               >
                 Onderhoudsoverzicht →
               </Link>
               <Link
                 href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
               >
                 Dashboard
               </Link>
@@ -510,19 +510,19 @@ export default function MaintenancePlantDetailPage() {
             <>
               <Link
                 href="/maintenance"
-                className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+                className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
               >
                 Onderhoudsoverzicht →
               </Link>
               <Link
                 href="/login"
-                className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
               >
                 Inloggen
               </Link>
               <Link
                 href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
               >
                 Dashboard
               </Link>
@@ -558,13 +558,13 @@ export default function MaintenancePlantDetailPage() {
                 <>
                   <Link
                     href={`/maintenance/${state.visitId}/plants/scan`}
-                    className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+                    className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
                   >
                     Opnieuw scannen →
                   </Link>
                   <Link
                     href={`/maintenance/${state.visitId}/plants`}
-                    className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                    className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
                   >
                     Plant kiezen
                   </Link>
@@ -572,14 +572,14 @@ export default function MaintenancePlantDetailPage() {
               ) : (
                 <Link
                   href="/maintenance"
-                  className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+                  className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
                 >
                   Onderhoudsoverzicht →
                 </Link>
               )}
               <Link
                 href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
               >
                 Dashboard
               </Link>
@@ -612,7 +612,7 @@ export default function MaintenancePlantDetailPage() {
               {state.visitId ? (
                 <Link
                   href={`/maintenance/${state.visitId}/plants/scan`}
-                  className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+                  className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
                 >
                   Opnieuw scannen →
                 </Link>
@@ -620,14 +620,14 @@ export default function MaintenancePlantDetailPage() {
               {state.visitId ? (
                 <Link
                   href={`/maintenance/${state.visitId}`}
-                  className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                  className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
                 >
                   Terug naar onderhoud
                 </Link>
               ) : null}
               <Link
                 href="/dashboard"
-                className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
               >
                 Dashboard
               </Link>
@@ -665,21 +665,21 @@ export default function MaintenancePlantDetailPage() {
               <button
                 type="button"
                 onClick={() => router.refresh()}
-                className="stera-cta inline-flex items-center justify-center bg-stera-blue px-6 py-4 text-sm text-white hover:bg-[#0010C0]"
+                className="stera-cta inline-flex items-center justify-center bg-stera-green px-6 py-4 text-sm text-white hover:bg-stera-green-deep"
               >
                 Opnieuw proberen →
               </button>
               {state.visitId ? (
                 <Link
                   href={`/maintenance/${state.visitId}`}
-                  className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                  className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
                 >
                   Terug naar onderhoud
                 </Link>
               ) : null}
               <Link
                 href="/login"
-                className="stera-cta inline-flex items-center justify-center border border-stera-blue px-6 py-4 text-sm text-stera-ink hover:bg-stera-blue hover:text-white"
+                className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
               >
                 Inloggen
               </Link>
@@ -835,7 +835,7 @@ export default function MaintenancePlantDetailPage() {
                 <button
                   type="button"
                   onClick={() => handlePhotoChange(null)}
-                  className="text-sm text-stera-blue underline"
+                  className="text-sm text-stera-green underline"
                 >
                   Wissen
                 </button>

@@ -160,7 +160,7 @@ export default function NewMaintenancePage() {
         <form onSubmit={handleSubmit} className="stera-card space-y-5">
           {/* Step 1 — bedrijf */}
           <div className="space-y-1">
-            <label htmlFor="company" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="company" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               1 · Bedrijf
             </label>
             <select
@@ -193,7 +193,7 @@ export default function NewMaintenancePage() {
 
           {/* Step 2 — locatie */}
           <div className="space-y-1">
-            <label htmlFor="location" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="location" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               2 · Locatie
             </label>
             <select
@@ -226,7 +226,7 @@ export default function NewMaintenancePage() {
 
           {/* Step 3 — details */}
           <div className="space-y-1">
-            <label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               3 · Titel
             </label>
             <input
@@ -241,7 +241,7 @@ export default function NewMaintenancePage() {
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="scheduled_start" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="scheduled_start" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               4 · Datum & tijdstip
             </label>
             <input
@@ -255,7 +255,7 @@ export default function NewMaintenancePage() {
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="planned_tasks" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="planned_tasks" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               Geplande taken
             </label>
             <textarea
@@ -269,7 +269,7 @@ export default function NewMaintenancePage() {
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="access_notes" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="access_notes" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               Toegang / praktische info
             </label>
             <textarea
@@ -283,7 +283,7 @@ export default function NewMaintenancePage() {
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="internal_notes" className="text-xs font-semibold uppercase tracking-wider text-stera-blue">
+            <label htmlFor="internal_notes" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               Interne opmerkingen
             </label>
             <textarea
