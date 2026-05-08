@@ -219,38 +219,38 @@ export default async function MaintenanceDetailPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/maintenance/${id}/report`}
-              className="stera-cta stera-cta-primary"
-            >
-              Klantrapport
-            </Link>
-
-            <Link
-              href="/maintenance"
-              className="stera-cta stera-cta-ghost"
-            >
-              Overzicht
-            </Link>
-
-            </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="stera-card">
-            <p className="stera-eyebrow mb-2">Vorige keer</p>
-            <p className="whitespace-pre-wrap text-sm text-stera-ink-soft">
-              {visit.previous_visit_summary || 'Geen vorige samenvatting beschikbaar.'}
+        <div className="stera-card">
+          <p className="stera-eyebrow mb-2">Vandaag te doen</p>
+          <ul className="space-y-2 text-sm text-stera-ink">
+            <li className="flex items-start gap-2">
+              <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-stera-green" />
+              <span>
+                Standaard onderhoud uitvoeren op alle gezonde planten (water,
+                voeding, snoei, controle, draaien, bladglans).
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-stera-green" />
+              <span>
+                Zieke planten of planten die vervangen moeten worden apart
+                scannen en registreren.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-stera-green" />
+              <span>
+                Nieuwe planten meebrengen die werden besteld na het vorige
+                onderhoud (zie Voorbereiding hieronder).
+              </span>
+            </li>
+          </ul>
+          {visit.planned_tasks ? (
+            <p className="mt-4 whitespace-pre-wrap rounded bg-stera-cream-deep/40 p-3 text-sm text-stera-ink-soft">
+              {visit.planned_tasks}
             </p>
-          </div>
-
-          <div className="stera-card">
-            <p className="stera-eyebrow mb-2">Vandaag te doen</p>
-            <p className="whitespace-pre-wrap text-sm text-stera-ink-soft">
-              {visit.planned_tasks || 'Geen geplande taken ingevuld.'}
-            </p>
-          </div>
+          ) : null}
         </div>
 
         {isOpenVisit && followupItems.length > 0 && (

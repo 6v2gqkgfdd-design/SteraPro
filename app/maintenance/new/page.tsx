@@ -137,7 +137,7 @@ export default function NewMaintenancePage() {
         throw new Error(error.message)
       }
 
-      router.push(`/maintenance/${data.id}`)
+      router.push('/maintenance')
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Opslaan mislukt.')
