@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { fetchPlayfulNickname, pickLocalNickname } from '@/lib/nicknames'
 
 function slugify(value: string) {
   return value
@@ -20,43 +21,6 @@ function generateReferenceCode() {
   const d = String(now.getDate()).padStart(2, '0')
   const random = Math.random().toString(36).slice(2, 6).toUpperCase()
   return `PLT-${y}${m}${d}-${random}`
-}
-
-function generatePlayfulNickname() {
-  const firstParts = [
-    'Captain',
-    'Mister',
-    'Lady',
-    'Sunny',
-    'Tiny',
-    'Jungle',
-    'Green',
-    'Happy',
-    'Fancy',
-    'Professor',
-    'Sir',
-    'Dancing',
-  ]
-
-  const secondParts = [
-    'Leaf',
-    'Sprout',
-    'Fern',
-    'Buddy',
-    'Queen',
-    'Prince',
-    'Pearl',
-    'Shadow',
-    'Mango',
-    'Coco',
-    'Bamboo',
-    'Monstera',
-  ]
-
-  const first = firstParts[Math.floor(Math.random() * firstParts.length)]
-  const second = secondParts[Math.floor(Math.random() * secondParts.length)]
-
-  return `${first} ${second}`
 }
 
 async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
@@ -146,10 +110,26 @@ export default function MaintenanceNewPlantPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const [nicknameLoading, setNicknameLoading] = useState(false)
+
   useEffect(() => {
     setReferenceCode(generateReferenceCode())
-    setNickname(generatePlayfulNickname())
+    setNickname(pickLocalNickname())
   }, [])
+
+  async function regenerateNickname() {
+    if (nicknameLoading) return
+    setNicknameLoading(true)
+    try {
+      const next = await fetchPlayfulNickname({
+        species,
+        avoid: nickname ? [nickname] : [],
+      })
+      setNickname(next)
+    } finally {
+      setNicknameLoading(false)
+    }
+  }
 
   useEffect(() => {
     async function loadVisit() {
@@ -462,13 +442,35 @@ export default function MaintenanceNewPlantPage() {
             </div>
           )}
 
-          <input
-            type="text"
-            placeholder="Bijnaam / plantnaam"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            className="w-full rounded-lg border border-stera-line bg-white p-3"
-          />
+          <div className="space-y-1">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Bijnaam / plantnaam"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                className="flex-1 rounded-lg border border-stera-line bg-white p-3"
+              />
+              <button
+                type="button"
+                onClick={regenerateNickname}
+                disabled={nicknameLoading}
+                className="stera-cta stera-cta-ghost shrink-0"
+                title={
+                  species
+                    ? `Verzin bijnaam op basis van ${species}`
+                    : 'Verzin nieuwe bijnaam'
+                }
+              >
+                {nicknameLoading ? '...' : 'Andere'}
+              </button>
+            </div>
+            {species ? (
+              <p className="text-xs text-stera-ink-soft">
+                Bijnaam wordt afgestemd op de soort als je op &ldquo;Andere&rdquo; tikt.
+              </p>
+            ) : null}
+          </div>
 
           <input
             type="text"
