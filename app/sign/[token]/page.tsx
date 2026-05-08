@@ -168,7 +168,7 @@ export default async function SignPage({
           <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
           <p className="text-lg font-semibold">{duration}</p>
           <p className="text-xs text-stera-ink-soft">
-            (afgerond op halfuur, pauzes uitgesloten)
+            Afgerond op halfuur, pauzes uitgesloten
           </p>
         </section>
       ) : null}
@@ -192,19 +192,39 @@ export default async function SignPage({
                   key={vp.id}
                   className="rounded border border-stera-line bg-white p-3"
                 >
-                  <p className="font-medium">
-                    {vp.nickname || vp.species || vp.reference_code || 'Plant'}
-                  </p>
-                  {actions.length > 0 ? (
-                    <p className="mt-1 text-xs text-stera-ink-soft">
-                      {actions.join(' · ')}
-                    </p>
-                  ) : null}
-                  {vp.notes ? (
-                    <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
-                      {vp.notes}
-                    </p>
-                  ) : null}
+                  <div className="flex flex-wrap gap-3">
+                    {vp.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={vp.photo_url}
+                        alt={vp.nickname || 'Plant'}
+                        className="h-20 w-20 shrink-0 rounded object-cover"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">
+                        {vp.nickname ||
+                          vp.species ||
+                          vp.reference_code ||
+                          'Plant'}
+                      </p>
+                      {vp.reference_code && vp.reference_code !== vp.nickname ? (
+                        <p className="text-xs font-mono text-stera-ink-soft">
+                          {vp.reference_code}
+                        </p>
+                      ) : null}
+                      {actions.length > 0 ? (
+                        <p className="mt-1 text-xs text-stera-ink-soft">
+                          {actions.join(' · ')}
+                        </p>
+                      ) : null}
+                      {vp.notes ? (
+                        <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
+                          {vp.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
                 </li>
               )
             })}
@@ -224,7 +244,7 @@ export default async function SignPage({
             kwamen niet door de inspectie. Hieronder de specs voor de
             vervanging.
           </p>
-          <ul className="space-y-3 text-sm">
+          <ul className="space-y-4 text-sm">
             {replacements.map((vp: any) => {
               const lightKey =
                 vp.replacement_light_level === 'high' ||
@@ -235,44 +255,84 @@ export default async function SignPage({
               return (
                 <li
                   key={vp.id}
-                  className="rounded border border-stera-green/40 bg-white p-3"
+                  className="overflow-hidden rounded border border-stera-green/40 bg-white"
                 >
-                  <p className="font-semibold">
-                    {vp.nickname || vp.species || vp.reference_code || 'Plant'}
-                  </p>
-                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
-                    <div>
-                      <dt className="text-stera-ink-soft">Licht</dt>
-                      <dd>{lightKey ? LIGHT_LABELS[lightKey] : '—'}</dd>
+                  <div className="flex flex-wrap gap-3 border-b border-stera-line bg-stera-cream-deep/40 p-3">
+                    {vp.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={vp.photo_url}
+                        alt={`Huidige plant: ${vp.nickname || ''}`}
+                        className="h-24 w-24 shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                        geen foto
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs uppercase tracking-wider text-stera-ink-soft">
+                        Huidige plant
+                      </p>
+                      <p className="font-semibold">
+                        {vp.nickname ||
+                          vp.species ||
+                          vp.reference_code ||
+                          'Plant'}
+                      </p>
+                      {vp.species && vp.nickname ? (
+                        <p className="text-xs text-stera-ink-soft">
+                          {vp.species}
+                        </p>
+                      ) : null}
+                      {vp.reference_code ? (
+                        <p className="text-xs font-mono text-stera-ink-soft">
+                          {vp.reference_code}
+                        </p>
+                      ) : null}
                     </div>
-                    <div>
-                      <dt className="text-stera-ink-soft">Hoogte</dt>
-                      <dd>
-                        {vp.replacement_height_cm
-                          ? `± ${vp.replacement_height_cm} cm`
-                          : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-stera-ink-soft">Pot-Ø</dt>
-                      <dd>
-                        {vp.replacement_pot_diameter_cm
-                          ? `${vp.replacement_pot_diameter_cm} cm`
-                          : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-stera-ink-soft">Buitenpot</dt>
-                      <dd>
-                        {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
-                      </dd>
-                    </div>
-                  </dl>
-                  {vp.replacement_notes ? (
-                    <p className="mt-2 whitespace-pre-wrap text-xs text-stera-ink-soft">
-                      {vp.replacement_notes}
+                  </div>
+
+                  <div className="p-3">
+                    <p className="mb-2 text-xs uppercase tracking-wider text-stera-green">
+                      Voorstel vervanging
                     </p>
-                  ) : null}
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-4">
+                      <div>
+                        <dt className="text-stera-ink-soft">Licht</dt>
+                        <dd className="font-medium text-sm">
+                          {lightKey ? LIGHT_LABELS[lightKey] : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-stera-ink-soft">Hoogte</dt>
+                        <dd className="font-medium text-sm">
+                          {vp.replacement_height_cm
+                            ? `± ${vp.replacement_height_cm} cm`
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-stera-ink-soft">Pot-Ø</dt>
+                        <dd className="font-medium text-sm">
+                          {vp.replacement_pot_diameter_cm
+                            ? `${vp.replacement_pot_diameter_cm} cm`
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-stera-ink-soft">Buitenpot</dt>
+                        <dd className="font-medium text-sm">
+                          {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
+                        </dd>
+                      </div>
+                    </dl>
+                    {vp.replacement_notes ? (
+                      <p className="mt-3 whitespace-pre-wrap rounded bg-stera-cream-deep/40 p-2 text-xs text-stera-ink">
+                        {vp.replacement_notes}
+                      </p>
+                    ) : null}
+                  </div>
                 </li>
               )
             })}

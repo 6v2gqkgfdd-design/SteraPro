@@ -45,6 +45,15 @@ function formatDateTime(value: string | null) {
   })
 }
 
+function formatDateOnly(value: string | null) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('nl-BE', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 function formatDuration(start: string | null, end: string | null, pauseMin: number | null) {
   if (!start || !end) return null
   const sm = new Date(start).getTime()
@@ -275,7 +284,7 @@ export default async function WorkOrderDetailPage({
             <h2 className="text-2xl font-bold">{visit.title}</h2>
             {visit.ended_at ? (
               <p className="text-sm text-stera-ink-soft">
-                Beëindigd op {formatDateTime(visit.ended_at)}
+                Beëindigd op {formatDateOnly(visit.ended_at)}
               </p>
             ) : null}
           </header>
@@ -309,10 +318,11 @@ export default async function WorkOrderDetailPage({
 
           {!hasContract && duration ? (
             <section className="rounded border border-stera-line bg-white/60 p-4 text-sm">
-              <p className="stera-eyebrow text-stera-green mb-2">
-                Werkduur (afgerond op halfuur)
-              </p>
+              <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
               <p className="text-lg font-semibold">{duration}</p>
+              <p className="text-xs text-stera-ink-soft">
+                Afgerond op halfuur, pauzes uitgesloten
+              </p>
             </section>
           ) : null}
 
@@ -328,6 +338,7 @@ export default async function WorkOrderDetailPage({
               <ul className="space-y-2 text-sm">
                 {treated.map((vp: any) => {
                   const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
+                  const photoUrl = vp.photo_url || plant?.photo_url || null
                   const actions = Object.entries(ACTION_LABELS)
                     .filter(([key]) => Boolean(vp[key]))
                     .map(([, label]) => label)
@@ -336,22 +347,40 @@ export default async function WorkOrderDetailPage({
                       key={vp.id}
                       className="rounded border border-stera-line bg-white/60 p-3"
                     >
-                      <p className="font-medium">
-                        {plant?.nickname ||
-                          plant?.species ||
-                          plant?.reference_code ||
-                          'Plant'}
-                      </p>
-                      {actions.length > 0 ? (
-                        <p className="mt-1 text-xs text-stera-ink-soft">
-                          {actions.join(' · ')}
-                        </p>
-                      ) : null}
-                      {vp.notes ? (
-                        <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
-                          {vp.notes}
-                        </p>
-                      ) : null}
+                      <div className="flex flex-wrap gap-3">
+                        {photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photoUrl}
+                            alt={plant?.nickname || 'Plant'}
+                            className="h-20 w-20 shrink-0 rounded object-cover"
+                          />
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">
+                            {plant?.nickname ||
+                              plant?.species ||
+                              plant?.reference_code ||
+                              'Plant'}
+                          </p>
+                          {plant?.reference_code &&
+                          plant.reference_code !== plant?.nickname ? (
+                            <p className="text-xs font-mono text-stera-ink-soft">
+                              {plant.reference_code}
+                            </p>
+                          ) : null}
+                          {actions.length > 0 ? (
+                            <p className="mt-1 text-xs text-stera-ink-soft">
+                              {actions.join(' · ')}
+                            </p>
+                          ) : null}
+                          {vp.notes ? (
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
+                              {vp.notes}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
                     </li>
                   )
                 })}
@@ -364,9 +393,10 @@ export default async function WorkOrderDetailPage({
               <p className="stera-eyebrow text-stera-green mb-2">
                 Voorstel: te vervangen planten
               </p>
-              <ul className="space-y-3 text-sm">
+              <ul className="space-y-4 text-sm">
                 {replacements.map((vp: any) => {
                   const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
+                  const photoUrl = vp.photo_url || plant?.photo_url || null
                   const light: 'high' | 'medium' | 'low' | null =
                     vp.replacement_light_level === 'high' ||
                     vp.replacement_light_level === 'medium' ||
@@ -376,47 +406,84 @@ export default async function WorkOrderDetailPage({
                   return (
                     <li
                       key={vp.id}
-                      className="rounded border border-stera-green/30 bg-white p-3"
+                      className="overflow-hidden rounded border border-stera-green/30 bg-white"
                     >
-                      <p className="font-semibold">
-                        {plant?.nickname ||
-                          plant?.species ||
-                          plant?.reference_code ||
-                          'Plant'}
-                      </p>
-                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
-                        <div>
-                          <dt className="text-stera-ink-soft">Licht</dt>
-                          <dd>{light ? LIGHT_LABELS[light] : '—'}</dd>
+                      <div className="flex flex-wrap gap-3 border-b border-stera-line bg-stera-cream-deep/40 p-3">
+                        {photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photoUrl}
+                            alt={`Huidige plant: ${plant?.nickname || ''}`}
+                            className="h-24 w-24 shrink-0 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                            geen foto
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs uppercase tracking-wider text-stera-ink-soft">
+                            Huidige plant
+                          </p>
+                          <p className="font-semibold">
+                            {plant?.nickname ||
+                              plant?.species ||
+                              plant?.reference_code ||
+                              'Plant'}
+                          </p>
+                          {plant?.species && plant?.nickname ? (
+                            <p className="text-xs text-stera-ink-soft">
+                              {plant.species}
+                            </p>
+                          ) : null}
+                          {plant?.reference_code ? (
+                            <p className="text-xs font-mono text-stera-ink-soft">
+                              {plant.reference_code}
+                            </p>
+                          ) : null}
                         </div>
-                        <div>
-                          <dt className="text-stera-ink-soft">Hoogte</dt>
-                          <dd>
-                            {vp.replacement_height_cm
-                              ? `± ${vp.replacement_height_cm} cm`
-                              : '—'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-stera-ink-soft">Pot-Ø</dt>
-                          <dd>
-                            {vp.replacement_pot_diameter_cm
-                              ? `${vp.replacement_pot_diameter_cm} cm`
-                              : '—'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-stera-ink-soft">Buitenpot</dt>
-                          <dd>
-                            {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
-                          </dd>
-                        </div>
-                      </dl>
-                      {vp.replacement_notes ? (
-                        <p className="mt-2 whitespace-pre-wrap text-xs text-stera-ink-soft">
-                          {vp.replacement_notes}
+                      </div>
+
+                      <div className="p-3">
+                        <p className="mb-2 text-xs uppercase tracking-wider text-stera-green">
+                          Voorstel vervanging
                         </p>
-                      ) : null}
+                        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-4">
+                          <div>
+                            <dt className="text-stera-ink-soft">Licht</dt>
+                            <dd className="font-medium text-sm">
+                              {light ? LIGHT_LABELS[light] : '—'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-stera-ink-soft">Hoogte</dt>
+                            <dd className="font-medium text-sm">
+                              {vp.replacement_height_cm
+                                ? `± ${vp.replacement_height_cm} cm`
+                                : '—'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-stera-ink-soft">Pot-Ø</dt>
+                            <dd className="font-medium text-sm">
+                              {vp.replacement_pot_diameter_cm
+                                ? `${vp.replacement_pot_diameter_cm} cm`
+                                : '—'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-stera-ink-soft">Buitenpot</dt>
+                            <dd className="font-medium text-sm">
+                              {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
+                            </dd>
+                          </div>
+                        </dl>
+                        {vp.replacement_notes ? (
+                          <p className="mt-3 whitespace-pre-wrap rounded bg-stera-cream-deep/40 p-2 text-xs text-stera-ink">
+                            {vp.replacement_notes}
+                          </p>
+                        ) : null}
+                      </div>
                     </li>
                   )
                 })}
