@@ -182,6 +182,12 @@ export default function NewPlantInRoomPage() {
     setError('')
 
     try {
+      if (!photoFile) {
+        throw new Error(
+          'Neem een foto van de plant. Dit is de referentiefoto die we voortaan tonen op de plantfiche.'
+        )
+      }
+
       let photoPath: string | null = null
       let photoUrl: string | null = null
 

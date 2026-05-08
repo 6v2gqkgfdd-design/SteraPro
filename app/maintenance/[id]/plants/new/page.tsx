@@ -211,6 +211,11 @@ export default function MaintenanceNewPlantPage() {
       if (!companyId || !locationId) {
         throw new Error('Locatie of klant ontbreekt voor deze onderhoudsbeurt.')
       }
+      if (!photoFile) {
+        throw new Error(
+          'Neem een foto van de plant. Dit is de referentiefoto die we voortaan tonen op de plantfiche.'
+        )
+      }
 
       let photoPath: string | null = null
       let photoUrl: string | null = null

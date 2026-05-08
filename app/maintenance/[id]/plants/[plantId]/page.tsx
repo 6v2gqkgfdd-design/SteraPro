@@ -424,6 +424,15 @@ export default function MaintenancePlantDetailPage() {
     setSaveError('')
 
     try {
+      // Wanneer de plant vervangen moet worden, hebben we een actuele
+      // foto van de slechte staat nodig — die komt op de werkbon om
+      // de klant te tonen waarom we vervangen.
+      if (followupReplace && !photoFile && !existingPhotoUrl) {
+        throw new Error(
+          'Neem een foto van de plant in haar huidige staat — die hebben we nodig op de werkbon om de vervanging te onderbouwen.'
+        )
+      }
+
       let photoPath: string | null | undefined = undefined
       let photoUrl: string | null | undefined = undefined
 

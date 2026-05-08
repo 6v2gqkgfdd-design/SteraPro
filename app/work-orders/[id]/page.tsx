@@ -8,7 +8,7 @@ import {
   markAsSignedManually,
 } from './actions'
 import CopyLinkButton from './copy-link-button'
-import { formatEur } from '@/lib/pot-sizes'
+import { formatEur, formatPotSize, findPotSize, nextPotSize } from '@/lib/pot-sizes'
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Nog te versturen',
@@ -124,7 +124,7 @@ export default async function WorkOrderDetailPage({
   const { data: visitPlants } = await supabase
     .from('maintenance_visit_plants')
     .select(
-      `*, plants ( id, nickname, species, reference_code, photo_url )`
+      `*, plants ( id, nickname, species, reference_code, photo_url, pot_size_code )`
     )
     .eq('visit_id', visit.id)
     .order('created_at', { ascending: true })
@@ -404,29 +404,32 @@ export default async function WorkOrderDetailPage({
                     vp.replacement_light_level === 'low'
                       ? vp.replacement_light_level
                       : null
+                  const currentPot = findPotSize(plant?.pot_size_code)
+                  const suggestedPot = nextPotSize(plant?.pot_size_code)
                   return (
                     <li
                       key={vp.id}
                       className="overflow-hidden rounded border border-stera-green/30 bg-white"
                     >
-                      <div className="flex flex-wrap gap-3 border-b border-stera-line bg-stera-cream-deep/40 p-3">
+                      {/* Bovenkant: huidige plant in slechte staat */}
+                      <div className="flex flex-wrap gap-3 border-b border-stera-line bg-red-50/40 p-3">
                         {photoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={photoUrl}
                             alt={`Huidige plant: ${plant?.nickname || ''}`}
-                            className="h-24 w-24 shrink-0 rounded object-cover"
+                            className="h-28 w-28 shrink-0 rounded object-cover"
                           />
                         ) : (
-                          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                          <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
                             geen foto
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs uppercase tracking-wider text-stera-ink-soft">
-                            Huidige plant
+                          <p className="text-xs font-semibold uppercase tracking-wider text-red-700">
+                            Deze plant moet vervangen worden
                           </p>
-                          <p className="font-semibold">
+                          <p className="mt-1 font-semibold">
                             {plant?.nickname ||
                               plant?.species ||
                               plant?.reference_code ||
@@ -442,23 +445,29 @@ export default async function WorkOrderDetailPage({
                               {plant.reference_code}
                             </p>
                           ) : null}
+                          {currentPot ? (
+                            <p className="mt-1 text-xs text-stera-ink-soft">
+                              Huidige potmaat: {currentPot.code}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 
+                      {/* Onderkant: voorstel vervanging */}
                       <div className="p-3">
-                        <p className="mb-2 text-xs uppercase tracking-wider text-stera-green">
-                          Voorstel vervanging
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                          Wij stellen voor te vervangen door
                         </p>
                         <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-4">
                           <div>
                             <dt className="text-stera-ink-soft">Licht</dt>
-                            <dd className="font-medium text-sm">
+                            <dd className="text-sm font-medium">
                               {light ? LIGHT_LABELS[light] : '—'}
                             </dd>
                           </div>
                           <div>
                             <dt className="text-stera-ink-soft">Hoogte</dt>
-                            <dd className="font-medium text-sm">
+                            <dd className="text-sm font-medium">
                               {vp.replacement_height_cm
                                 ? `± ${vp.replacement_height_cm} cm`
                                 : '—'}
@@ -466,7 +475,7 @@ export default async function WorkOrderDetailPage({
                           </div>
                           <div>
                             <dt className="text-stera-ink-soft">Pot-Ø</dt>
-                            <dd className="font-medium text-sm">
+                            <dd className="text-sm font-medium">
                               {vp.replacement_pot_diameter_cm
                                 ? `${vp.replacement_pot_diameter_cm} cm`
                                 : '—'}
@@ -474,11 +483,22 @@ export default async function WorkOrderDetailPage({
                           </div>
                           <div>
                             <dt className="text-stera-ink-soft">Buitenpot</dt>
-                            <dd className="font-medium text-sm">
+                            <dd className="text-sm font-medium">
                               {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
                             </dd>
                           </div>
                         </dl>
+
+                        {suggestedPot ? (
+                          <p className="mt-3 rounded bg-stera-green/5 p-2 text-xs">
+                            <span className="font-semibold text-stera-green">
+                              Voorgestelde nieuwe binnenpot:
+                            </span>{' '}
+                            {formatPotSize(suggestedPot)} ·{' '}
+                            ± {formatEur(suggestedPot.estimatedPriceCents)}
+                          </p>
+                        ) : null}
+
                         {vp.replacement_notes ? (
                           <p className="mt-3 whitespace-pre-wrap rounded bg-stera-cream-deep/40 p-2 text-xs text-stera-ink">
                             {vp.replacement_notes}

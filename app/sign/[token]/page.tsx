@@ -1,7 +1,12 @@
 import Link from 'next/link'
 import SteraLogo from '@/components/stera-logo'
 import { createClient } from '@/lib/supabase/server'
-import { formatEur } from '@/lib/pot-sizes'
+import {
+  formatEur,
+  formatPotSize,
+  findPotSize,
+  nextPotSize,
+} from '@/lib/pot-sizes'
 import SignForm from './sign-form'
 
 const LIGHT_LABELS: Record<string, string> = {
@@ -253,29 +258,31 @@ export default async function SignPage({
                 vp.replacement_light_level === 'low'
                   ? vp.replacement_light_level
                   : null
+              const currentPot = findPotSize(vp.pot_size_code)
+              const suggestedPot = nextPotSize(vp.pot_size_code)
               return (
                 <li
                   key={vp.id}
                   className="overflow-hidden rounded border border-stera-green/40 bg-white"
                 >
-                  <div className="flex flex-wrap gap-3 border-b border-stera-line bg-stera-cream-deep/40 p-3">
+                  <div className="flex flex-wrap gap-3 border-b border-stera-line bg-red-50/40 p-3">
                     {vp.photo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={vp.photo_url}
                         alt={`Huidige plant: ${vp.nickname || ''}`}
-                        className="h-24 w-24 shrink-0 rounded object-cover"
+                        className="h-28 w-28 shrink-0 rounded object-cover"
                       />
                     ) : (
-                      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                      <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
                         geen foto
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs uppercase tracking-wider text-stera-ink-soft">
-                        Huidige plant
+                      <p className="text-xs font-semibold uppercase tracking-wider text-red-700">
+                        Deze plant moet vervangen worden
                       </p>
-                      <p className="font-semibold">
+                      <p className="mt-1 font-semibold">
                         {vp.nickname ||
                           vp.species ||
                           vp.reference_code ||
@@ -291,23 +298,28 @@ export default async function SignPage({
                           {vp.reference_code}
                         </p>
                       ) : null}
+                      {currentPot ? (
+                        <p className="mt-1 text-xs text-stera-ink-soft">
+                          Huidige potmaat: {currentPot.code}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="p-3">
-                    <p className="mb-2 text-xs uppercase tracking-wider text-stera-green">
-                      Voorstel vervanging
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                      Wij stellen voor te vervangen door
                     </p>
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-4">
                       <div>
                         <dt className="text-stera-ink-soft">Licht</dt>
-                        <dd className="font-medium text-sm">
+                        <dd className="text-sm font-medium">
                           {lightKey ? LIGHT_LABELS[lightKey] : '—'}
                         </dd>
                       </div>
                       <div>
                         <dt className="text-stera-ink-soft">Hoogte</dt>
-                        <dd className="font-medium text-sm">
+                        <dd className="text-sm font-medium">
                           {vp.replacement_height_cm
                             ? `± ${vp.replacement_height_cm} cm`
                             : '—'}
@@ -315,7 +327,7 @@ export default async function SignPage({
                       </div>
                       <div>
                         <dt className="text-stera-ink-soft">Pot-Ø</dt>
-                        <dd className="font-medium text-sm">
+                        <dd className="text-sm font-medium">
                           {vp.replacement_pot_diameter_cm
                             ? `${vp.replacement_pot_diameter_cm} cm`
                             : '—'}
@@ -323,11 +335,22 @@ export default async function SignPage({
                       </div>
                       <div>
                         <dt className="text-stera-ink-soft">Buitenpot</dt>
-                        <dd className="font-medium text-sm">
+                        <dd className="text-sm font-medium">
                           {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
                         </dd>
                       </div>
                     </dl>
+
+                    {suggestedPot ? (
+                      <p className="mt-3 rounded bg-stera-green/5 p-2 text-xs">
+                        <span className="font-semibold text-stera-green">
+                          Nieuwe binnenpot:
+                        </span>{' '}
+                        {formatPotSize(suggestedPot)} ·{' '}
+                        ± {formatEur(suggestedPot.estimatedPriceCents)}
+                      </p>
+                    ) : null}
+
                     {vp.replacement_notes ? (
                       <p className="mt-3 whitespace-pre-wrap rounded bg-stera-cream-deep/40 p-2 text-xs text-stera-ink">
                         {vp.replacement_notes}
