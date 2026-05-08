@@ -43,7 +43,7 @@ export default async function DashboardPage() {
       .from('maintenance_visits')
       .select(
         `id, title, status, scheduled_start, location_id,
-         locations ( name, companies ( name ) )`
+         locations ( name, street, number, postal_code, city, companies ( name ) )`
       )
       .gte('scheduled_start', startOfTodayIso)
       .lt('scheduled_start', startOfTomorrowIso)
@@ -134,6 +134,51 @@ export default async function DashboardPage() {
     const companyName = Array.isArray(company) ? company[0]?.name : company?.name
     return [companyName, locName].filter(Boolean).join(' · ') || 'Onbekende locatie'
   }
+
+  function locationAddress(visit: any): string | null {
+    const loc = visit.locations as any
+    const l = Array.isArray(loc) ? loc[0] : loc
+    if (!l) return null
+    const streetLine = [l.street, l.number].filter(Boolean).join(' ').trim()
+    const cityLine = [l.postal_code, l.city].filter(Boolean).join(' ').trim()
+    const parts = [streetLine, cityLine].filter(Boolean)
+    if (parts.length === 0) return null
+    return parts.join(', ')
+  }
+
+  /**
+   * Bouw een Google Maps directions-URL met alle adressen van vandaag
+   * als waypoints. Op iPhone/Android opent dit de Maps-app als die
+   * geïnstalleerd is, anders de webversie.
+   */
+  function buildRouteUrl(visits: any[]): string | null {
+    const stops = visits
+      .map(locationAddress)
+      .filter((a): a is string => Boolean(a && a.trim()))
+    if (stops.length === 0) return null
+
+    if (stops.length === 1) {
+      const url = new URL('https://www.google.com/maps/dir/')
+      url.searchParams.set('api', '1')
+      url.searchParams.set('destination', stops[0])
+      url.searchParams.set('travelmode', 'driving')
+      return url.toString()
+    }
+
+    const destination = stops[stops.length - 1]
+    const waypoints = stops.slice(0, -1).join('|')
+    const url = new URL('https://www.google.com/maps/dir/')
+    url.searchParams.set('api', '1')
+    url.searchParams.set('destination', destination)
+    url.searchParams.set('waypoints', waypoints)
+    url.searchParams.set('travelmode', 'driving')
+    return url.toString()
+  }
+
+  const routeUrl = buildRouteUrl(todaysVisits ?? [])
+  const skippedAddressCount =
+    (todaysVisits ?? []).length -
+    (todaysVisits ?? []).filter((v) => locationAddress(v)).length
 
   const greeting = (() => {
     const hour = now.getHours()
@@ -256,6 +301,30 @@ export default async function DashboardPage() {
               Afspraak inplannen →
             </Link>
           </div>
+
+          {routeUrl ? (
+            <div className="stera-card flex flex-wrap items-center justify-between gap-3 border-stera-green/40 bg-stera-cream-deep/40">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-stera-ink">
+                  Route van vandaag
+                </p>
+                <p className="text-xs text-stera-ink-soft">
+                  Open de stops in volgorde van uur in Google Maps.
+                  {skippedAddressCount > 0
+                    ? ` ${skippedAddressCount} stop${skippedAddressCount === 1 ? '' : 's'} zonder adres niet meegenomen.`
+                    : ''}
+                </p>
+              </div>
+              <a
+                href={routeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="stera-cta stera-cta-primary"
+              >
+                Open in Maps →
+              </a>
+            </div>
+          ) : null}
 
           {todaysVisits && todaysVisits.length > 0 ? (
             <ul className="space-y-3">
