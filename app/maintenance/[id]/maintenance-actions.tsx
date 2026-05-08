@@ -193,6 +193,17 @@ export default function MaintenanceActions({ visit }: { visit: any }) {
         },
       ])
 
+      // Genereer automatisch een werkbon (status = draft) zodat Jelle
+      // hem kan reviewen en versturen. Als er al een werkbon bestaat
+      // (bv. ondergedrong door re-end) doet de ON CONFLICT niets.
+      const { error: workOrderError } = await supabase
+        .from('work_orders')
+        .insert([{ visit_id: visit.id }])
+      // 23505 = unique_violation: er is al een werkbon. Dat is OK.
+      if (workOrderError && workOrderError.code !== '23505') {
+        console.error('[work_orders] auto-create failed', workOrderError)
+      }
+
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Afronden mislukt.')

@@ -44,6 +44,12 @@ export default async function CompanyDetailPage({
           <p className="stera-eyebrow mb-2">Klant</p>
           <h1 className="stera-display text-3xl sm:text-4xl">{company.name}</h1>
 
+          {company.has_maintenance_contract ? (
+            <span className="mt-3 inline-flex items-center rounded-full bg-stera-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
+              Onderhoudscontract
+            </span>
+          ) : null}
+
           <div className="mt-3 space-y-1 text-sm text-stera-ink-soft">
             {company.contact_name && <p>Contact: {company.contact_name}</p>}
             {company.email && <p>E-mail: {company.email}</p>}

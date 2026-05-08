@@ -17,6 +17,7 @@ export default function EditCompanyPage() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [notes, setNotes] = useState('')
+  const [hasContract, setHasContract] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -30,7 +31,7 @@ export default function EditCompanyPage() {
     async function load() {
       const { data, error } = await supabase
         .from('companies')
-        .select('name, contact_name, email, phone, notes')
+        .select('name, contact_name, email, phone, notes, has_maintenance_contract')
         .eq('id', companyId)
         .maybeSingle()
 
@@ -47,6 +48,7 @@ export default function EditCompanyPage() {
       setEmail(data.email ?? '')
       setPhone(data.phone ?? '')
       setNotes(data.notes ?? '')
+      setHasContract(Boolean(data.has_maintenance_contract))
       setLoading(false)
     }
 
@@ -72,6 +74,7 @@ export default function EditCompanyPage() {
         email: email.trim() || null,
         phone: phone.trim() || null,
         notes: notes.trim() || null,
+        has_maintenance_contract: hasContract,
       })
       .eq('id', companyId)
 
@@ -138,6 +141,23 @@ export default function EditCompanyPage() {
               className="w-full rounded-lg border border-stera-line bg-white p-3"
               rows={4}
             />
+
+            <label className="flex items-start gap-3 rounded-lg border border-stera-line bg-white p-3">
+              <input
+                type="checkbox"
+                checked={hasContract}
+                onChange={(e) => setHasContract(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm">
+                <span className="block font-medium">Onderhoudscontract</span>
+                <span className="block text-stera-ink-soft">
+                  Bij contract verbergen we uren en verbruiksgoederen op de
+                  werkbon — alleen plantvervangingen worden afzonderlijk
+                  gefactureerd.
+                </span>
+              </span>
+            </label>
 
             <div className="flex flex-wrap gap-3">
               <button

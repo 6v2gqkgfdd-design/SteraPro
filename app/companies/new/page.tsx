@@ -13,6 +13,7 @@ export default function NewCompanyPage() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [notes, setNotes] = useState('')
+  const [hasContract, setHasContract] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -28,6 +29,7 @@ export default function NewCompanyPage() {
         email,
         phone,
         notes,
+        has_maintenance_contract: hasContract,
       },
     ])
 
@@ -90,6 +92,23 @@ export default function NewCompanyPage() {
             className="w-full rounded-lg border border-stera-line bg-white p-3"
             rows={4}
           />
+
+          <label className="flex items-start gap-3 rounded-lg border border-stera-line bg-white p-3">
+            <input
+              type="checkbox"
+              checked={hasContract}
+              onChange={(e) => setHasContract(e.target.checked)}
+              className="mt-1"
+            />
+            <span className="text-sm">
+              <span className="block font-medium">Onderhoudscontract</span>
+              <span className="block text-stera-ink-soft">
+                Bij contract verbergen we uren en verbruiksgoederen op de
+                werkbon — alleen plantvervangingen worden afzonderlijk
+                gefactureerd.
+              </span>
+            </span>
+          </label>
 
           <button
             type="submit"
