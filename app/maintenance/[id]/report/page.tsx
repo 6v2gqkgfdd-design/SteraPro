@@ -22,6 +22,12 @@ const HEALTH_LABELS: Record<string, string> = {
   dead: 'Dood',
 }
 
+const REPORT_LIGHT_LABELS: Record<'high' | 'medium' | 'low', string> = {
+  high: 'Veel licht',
+  medium: 'Matig licht',
+  low: 'Weinig licht',
+}
+
 function formatDateTime(value: string | null | undefined) {
   if (!value) return null
   const d = new Date(value)
@@ -333,6 +339,93 @@ export default async function MaintenanceReportPage({
             </ul>
           )}
         </section>
+
+        {(() => {
+          const replacements = (visitPlants ?? []).filter(
+            (vp: any) => vp.followup_replace
+          )
+          if (replacements.length === 0) return null
+          return (
+            <section className="mb-10">
+              <p className="stera-eyebrow text-stera-green mb-1">
+                Voorstel: te vervangen planten
+              </p>
+              <p className="mb-4 text-sm text-stera-ink-soft">
+                {replacements.length === 1
+                  ? '1 plant'
+                  : `${replacements.length} planten`}{' '}
+                kwamen niet door de inspectie. Hieronder de specs voor de
+                vervanging — graag goed- of afkeuren zodat we kunnen bestellen.
+              </p>
+
+              <ul className="divide-y divide-stera-line rounded border border-stera-green/30 bg-white/60 print:bg-transparent">
+                {replacements.map((vp: any) => {
+                  const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
+                  const plantName =
+                    plant?.nickname ||
+                    plant?.species ||
+                    plant?.reference_code ||
+                    'Plant'
+                  const light: 'high' | 'medium' | 'low' | null =
+                    vp.replacement_light_level === 'high' ||
+                    vp.replacement_light_level === 'medium' ||
+                    vp.replacement_light_level === 'low'
+                      ? vp.replacement_light_level
+                      : null
+                  return (
+                    <li key={vp.id} className="px-4 py-4">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="font-semibold">{plantName}</p>
+                        {plant?.species ? (
+                          <p className="text-xs text-stera-ink-soft">
+                            was: {plant.species}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+                        <div>
+                          <dt className="text-xs text-stera-ink-soft">Licht</dt>
+                          <dd>{light ? REPORT_LIGHT_LABELS[light] : '—'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-stera-ink-soft">Hoogte</dt>
+                          <dd>
+                            {vp.replacement_height_cm
+                              ? `± ${vp.replacement_height_cm} cm`
+                              : '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-stera-ink-soft">Pot-Ø</dt>
+                          <dd>
+                            {vp.replacement_pot_diameter_cm
+                              ? `${vp.replacement_pot_diameter_cm} cm`
+                              : '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-stera-ink-soft">
+                            Buitenpot
+                          </dt>
+                          <dd>
+                            {vp.replacement_needs_outer_pot ? 'ja' : 'nee'}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      {vp.replacement_notes ? (
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink">
+                          {vp.replacement_notes}
+                        </p>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )
+        })()}
 
         <section className="mb-10">
           <p className="stera-eyebrow text-stera-green mb-3">Verbruiksgoederen</p>

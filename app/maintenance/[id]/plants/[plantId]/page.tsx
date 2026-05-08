@@ -6,6 +6,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SteraLogo from '@/components/stera-logo'
 
+function parseIntOrNull(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = parseInt(trimmed, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
 async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   const objectUrl = URL.createObjectURL(file)
   try {
@@ -146,6 +153,15 @@ export default function MaintenancePlantDetailPage() {
   const [followupReplace, setFollowupReplace] = useState(false)
   const [followupTreat, setFollowupTreat] = useState(false)
   const [followupNotes, setFollowupNotes] = useState('')
+
+  // Vervangingsspecs — alleen relevant als followupReplace = true
+  const [replacementLight, setReplacementLight] = useState<
+    '' | 'high' | 'medium' | 'low'
+  >('')
+  const [replacementHeight, setReplacementHeight] = useState('')
+  const [replacementPotDiameter, setReplacementPotDiameter] = useState('')
+  const [replacementOuterPot, setReplacementOuterPot] = useState(false)
+  const [replacementNotes, setReplacementNotes] = useState('')
 
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -292,6 +308,27 @@ export default function MaintenancePlantDetailPage() {
           setFollowupReplace(Boolean(existingVisitPlant.followup_replace))
           setFollowupTreat(Boolean(existingVisitPlant.followup_treat))
           setFollowupNotes(existingVisitPlant.followup_notes || '')
+          setReplacementLight(
+            existingVisitPlant.replacement_light_level === 'high' ||
+              existingVisitPlant.replacement_light_level === 'medium' ||
+              existingVisitPlant.replacement_light_level === 'low'
+              ? existingVisitPlant.replacement_light_level
+              : ''
+          )
+          setReplacementHeight(
+            existingVisitPlant.replacement_height_cm
+              ? String(existingVisitPlant.replacement_height_cm)
+              : ''
+          )
+          setReplacementPotDiameter(
+            existingVisitPlant.replacement_pot_diameter_cm
+              ? String(existingVisitPlant.replacement_pot_diameter_cm)
+              : ''
+          )
+          setReplacementOuterPot(
+            Boolean(existingVisitPlant.replacement_needs_outer_pot)
+          )
+          setReplacementNotes(existingVisitPlant.replacement_notes || '')
           setExistingPhotoUrl(existingVisitPlant.photo_url ?? null)
         } else {
           setNotes('')
@@ -309,6 +346,11 @@ export default function MaintenancePlantDetailPage() {
           setFollowupReplace(false)
           setFollowupTreat(false)
           setFollowupNotes('')
+          setReplacementLight('')
+          setReplacementHeight('')
+          setReplacementPotDiameter('')
+          setReplacementOuterPot(false)
+          setReplacementNotes('')
           setExistingPhotoUrl(null)
         }
 
@@ -414,6 +456,23 @@ export default function MaintenancePlantDetailPage() {
         followup_replace: followupReplace,
         followup_treat: followupTreat,
         followup_notes: followupNotes.trim() || null,
+        // Vervangingsspecs — alleen bewaren als de plant ook effectief
+        // gemarkeerd is om vervangen te worden, anders nullen.
+        replacement_light_level: followupReplace
+          ? replacementLight || null
+          : null,
+        replacement_height_cm: followupReplace
+          ? parseIntOrNull(replacementHeight)
+          : null,
+        replacement_pot_diameter_cm: followupReplace
+          ? parseIntOrNull(replacementPotDiameter)
+          : null,
+        replacement_needs_outer_pot: followupReplace
+          ? replacementOuterPot
+          : false,
+        replacement_notes: followupReplace
+          ? replacementNotes.trim() || null
+          : null,
       }
 
       if (photoPath !== undefined) {
@@ -847,6 +906,110 @@ export default function MaintenancePlantDetailPage() {
               className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
               placeholder="Specifieke opmerkingen voor volgende keer (bv. 20 cm pot, witte onderzetter, ...)"
             />
+
+            {followupReplace ? (
+              <div className="space-y-3 rounded-lg border border-stera-green/40 bg-white p-4">
+                <div>
+                  <p className="stera-eyebrow mb-1">
+                    Specs voor de vervangingsplant
+                  </p>
+                  <p className="text-xs text-stera-ink-soft">
+                    Deze info komt in het klantrapport en in de
+                    voorbereiding voor het volgende bezoek.
+                  </p>
+                </div>
+
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium text-stera-ink">
+                    Lichtniveau op deze plek
+                  </legend>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {[
+                      { value: 'high' as const, label: 'Veel licht' },
+                      { value: 'medium' as const, label: 'Matig licht' },
+                      { value: 'low' as const, label: 'Weinig licht' },
+                    ].map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm transition ${
+                          replacementLight === opt.value
+                            ? 'border-stera-green bg-stera-cream-deep'
+                            : 'border-stera-line bg-white hover:border-stera-green/60'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="replacement_light"
+                          value={opt.value}
+                          checked={replacementLight === opt.value}
+                          onChange={() => setReplacementLight(opt.value)}
+                        />
+                        <span>{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="replacement_height"
+                      className="block text-sm font-medium"
+                    >
+                      Hoogte plant (cm)
+                    </label>
+                    <input
+                      id="replacement_height"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={replacementHeight}
+                      onChange={(e) => setReplacementHeight(e.target.value)}
+                      className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
+                      placeholder="bv. 80"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="replacement_pot_diameter"
+                      className="block text-sm font-medium"
+                    >
+                      Pot-diameter (cm)
+                    </label>
+                    <input
+                      id="replacement_pot_diameter"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={replacementPotDiameter}
+                      onChange={(e) =>
+                        setReplacementPotDiameter(e.target.value)
+                      }
+                      className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
+                      placeholder="bv. 24"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
+                  <input
+                    type="checkbox"
+                    checked={replacementOuterPot}
+                    onChange={(e) => setReplacementOuterPot(e.target.checked)}
+                  />
+                  <span>Buitenpot mee voorzien</span>
+                </label>
+
+                <textarea
+                  value={replacementNotes}
+                  onChange={(e) => setReplacementNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
+                  placeholder="Voorkeuren of stijl (bv. groene grote bladplant, hangplant, ...)"
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">

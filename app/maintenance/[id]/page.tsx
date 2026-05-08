@@ -13,6 +13,19 @@ type FollowupItem = {
     treat: boolean
   }
   notes: string | null
+  replacement: {
+    light: 'high' | 'medium' | 'low' | null
+    heightCm: number | null
+    potDiameterCm: number | null
+    needsOuterPot: boolean
+    notes: string | null
+  } | null
+}
+
+const LIGHT_LABELS: Record<'high' | 'medium' | 'low', string> = {
+  high: 'Veel licht',
+  medium: 'Matig licht',
+  low: 'Weinig licht',
 }
 
 export default async function MaintenanceDetailPage({
@@ -84,6 +97,9 @@ export default async function MaintenanceDetailPage({
         .select(
           `id, plant_id, followup_repot, followup_prune, followup_replace,
            followup_treat, followup_notes,
+           replacement_light_level, replacement_height_cm,
+           replacement_pot_diameter_cm, replacement_needs_outer_pot,
+           replacement_notes,
            plants ( id, nickname, species, reference_code )`
         )
         .eq('visit_id', previousVisit.id)
@@ -104,16 +120,37 @@ export default async function MaintenanceDetailPage({
             plant?.species ||
             plant?.reference_code ||
             'Plant'
+          const isReplacement = Boolean(row.followup_replace)
           return {
             plantId: row.plant_id,
             plantName,
             flags: {
               repot: Boolean(row.followup_repot),
               prune: Boolean(row.followup_prune),
-              replace: Boolean(row.followup_replace),
+              replace: isReplacement,
               treat: Boolean(row.followup_treat),
             },
             notes: row.followup_notes || null,
+            replacement: isReplacement
+              ? {
+                  light:
+                    row.replacement_light_level === 'high' ||
+                    row.replacement_light_level === 'medium' ||
+                    row.replacement_light_level === 'low'
+                      ? row.replacement_light_level
+                      : null,
+                  heightCm:
+                    typeof row.replacement_height_cm === 'number'
+                      ? row.replacement_height_cm
+                      : null,
+                  potDiameterCm:
+                    typeof row.replacement_pot_diameter_cm === 'number'
+                      ? row.replacement_pot_diameter_cm
+                      : null,
+                  needsOuterPot: Boolean(row.replacement_needs_outer_pot),
+                  notes: row.replacement_notes || null,
+                }
+              : null,
           } as FollowupItem
         })
     }
@@ -250,6 +287,39 @@ export default async function MaintenanceDetailPage({
                       <p className="mt-1 text-xs uppercase tracking-wider text-stera-green">
                         {tags.join(' · ')}
                       </p>
+                    ) : null}
+                    {item.replacement ? (
+                      <div className="mt-2 rounded-md border border-stera-green/30 bg-stera-cream-deep/50 p-2 text-xs text-stera-ink">
+                        <p className="font-semibold text-stera-green">
+                          Vervangingsspecs
+                        </p>
+                        <ul className="mt-1 space-y-0.5">
+                          {item.replacement.light ? (
+                            <li>
+                              Licht: {LIGHT_LABELS[item.replacement.light]}
+                            </li>
+                          ) : null}
+                          {item.replacement.heightCm ? (
+                            <li>
+                              Hoogte: ± {item.replacement.heightCm} cm
+                            </li>
+                          ) : null}
+                          {item.replacement.potDiameterCm ? (
+                            <li>
+                              Pot-Ø: {item.replacement.potDiameterCm} cm
+                            </li>
+                          ) : null}
+                          <li>
+                            Buitenpot:{' '}
+                            {item.replacement.needsOuterPot ? 'ja' : 'nee'}
+                          </li>
+                          {item.replacement.notes ? (
+                            <li>
+                              Notitie: {item.replacement.notes}
+                            </li>
+                          ) : null}
+                        </ul>
+                      </div>
                     ) : null}
                     {item.notes ? (
                       <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink-soft">
