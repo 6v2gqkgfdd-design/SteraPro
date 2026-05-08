@@ -51,9 +51,12 @@ function formatDuration(start: string | null, end: string | null, pauseMin: numb
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null
   const totalMin = Math.max(0, Math.round((endMs - startMs) / 60000))
   const workMin = Math.max(0, totalMin - (pauseMin ?? 0))
-  const h = Math.floor(workMin / 60)
-  const m = workMin % 60
-  return h > 0 ? `${h}u ${m.toString().padStart(2, '0')}min` : `${m}min`
+  // Voor het rapport ronden we werkuren naar boven af op 30 minuten
+  // (= dichtstbijzijnde half uur). Pauzes zijn al afgetrokken.
+  const billedMin = Math.ceil(workMin / 30) * 30
+  const h = Math.floor(billedMin / 60)
+  const m = billedMin % 60
+  return h > 0 ? `${h}u${m === 0 ? '00' : m.toString().padStart(2, '0')}` : `${m}min`
 }
 
 function formatQuantity(value: number) {
