@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import SteraLogo from '@/components/stera-logo'
 import { createClient } from '@/lib/supabase/server'
+import { formatEur } from '@/lib/pot-sizes'
 import SignForm from './sign-form'
 
 const LIGHT_LABELS: Record<string, string> = {
@@ -345,20 +346,51 @@ export default async function SignPage({
           <p className="stera-eyebrow text-stera-green mb-2">
             Verbruiksgoederen
           </p>
-          <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white text-sm">
-            {consumables.map((c: any) => (
-              <li
-                key={c.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
-              >
-                <span className="font-medium">{c.name || 'Verbruik'}</span>
-                <span>
-                  {c.quantity}
-                  {c.unit ? ` ${c.unit}` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {(() => {
+            let grandTotal = 0
+            const rows = consumables.map((c: any) => {
+              const unitSize = c.unit_size ?? null
+              const unitPrice = c.unit_price_cents ?? null
+              let lineTotal: number | null = null
+              if (unitSize && unitPrice && unitSize > 0) {
+                lineTotal = Math.round(
+                  (Number(c.quantity) / unitSize) * unitPrice
+                )
+                grandTotal += lineTotal
+              }
+              return { id: c.id, c, lineTotal }
+            })
+            return (
+              <>
+                <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white text-sm">
+                  {rows.map((r) => (
+                    <li
+                      key={r.id}
+                      className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
+                    >
+                      <span className="font-medium flex-1 min-w-0">
+                        {r.c.name || 'Verbruik'}
+                      </span>
+                      <span className="text-stera-ink-soft">
+                        {r.c.quantity}
+                        {r.c.unit ? ` ${r.c.unit}` : ''}
+                      </span>
+                      {r.lineTotal != null ? (
+                        <span className="font-medium tabular-nums w-20 text-right">
+                          {formatEur(r.lineTotal)}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+                {grandTotal > 0 ? (
+                  <p className="mt-2 text-right text-sm font-semibold">
+                    Totaal verbruik: {formatEur(grandTotal)}
+                  </p>
+                ) : null}
+              </>
+            )
+          })()}
         </section>
       ) : null}
 

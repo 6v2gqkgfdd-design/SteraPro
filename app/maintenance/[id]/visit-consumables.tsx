@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { formatEur } from '@/lib/pot-sizes'
 
 type CatalogItem = {
   id: string
@@ -9,6 +10,10 @@ type CatalogItem = {
   default_unit: string | null
   active: boolean
   sort_order: number | null
+  unit_size: number | null
+  unit_price_cents: number | null
+  default_quantity: number | null
+  description: string | null
 }
 
 type VisitConsumable = {
@@ -23,6 +28,8 @@ type VisitConsumable = {
     id: string
     name: string
     default_unit: string | null
+    unit_size: number | null
+    unit_price_cents: number | null
   } | null
 }
 
@@ -52,7 +59,9 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
       const [catalogResult, itemsResult] = await Promise.all([
         supabase
           .from('consumable_catalog')
-          .select('id, name, default_unit, active, sort_order')
+          .select(
+            'id, name, default_unit, active, sort_order, unit_size, unit_price_cents, default_quantity, description'
+          )
           .eq('active', true)
           .order('sort_order', { ascending: true })
           .order('name', { ascending: true }),
@@ -70,7 +79,9 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
             consumable_catalog (
               id,
               name,
-              default_unit
+              default_unit,
+              unit_size,
+              unit_price_cents
             )
             `
           )
@@ -113,7 +124,6 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
     setSelectedCatalogId(value)
 
     if (value === CUSTOM_OPTION || value === '') {
-      // keep custom_name and unit as the user is editing
       return
     }
 
@@ -123,7 +133,27 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
       if (item.default_unit) {
         setUnit(item.default_unit)
       }
+      if (item.default_quantity != null && quantity === '') {
+        setQuantity(String(item.default_quantity))
+      }
     }
+  }
+
+  function selectedCatalogItem(): CatalogItem | null {
+    return catalog.find((c) => c.id === selectedCatalogId) ?? null
+  }
+
+  function lineTotalCents(item: VisitConsumable): number | null {
+    const cat = item.consumable_catalog as
+      | (VisitConsumable['consumable_catalog'] & {
+          unit_size?: number | null
+          unit_price_cents?: number | null
+        })
+      | null
+    const unitSize = cat?.unit_size ?? null
+    const unitPrice = cat?.unit_price_cents ?? null
+    if (!unitSize || !unitPrice || unitSize <= 0) return null
+    return Math.round((Number(item.quantity) / unitSize) * unitPrice)
   }
 
   function resetForm() {
@@ -230,34 +260,58 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
           Nog geen verbruiksgoederen geregistreerd.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {items.map((item) => (
-            <li
-              key={item.id}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {displayName(item)}{' '}
-                  <span className="font-normal text-gray-600">
-                    — {formatQuantity(item.quantity)}
-                    {item.unit ? ` ${item.unit}` : ''}
-                  </span>
-                </p>
-                {item.notes && (
-                  <p className="mt-1 text-sm text-gray-700">{item.notes}</p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(item.id)}
-                className="text-sm text-red-600 underline"
-              >
-                Verwijderen
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2">
+            {items.map((item) => {
+              const total = lineTotalCents(item)
+              return (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      {displayName(item)}{' '}
+                      <span className="font-normal text-gray-600">
+                        — {formatQuantity(item.quantity)}
+                        {item.unit ? ` ${item.unit}` : ''}
+                      </span>
+                    </p>
+                    {item.notes && (
+                      <p className="mt-1 text-sm text-gray-700">{item.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    {total != null ? (
+                      <span className="text-sm font-medium text-stera-ink">
+                        {formatEur(total)}
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                      className="text-sm text-red-600 underline"
+                    >
+                      Verwijderen
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          {(() => {
+            const totals = items
+              .map(lineTotalCents)
+              .filter((t): t is number => t != null)
+            if (totals.length === 0) return null
+            const sum = totals.reduce((a, b) => a + b, 0)
+            return (
+              <p className="text-right text-sm font-semibold text-stera-ink">
+                Totaal: {formatEur(sum)}
+              </p>
+            )
+          })()}
+        </>
       )}
 
       <form
@@ -273,14 +327,35 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
           required
         >
           <option value="">Kies een verbruiksgoed</option>
-          {catalog.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-              {c.default_unit ? ` (${c.default_unit})` : ''}
-            </option>
-          ))}
+          {catalog.map((c) => {
+            const price =
+              c.unit_size && c.unit_price_cents
+                ? ` — ${formatEur(c.unit_price_cents)} per ${c.unit_size} ${c.default_unit ?? ''}`.trimEnd()
+                : c.default_unit
+                  ? ` (${c.default_unit})`
+                  : ''
+            return (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {price}
+              </option>
+            )
+          })}
           <option value={CUSTOM_OPTION}>Andere...</option>
         </select>
+
+        {(() => {
+          const sel = selectedCatalogItem()
+          if (!sel || !sel.unit_price_cents) return null
+          return (
+            <p className="text-xs text-stera-ink-soft">
+              {sel.description ?? ''}
+              {sel.description ? ' · ' : ''}
+              {formatEur(sel.unit_price_cents)} per {sel.unit_size}{' '}
+              {sel.default_unit ?? ''}
+            </p>
+          )
+        })()}
 
         {selectedCatalogId === CUSTOM_OPTION && (
           <input

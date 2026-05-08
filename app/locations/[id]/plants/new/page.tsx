@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fetchPlayfulNickname, pickLocalNickname } from '@/lib/nicknames'
 import { prepareImage } from '@/lib/image'
+import { POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
 
 function slugify(value: string) {
   return value
@@ -37,6 +38,7 @@ export default function NewPlantPage() {
   const [species, setSpecies] = useState('')
   const [status, setStatus] = useState('healthy')
   const [notes, setNotes] = useState('')
+  const [potSizeCode, setPotSizeCode] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [aiSuggestedSpecies, setAiSuggestedSpecies] = useState('')
@@ -226,6 +228,7 @@ export default function NewPlantPage() {
             photo_url: photoUrl,
             ai_suggested_species: aiSuggestedSpecies || null,
             ai_confidence: aiConfidence,
+            pot_size_code: potSizeCode || null,
           },
         ])
         .select('id')
@@ -374,6 +377,19 @@ export default function NewPlantPage() {
             <option value="maintenance_due">Maintenance due</option>
             <option value="replacement_needed">Replacement needed</option>
             <option value="dead">Dead</option>
+          </select>
+
+          <select
+            value={potSizeCode}
+            onChange={(e) => setPotSizeCode(e.target.value)}
+            className="w-full rounded-lg border border-stera-line bg-white p-3"
+          >
+            <option value="">Potmaat (optioneel)</option>
+            {POT_SIZES.map((p) => (
+              <option key={p.code} value={p.code}>
+                {formatPotSize(p)}
+              </option>
+            ))}
           </select>
 
           <textarea

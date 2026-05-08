@@ -8,6 +8,7 @@ import {
   markAsSignedManually,
 } from './actions'
 import CopyLinkButton from './copy-link-button'
+import { formatEur } from '@/lib/pot-sizes'
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Nog te versturen',
@@ -132,7 +133,7 @@ export default async function WorkOrderDetailPage({
     .from('maintenance_visit_consumables')
     .select(
       `id, custom_name, quantity, unit, notes,
-       consumable_catalog ( id, name )`
+       consumable_catalog ( id, name, unit_size, unit_price_cents )`
     )
     .eq('visit_id', visit.id)
     .order('created_at', { ascending: true })
@@ -496,26 +497,55 @@ export default async function WorkOrderDetailPage({
               <p className="stera-eyebrow text-stera-green mb-2">
                 Verbruiksgoederen
               </p>
-              <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white/60 text-sm">
-                {consumables.map((c: any) => {
+              {(() => {
+                let grandTotal = 0
+                const rows = consumables.map((c: any) => {
                   const catalog = Array.isArray(c.consumable_catalog)
                     ? c.consumable_catalog[0]
                     : c.consumable_catalog
                   const name = c.custom_name || catalog?.name || 'Verbruik'
-                  return (
-                    <li
-                      key={c.id}
-                      className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
-                    >
-                      <span className="font-medium">{name}</span>
-                      <span>
-                        {c.quantity}
-                        {c.unit ? ` ${c.unit}` : ''}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
+                  const unitSize = catalog?.unit_size ?? null
+                  const unitPrice = catalog?.unit_price_cents ?? null
+                  let lineTotal: number | null = null
+                  if (unitSize && unitPrice && unitSize > 0) {
+                    lineTotal = Math.round(
+                      (Number(c.quantity) / unitSize) * unitPrice
+                    )
+                    grandTotal += lineTotal
+                  }
+                  return { id: c.id, name, c, lineTotal }
+                })
+                return (
+                  <>
+                    <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white/60 text-sm">
+                      {rows.map((r) => (
+                        <li
+                          key={r.id}
+                          className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
+                        >
+                          <span className="font-medium flex-1 min-w-0">
+                            {r.name}
+                          </span>
+                          <span className="text-stera-ink-soft">
+                            {r.c.quantity}
+                            {r.c.unit ? ` ${r.c.unit}` : ''}
+                          </span>
+                          {r.lineTotal != null ? (
+                            <span className="font-medium tabular-nums w-20 text-right">
+                              {formatEur(r.lineTotal)}
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    {grandTotal > 0 ? (
+                      <p className="mt-2 text-right text-sm font-semibold">
+                        Totaal verbruik: {formatEur(grandTotal)}
+                      </p>
+                    ) : null}
+                  </>
+                )
+              })()}
             </section>
           ) : null}
 

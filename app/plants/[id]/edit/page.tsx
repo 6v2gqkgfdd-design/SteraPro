@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
 
 export default function EditPlantPage() {
   const params = useParams<{ id: string }>()
@@ -16,6 +17,7 @@ export default function EditPlantPage() {
   const [species, setSpecies] = useState('')
   const [status, setStatus] = useState('healthy')
   const [notes, setNotes] = useState('')
+  const [potSizeCode, setPotSizeCode] = useState('')
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -28,7 +30,7 @@ export default function EditPlantPage() {
     async function load() {
       const { data, error } = await supabase
         .from('plants')
-        .select('nickname, species, status, notes')
+        .select('nickname, species, status, notes, pot_size_code')
         .eq('id', plantId)
         .maybeSingle()
 
@@ -44,6 +46,7 @@ export default function EditPlantPage() {
       setSpecies(data.species ?? '')
       setStatus(data.status ?? 'healthy')
       setNotes(data.notes ?? '')
+      setPotSizeCode(data.pot_size_code ?? '')
       setLoading(false)
     }
 
@@ -68,6 +71,7 @@ export default function EditPlantPage() {
         species: species.trim() || null,
         status,
         notes: notes.trim() || null,
+        pot_size_code: potSizeCode || null,
       })
       .eq('id', plantId)
 
@@ -133,6 +137,27 @@ export default function EditPlantPage() {
                 <option value="replacement_needed">Vervanging nodig</option>
                 <option value="dead">Dood</option>
               </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
+                Potmaat (huidige binnenpot)
+              </label>
+              <select
+                value={potSizeCode}
+                onChange={(e) => setPotSizeCode(e.target.value)}
+                className="w-full rounded-lg border border-stera-line bg-white p-3"
+              >
+                <option value="">Onbekend / niet opgegeven</option>
+                {POT_SIZES.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {formatPotSize(p)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-stera-ink-soft">
+                Bij verpotting stellen we automatisch één maat groter voor.
+              </p>
             </div>
 
             <div className="space-y-1">
