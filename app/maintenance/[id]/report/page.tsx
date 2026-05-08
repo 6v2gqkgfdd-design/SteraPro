@@ -10,6 +10,7 @@ const ACTION_LABELS: Record<string, string> = {
   action_fed: 'Voeding toegevoegd',
   action_cleaned: 'Bladeren gereinigd',
   action_rotated: 'Gedraaid',
+  action_polished: 'Bladglans',
   action_repotted: 'Verpot',
   action_replaced: 'Vervangen',
 }

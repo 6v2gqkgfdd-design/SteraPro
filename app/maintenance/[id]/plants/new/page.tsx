@@ -6,6 +6,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fetchPlayfulNickname, pickLocalNickname } from '@/lib/nicknames'
 import { prepareImage } from '@/lib/image'
+import {
+  STANDARD_MAINTENANCE_ACTIONS,
+  STANDARD_MAINTENANCE_HEALTH_STATUS,
+} from '@/lib/standard-maintenance'
 
 function slugify(value: string) {
   return value
@@ -260,6 +264,29 @@ export default function MaintenanceNewPlantPage() {
 
       if (plantError || !insertedPlant) {
         throw new Error(plantError?.message || 'Plant opslaan mislukt.')
+      }
+
+      // Een nieuwe plant tijdens een onderhoud krijgt automatisch het
+      // standaard onderhoud (water, voeding, snoei, controle, draaien,
+      // bladglans). Jelle kan op de volgende pagina nog corrigeren als
+      // de plant ziek is of speciaal behandeld moet worden.
+      const { error: visitPlantError } = await supabase
+        .from('maintenance_visit_plants')
+        .insert([
+          {
+            visit_id: visitId,
+            plant_id: insertedPlant.id,
+            health_status: STANDARD_MAINTENANCE_HEALTH_STATUS,
+            ...STANDARD_MAINTENANCE_ACTIONS,
+          },
+        ])
+
+      if (visitPlantError && visitPlantError.code !== '23505') {
+        // 23505 = al bestaand record (uniek-constraint), geen issue.
+        console.error(
+          '[maintenance-plants-new] visit_plant insert failed',
+          visitPlantError
+        )
       }
 
       if (species.trim()) {

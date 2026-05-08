@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import MaintenanceActions from './maintenance-actions'
 import VisitConsumables from './visit-consumables'
+import { applyStandardMaintenance } from './standard-actions'
 
 type FollowupItem = {
   plantId: string
@@ -69,6 +70,21 @@ export default async function MaintenanceDetailPage({
       </main>
     )
   }
+
+  // Hoeveel planten staan op de locatie en hoeveel zijn al behandeld?
+  // Voor de "standaard-onderhoud-bulk" knop.
+  const { count: locationPlantCount } = visit.location_id
+    ? await supabase
+        .from('plants')
+        .select('id', { count: 'exact', head: true })
+        .eq('location_id', visit.location_id)
+    : { count: 0 }
+
+  const handledCount = (visitPlants ?? []).length
+  const pendingPlantCount = Math.max(
+    0,
+    (locationPlantCount ?? 0) - handledCount
+  )
 
   // ── Voorbereidingslijst: zoek de meest recente AFGESLOTEN beurt op
   // dezelfde locatie vóór deze beurt en aggregeer alle follow-up flags
@@ -341,6 +357,29 @@ export default async function MaintenanceDetailPage({
         <div className="stera-card">
           <VisitConsumables visitId={visit.id} />
         </div>
+
+        {isOpenVisit && pendingPlantCount > 0 ? (
+          <div className="stera-card border-stera-green/40 bg-stera-cream-deep/40">
+            <p className="stera-eyebrow mb-2">Snel afronden</p>
+            <p className="text-sm text-stera-ink">
+              Er staan nog {pendingPlantCount} plant
+              {pendingPlantCount === 1 ? '' : 'en'} op deze locatie zonder
+              registratie. Pas in één klik het standaard onderhoud toe (water,
+              voeding, snoei, controle, draaien, bladglans).
+            </p>
+            <p className="mt-1 text-xs text-stera-ink-soft">
+              Zieke planten of vervangingen scan je apart vóór je deze knop
+              gebruikt — die overschrijft niet wat je al ingaf.
+            </p>
+            <form action={applyStandardMaintenance} className="mt-3">
+              <input type="hidden" name="visit_id" value={visit.id} />
+              <button type="submit" className="stera-cta stera-cta-primary">
+                Pas standaard onderhoud toe op {pendingPlantCount} plant
+                {pendingPlantCount === 1 ? '' : 'en'} →
+              </button>
+            </form>
+          </div>
+        ) : null}
 
         <div className="stera-card">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

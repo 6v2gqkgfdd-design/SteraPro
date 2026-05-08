@@ -16,6 +16,7 @@ const ACTION_KEYS = [
   ['action_fed', 'voeding'],
   ['action_cleaned', 'bladeren gereinigd'],
   ['action_rotated', 'gedraaid'],
+  ['action_polished', 'bladglans'],
   ['action_repotted', 'verpot'],
   ['action_replaced', 'vervangen'],
 ] as const

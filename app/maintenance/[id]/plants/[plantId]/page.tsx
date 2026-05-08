@@ -142,6 +142,7 @@ export default function MaintenancePlantDetailPage() {
   const [fed, setFed] = useState(false)
   const [cleaned, setCleaned] = useState(false)
   const [rotated, setRotated] = useState(false)
+  const [polished, setPolished] = useState(false)
   const [repotted, setRepotted] = useState(false)
   const [replaced, setReplaced] = useState(false)
   const [checked, setChecked] = useState(true)
@@ -293,6 +294,7 @@ export default function MaintenancePlantDetailPage() {
           setFed(Boolean(existingVisitPlant.action_fed))
           setCleaned(Boolean(existingVisitPlant.action_cleaned))
           setRotated(Boolean(existingVisitPlant.action_rotated))
+          setPolished(Boolean(existingVisitPlant.action_polished))
           setRepotted(Boolean(existingVisitPlant.action_repotted))
           setReplaced(Boolean(existingVisitPlant.action_replaced))
           setChecked(
@@ -331,12 +333,16 @@ export default function MaintenancePlantDetailPage() {
           setReplacementNotes(existingVisitPlant.replacement_notes || '')
           setExistingPhotoUrl(existingVisitPlant.photo_url ?? null)
         } else {
+          // Geen bestaand visit_plant — pre-vul met de standaard
+          // onderhoudsacties zodat Jelle alleen hoeft uit te vinken wat
+          // hij vandaag NIET deed (sneller dan alles aanvinken).
           setNotes('')
-          setWatered(false)
-          setPruned(false)
-          setFed(false)
+          setWatered(true)
+          setPruned(true)
+          setFed(true)
           setCleaned(false)
-          setRotated(false)
+          setRotated(true)
+          setPolished(true)
           setRepotted(false)
           setReplaced(false)
           setChecked(true)
@@ -447,6 +453,7 @@ export default function MaintenancePlantDetailPage() {
         action_fed: fed,
         action_cleaned: cleaned,
         action_rotated: rotated,
+        action_polished: polished,
         action_repotted: repotted,
         action_replaced: replaced,
         action_checked: checked,
@@ -830,6 +837,15 @@ export default function MaintenancePlantDetailPage() {
                 onChange={(e) => setRotated(e.target.checked)}
               />
               <span>Gedraaid</span>
+            </label>
+
+            <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
+              <input
+                type="checkbox"
+                checked={polished}
+                onChange={(e) => setPolished(e.target.checked)}
+              />
+              <span>Bladglans</span>
             </label>
 
             <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
