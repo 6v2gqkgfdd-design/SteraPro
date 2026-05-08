@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fetchPlayfulNickname, pickLocalNickname } from '@/lib/nicknames'
+import { prepareImage } from '@/lib/image'
 
 function slugify(value: string) {
   return value
@@ -20,67 +21,6 @@ function generateReferenceCode() {
   const d = String(now.getDate()).padStart(2, '0')
   const random = Math.random().toString(36).slice(2, 6).toUpperCase()
   return `PLT-${y}${m}${d}-${random}`
-}
-
-async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
-  const objectUrl = URL.createObjectURL(file)
-
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image()
-
-      img.onload = () => resolve(img)
-      img.onerror = () =>
-        reject(
-          new Error(
-            'Deze afbeelding kon niet gelezen worden. Gebruik bij voorkeur een JPG of PNG foto.'
-          )
-        )
-
-      img.src = objectUrl
-    })
-
-    return image
-  } finally {
-    URL.revokeObjectURL(objectUrl)
-  }
-}
-
-async function fileToJpeg(file: File): Promise<File> {
-  if (file.type === 'image/jpeg') {
-    return file
-  }
-
-  const image = await loadImageFromFile(file)
-
-  const width = image.naturalWidth || image.width
-  const height = image.naturalHeight || image.height
-
-  if (!width || !height) {
-    throw new Error('Afbeelding heeft geen geldige afmetingen.')
-  }
-
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) {
-    throw new Error('Canvas context niet beschikbaar.')
-  }
-
-  ctx.drawImage(image, 0, 0, width, height)
-
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/jpeg', 0.9)
-  })
-
-  if (!blob) {
-    throw new Error('Kon afbeelding niet converteren naar JPEG.')
-  }
-
-  const baseName = file.name.replace(/\.[^.]+$/, '') || 'photo'
-  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
 }
 
 export default function NewPlantPage() {
@@ -184,46 +124,29 @@ export default function NewPlantPage() {
     setIsIdentifying(true)
 
     try {
-      const jpegFile = await fileToJpeg(file)
+      const prepared = await prepareImage(file)
 
       if (photoPreview) {
         URL.revokeObjectURL(photoPreview)
       }
 
-      const previewUrl = URL.createObjectURL(jpegFile)
+      const previewUrl = URL.createObjectURL(prepared.file)
       setPhotoPreview(previewUrl)
-      setPhotoFile(jpegFile)
+      setPhotoFile(prepared.file)
 
-      const tempFileName = `temp/${params.id}-${Date.now()}.jpg`
-
-      const { error: uploadError } = await supabase.storage
-        .from('plant-photos')
-        .upload(tempFileName, jpegFile, {
-          upsert: false,
-          contentType: 'image/jpeg',
-        })
-
-      if (uploadError) {
-        throw new Error(uploadError.message)
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('plant-photos')
-        .getPublicUrl(tempFileName)
-
-      const imageUrl = publicUrlData?.publicUrl
-
-      if (!imageUrl) {
-        throw new Error('Kon geen publieke afbeeldings-URL ophalen.')
-      }
-
+      // Stuur de foto rechtstreeks als base64 naar de identify-route.
+      // Geen tussen-upload meer naar Storage — sneller én onafhankelijk
+      // van de bucket-toegang.
       const response = await fetch('/api/plants/identify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageUrl,
+          imageBase64: {
+            data: prepared.base64,
+            media_type: prepared.mediaType,
+          },
         }),
       })
 
@@ -285,49 +208,42 @@ export default function NewPlantPage() {
         nickname.trim() || species.trim() || referenceCode
       const qrSlug = slugify(baseValue)
 
-      const { error } = await supabase.from('plants').insert([
-        {
-          company_id: companyId,
-          location_id: params.id,
-          room_id: roomId || null,
-          plant_code: referenceCode,
-          nickname: nickname.trim() || null,
-          species: species.trim() || null,
-          status,
-          notes: notes.trim() || null,
-          qr_slug: qrSlug,
-          reference_code: referenceCode,
-          photo_path: photoPath,
-          photo_url: photoUrl,
-          ai_suggested_species: aiSuggestedSpecies || null,
-          ai_confidence: aiConfidence,
-        },
-      ])
+      const { data: inserted, error } = await supabase
+        .from('plants')
+        .insert([
+          {
+            company_id: companyId,
+            location_id: params.id,
+            room_id: roomId || null,
+            plant_code: referenceCode,
+            nickname: nickname.trim() || null,
+            species: species.trim() || null,
+            status,
+            notes: notes.trim() || null,
+            qr_slug: qrSlug,
+            reference_code: referenceCode,
+            photo_path: photoPath,
+            photo_url: photoUrl,
+            ai_suggested_species: aiSuggestedSpecies || null,
+            ai_confidence: aiConfidence,
+          },
+        ])
+        .select('id')
+        .single()
 
       if (error) {
         throw new Error(error.message)
       }
 
-      // Genereer verzorgingstips in de achtergrond (fire-and-forget) als
-      // we de soort kennen. We hebben hier geen plant-id terug omdat de
-      // insert geen .select() heeft, maar de care-tips route kan ook later
-      // door het openen van /plants/<id> getriggerd worden.
-      if (species.trim()) {
-        const { data: latest } = await supabase
-          .from('plants')
-          .select('id')
-          .eq('reference_code', referenceCode)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (latest?.id) {
-          fetch('/api/plants/care-tips', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ plantId: latest.id }),
-          }).catch(() => {})
-        }
+      // Care-tips fire-and-forget — niet wachten op de Claude-call zodat
+      // de redirect onmiddellijk gebeurt. We gebruiken het id dat de
+      // insert teruggaf (geen extra round-trip meer naar de DB).
+      if (species.trim() && inserted?.id) {
+        fetch('/api/plants/care-tips', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ plantId: inserted.id }),
+        }).catch(() => {})
       }
 
       router.push(`/locations/${params.id}`)

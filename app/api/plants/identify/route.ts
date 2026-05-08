@@ -61,13 +61,37 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const imageUrl = body?.imageUrl
-    if (!imageUrl || typeof imageUrl !== 'string') {
+    const imageUrl: string | undefined =
+      typeof body?.imageUrl === 'string' ? body.imageUrl : undefined
+    const imageBase64Data: string | undefined =
+      typeof body?.imageBase64 === 'string'
+        ? body.imageBase64
+        : typeof body?.imageBase64?.data === 'string'
+          ? body.imageBase64.data
+          : undefined
+    const imageBase64MediaType: string =
+      typeof body?.imageBase64?.media_type === 'string'
+        ? body.imageBase64.media_type
+        : 'image/jpeg'
+
+    if (!imageUrl && !imageBase64Data) {
       return NextResponse.json(
-        { error: 'Geen afbeeldings-URL ontvangen.' },
+        {
+          error:
+            'Geen afbeelding ontvangen — stuur ofwel `imageUrl` of `imageBase64`.',
+        },
         { status: 400 }
       )
     }
+
+    // Voorkeur: base64 (geen afhankelijkheid van publieke bucket-toegang)
+    const imageSource = imageBase64Data
+      ? {
+          type: 'base64' as const,
+          media_type: imageBase64MediaType,
+          data: imageBase64Data,
+        }
+      : { type: 'url' as const, url: imageUrl as string }
 
     const anthropicResponse = await fetch(
       'https://api.anthropic.com/v1/messages',
@@ -88,7 +112,7 @@ export async function POST(req: Request) {
               content: [
                 {
                   type: 'image',
-                  source: { type: 'url', url: imageUrl },
+                  source: imageSource,
                 },
                 {
                   type: 'text',
@@ -104,12 +128,23 @@ export async function POST(req: Request) {
     if (!anthropicResponse.ok) {
       const errorBody = await anthropicResponse.text()
       console.error('Anthropic vision error:', anthropicResponse.status, errorBody)
+      // Snelle short-message extractie zodat de ontwikkelaar de
+      // werkelijke oorzaak ziet i.p.v. enkel een generieke melding.
+      let detail = ''
+      try {
+        const parsed = JSON.parse(errorBody)
+        detail = parsed?.error?.message || ''
+      } catch {
+        // negeren — body was geen JSON
+      }
       return NextResponse.json(
         {
           error:
             anthropicResponse.status === 401
               ? 'AI-herkenning niet geautoriseerd: controleer ANTHROPIC_API_KEY.'
-              : 'AI-herkenning mislukt. Probeer opnieuw of vul de soort handmatig in.',
+              : detail
+                ? `AI-herkenning mislukt: ${detail}`
+                : 'AI-herkenning mislukt. Probeer opnieuw of vul de soort handmatig in.',
         },
         { status: anthropicResponse.status }
       )
