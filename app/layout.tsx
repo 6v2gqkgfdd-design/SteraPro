@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Instrument_Sans, Instrument_Serif } from 'next/font/google'
 import './globals.css'
 import AppNav from '@/components/app-nav'
@@ -26,6 +26,23 @@ export const metadata: Metadata = {
   applicationName: 'Stera Pro',
   // Favicon en apple-touch-icon worden automatisch opgepakt door
   // Next.js via app/icon.png en app/apple-icon.png.
+  appleWebApp: {
+    capable: true,
+    title: 'Stera',
+    statusBarStyle: 'default',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#426F52',
+  width: 'device-width',
+  initialScale: 1,
+  // viewport-fit=cover laat de app onder de iPhone-notch lopen — onze
+  // bottom-nav gebruikt al safe-area-inset-bottom om dat op te vangen.
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
