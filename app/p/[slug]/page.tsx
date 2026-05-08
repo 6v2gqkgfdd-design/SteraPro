@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import SteraLogo from '@/components/stera-logo'
+import AnimatedPlant, { type PlantMood } from '@/components/animated-plant'
 import PlantReportForm from './report-form'
 
 type PublicPlant = {
@@ -65,6 +66,18 @@ function deriveStatusKey(plant: PublicPlant): string {
   if (plant.needs_replacement) return 'replacement_needed'
   if (plant.is_dying) return 'replacement_needed'
   return plant.status || 'healthy'
+}
+
+function deriveMood(plant: PublicPlant): PlantMood {
+  if (plant.is_dead || plant.status === 'dead') return 'dead'
+  if (plant.needs_replacement || plant.is_dying) return 'dying'
+  if (
+    plant.status === 'needs_attention' ||
+    plant.status === 'maintenance_due' ||
+    plant.status === 'replacement_needed'
+  )
+    return 'needs-attention'
+  return 'healthy'
 }
 
 async function lookupPlant(slug: string): Promise<PublicPlant | null> {
@@ -218,6 +231,14 @@ export default async function PublicPlantPage({
   return (
     <Shell>
       <div className="mx-auto w-full max-w-md space-y-6">
+        <div className="flex justify-center">
+          <AnimatedPlant
+            mood={deriveMood(plant)}
+            seed={plant.qr_slug || plant.id}
+            className="max-w-[260px]"
+          />
+        </div>
+
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">
             {plantTitle(plant)}
