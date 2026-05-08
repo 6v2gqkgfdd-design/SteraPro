@@ -2,16 +2,70 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import SteraLogo from '@/components/stera-logo'
-import PlantOverview, {
-  plantTitle,
-  type PlantOverviewLocation,
-  type PlantOverviewLog,
-  type PlantOverviewPlant,
-  type PlantOverviewRoom,
-} from '@/components/plant-overview'
 import PlantReportForm from './report-form'
 
-type PublicPlant = PlantOverviewPlant & { room_id?: string | null }
+type PublicPlant = {
+  id: string
+  qr_slug: string | null
+  nickname: string | null
+  plant_code: string | null
+  reference_code: string | null
+  species: string | null
+  status: string | null
+  photo_url: string | null
+  is_dead: boolean | null
+  is_dying: boolean | null
+  needs_replacement: boolean | null
+}
+
+type LatestVisit = {
+  performed_at: string | null
+  actions: string[]
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  healthy: 'Gezond',
+  needs_attention: 'Heeft aandacht nodig',
+  maintenance_due: 'Onderhoud vereist',
+  replacement_needed: 'Vervanging nodig',
+  dead: 'Dood',
+}
+
+const STATUS_TONES: Record<string, string> = {
+  healthy: 'bg-stera-green/10 text-stera-green',
+  needs_attention: 'bg-amber-50 text-amber-700',
+  maintenance_due: 'bg-amber-50 text-amber-700',
+  replacement_needed: 'bg-red-50 text-red-700',
+  dead: 'bg-red-50 text-red-700',
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  action_watered: 'water',
+  action_pruned: 'gesnoeid',
+  action_fed: 'voeding',
+  action_cleaned: 'bladeren gereinigd',
+  action_rotated: 'gedraaid',
+  action_polished: 'bladglans',
+  action_repotted: 'verpot',
+  action_replaced: 'vervangen',
+}
+
+function plantTitle(plant: PublicPlant): string {
+  return (
+    plant.nickname ||
+    plant.species ||
+    plant.reference_code ||
+    plant.plant_code ||
+    'Plant'
+  )
+}
+
+function deriveStatusKey(plant: PublicPlant): string {
+  if (plant.is_dead) return 'dead'
+  if (plant.needs_replacement) return 'replacement_needed'
+  if (plant.is_dying) return 'replacement_needed'
+  return plant.status || 'healthy'
+}
 
 async function lookupPlant(slug: string): Promise<PublicPlant | null> {
   if (
@@ -26,7 +80,7 @@ async function lookupPlant(slug: string): Promise<PublicPlant | null> {
     const { data, error } = await supabase
       .from('plants')
       .select(
-        'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips'
+        'id, qr_slug, nickname, plant_code, reference_code, species, status, photo_url, is_dead, is_dying, needs_replacement'
       )
       .eq('qr_slug', slug)
       .maybeSingle()
@@ -38,51 +92,35 @@ async function lookupPlant(slug: string): Promise<PublicPlant | null> {
   }
 }
 
-async function lookupLatestLog(plantId: string): Promise<PlantOverviewLog> {
+async function lookupLatestVisit(plantId: string): Promise<LatestVisit | null> {
   try {
     const supabase = await createClient()
     const { data } = await supabase
-      .from('plant_maintenance_logs')
+      .from('maintenance_visit_plants')
       .select(
-        'performed_at, watered, pruned, dusted, rotated, fed, pest_treated, repotted, soil_refreshed, polished, notes'
+        `action_watered, action_pruned, action_fed, action_cleaned,
+         action_rotated, action_polished, action_repotted, action_replaced,
+         maintenance_visits ( ended_at, scheduled_start )`
       )
       .eq('plant_id', plantId)
-      .order('performed_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    return (data as PlantOverviewLog) ?? null
-  } catch {
-    return null
-  }
-}
 
-async function lookupLocation(
-  locationId: string
-): Promise<PlantOverviewLocation> {
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('locations')
-      .select('id, name, street, number, postal_code, city, country')
-      .eq('id', locationId)
-      .maybeSingle()
-    return (data as PlantOverviewLocation) ?? null
-  } catch {
-    return null
-  }
-}
+    if (!data) return null
 
-async function lookupRoom(
-  roomId: string
-): Promise<PlantOverviewRoom> {
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('rooms')
-      .select('id, name, floor')
-      .eq('id', roomId)
-      .maybeSingle()
-    return (data as PlantOverviewRoom) ?? null
+    const row = data as any
+    const visit = Array.isArray(row.maintenance_visits)
+      ? row.maintenance_visits[0]
+      : row.maintenance_visits
+
+    const performedAt = visit?.ended_at || visit?.scheduled_start || null
+
+    const actions = Object.entries(ACTION_LABELS)
+      .filter(([key]) => Boolean(row[key]))
+      .map(([, label]) => label)
+
+    return { performed_at: performedAt, actions }
   } catch {
     return null
   }
@@ -105,9 +143,7 @@ export async function generateMetadata({
 
   return {
     title: plantTitle(plant),
-    description: plant.species
-      ? `${plantTitle(plant)} — ${plant.species}. Plantinformatie via Stera Pro QR-code.`
-      : 'Plantinformatie via Stera Pro QR-code.',
+    description: 'Plantinformatie via Stera Pro QR-code.',
   }
 }
 
@@ -117,7 +153,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
         <SteraLogo variant="default" />
       </header>
-      <div className="flex-1 px-5 py-8 sm:px-10 sm:py-16">{children}</div>
+      <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">{children}</div>
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
         © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
       </footer>
@@ -143,9 +179,6 @@ function NotFoundView({ slug }: { slug: string }) {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Link href="/login" className="stera-cta stera-cta-primary">
-            Inloggen voor onderhoud →
-          </Link>
           <Link href="/" className="stera-cta stera-cta-secondary">
             Terug naar start →
           </Link>
@@ -153,6 +186,15 @@ function NotFoundView({ slug }: { slug: string }) {
       </div>
     </Shell>
   )
+}
+
+function formatDate(value: string | null) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('nl-BE', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 export default async function PublicPlantPage({
@@ -167,31 +209,58 @@ export default async function PublicPlantPage({
     return <NotFoundView slug={slug} />
   }
 
-  const [latestLog, location, room] = await Promise.all([
-    lookupLatestLog(plant.id),
-    plant.location_id ? lookupLocation(plant.location_id) : Promise.resolve(null),
-    plant.room_id ? lookupRoom(plant.room_id) : Promise.resolve(null),
-  ])
+  const latestVisit = await lookupLatestVisit(plant.id)
+  const statusKey = deriveStatusKey(plant)
+  const statusLabel = STATUS_LABELS[statusKey] || 'Gezond'
+  const statusTone = STATUS_TONES[statusKey] || STATUS_TONES.healthy
+  const lastDate = formatDate(latestVisit?.performed_at ?? null)
 
   return (
     <Shell>
-      <div className="mx-auto w-full max-w-2xl space-y-8">
-        <PlantOverview
-          plant={plant}
-          location={location}
-          room={room}
-          latestLog={latestLog}
-          actions={
+      <div className="mx-auto w-full max-w-md space-y-6">
+        <div className="space-y-2 text-center">
+          <h1 className="text-3xl font-bold tracking-tight">
+            {plantTitle(plant)}
+          </h1>
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusTone}`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+
+        {plant.photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={plant.photo_url}
+            alt={plantTitle(plant)}
+            className="aspect-square w-full rounded-2xl border border-stera-line object-cover"
+          />
+        ) : (
+          <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft">
+            Geen foto beschikbaar
+          </div>
+        )}
+
+        <div className="rounded-xl border border-stera-line bg-white p-4">
+          <p className="stera-eyebrow text-stera-green mb-1">
+            Laatste onderhoud
+          </p>
+          {lastDate ? (
             <>
-              <Link href="/login" className="stera-cta stera-cta-primary">
-                Inloggen voor onderhoud →
-              </Link>
-              <Link href="/" className="stera-cta stera-cta-secondary">
-                Terug naar start →
-              </Link>
+              <p className="text-sm font-medium text-stera-ink">{lastDate}</p>
+              {latestVisit?.actions && latestVisit.actions.length > 0 ? (
+                <p className="mt-1 text-sm text-stera-ink-soft">
+                  {latestVisit.actions.join(' · ')}
+                </p>
+              ) : null}
             </>
-          }
-        />
+          ) : (
+            <p className="text-sm text-stera-ink-soft">
+              Nog geen onderhoud geregistreerd.
+            </p>
+          )}
+        </div>
 
         <PlantReportForm slug={slug} />
       </div>
