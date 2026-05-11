@@ -62,17 +62,6 @@ export default async function DashboardPage() {
       .order('scheduled_start', { ascending: true })
       .limit(5),
 
-    // Recent voltooid
-    supabase
-      .from('maintenance_visits')
-      .select(
-        `id, title, ended_at, location_id,
-         locations ( name, companies ( name ) )`
-      )
-      .eq('status', 'completed')
-      .order('ended_at', { ascending: false })
-      .limit(3),
-
     // Planten met aandacht nodig
     supabase
       .from('maintenance_visit_plants')
