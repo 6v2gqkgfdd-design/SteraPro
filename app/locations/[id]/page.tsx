@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteLocationButton from '@/components/delete-location-button'
+import { RowMenu, RowMenuItem } from '@/components/row-menu'
 
 type RoomRow = {
   id: string
@@ -85,46 +86,50 @@ export default async function LocationDetailPage({
               </Link>
             ) : null}
           </p>
-          <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
-            {location.name}
-          </h1>
-          {fullAddress && (
-            <p className="text-sm text-stera-ink-soft">{fullAddress}</p>
-          )}
-          {location.notes && (
-            <p className="text-sm text-stera-ink-soft">{location.notes}</p>
-          )}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+                {location.name}
+              </h1>
+              {fullAddress && (
+                <p className="mt-1 text-sm text-stera-ink-soft">
+                  {fullAddress}
+                </p>
+              )}
+              {location.notes && (
+                <p className="mt-1 text-sm text-stera-ink-soft">
+                  {location.notes}
+                </p>
+              )}
+            </div>
+            <RowMenu>
+              <RowMenuItem href={`/locations/${location.id}/edit`}>
+                Bewerken
+              </RowMenuItem>
+              <RowMenuItem href={`/locations/${location.id}/qr`}>
+                QR-labels
+              </RowMenuItem>
+              <div className="border-t border-stera-line" />
+              <DeleteLocationButton
+                locationId={location.id}
+                companyId={location.company_id}
+                variant="menu"
+              />
+            </RowMenu>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Ruimtes
             <span className="ml-2 opacity-70">{rooms?.length ?? 0}</span>
           </span>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/locations/${location.id}/edit`}
-              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
-            >
-              Bewerken
-            </Link>
-            <Link
-              href={`/locations/${location.id}/qr`}
-              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
-            >
-              QR-labels
-            </Link>
-            <DeleteLocationButton
-              locationId={location.id}
-              companyId={location.company_id}
-            />
-            <Link
-              href={`/locations/${location.id}/rooms/new`}
-              className="stera-cta stera-cta-primary"
-            >
-              + Nieuwe ruimte
-            </Link>
-          </div>
+          <Link
+            href={`/locations/${location.id}/rooms/new`}
+            className="stera-cta stera-cta-primary"
+          >
+            + Nieuwe ruimte
+          </Link>
         </div>
 
         {!rooms || rooms.length === 0 ? (

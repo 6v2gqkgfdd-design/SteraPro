@@ -32,6 +32,7 @@ export default async function DashboardPage() {
 
   const [
     { data: todaysVisits },
+    { data: upcomingVisits },
     { data: flaggedVisitPlants },
     { data: openReports },
     weather,
@@ -47,6 +48,19 @@ export default async function DashboardPage() {
       .lt('scheduled_start', startOfTomorrowIso)
       .in('status', ['scheduled', 'in_progress', 'paused'])
       .order('scheduled_start', { ascending: true }),
+
+    // Komende 7 dagen (na vandaag)
+    supabase
+      .from('maintenance_visits')
+      .select(
+        `id, title, status, scheduled_start, location_id,
+         locations ( name, companies ( name ) )`
+      )
+      .gte('scheduled_start', startOfTomorrowIso)
+      .lt('scheduled_start', sevenDaysLaterIso)
+      .in('status', ['scheduled', 'in_progress', 'paused'])
+      .order('scheduled_start', { ascending: true })
+      .limit(5),
 
     // Planten met aandacht nodig
     supabase
@@ -198,15 +212,16 @@ export default async function DashboardPage() {
   return (
     <main className="bg-stera-cream px-5 pt-3 pb-4 sm:px-8 sm:pt-10 sm:pb-10">
       <div className="mx-auto max-w-4xl space-y-3 sm:space-y-6">
-        {/* Hero — compact */}
+        {/* Hero — compact, met logo */}
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-stera-ink">
-              {greeting}, Jelle
-            </p>
-            <p className="text-xs text-stera-ink-soft">{todayLabel}</p>
-          </div>
+          <SteraLogo variant="compact" href={null} />
           {weather ? <WeatherPill weather={weather} /> : null}
+        </div>
+        <div className="min-w-0">
+          <p className="text-base font-semibold text-stera-ink">
+            {greeting}, Jelle
+          </p>
+          <p className="text-xs text-stera-ink-soft">{todayLabel}</p>
         </div>
 
         {/* KPI-tegels */}
@@ -340,6 +355,50 @@ export default async function DashboardPage() {
             </div>
           )}
         </section>
+
+        {/* Komende week — compact */}
+        {upcomingVisits && upcomingVisits.length > 0 ? (
+          <section className="space-y-2">
+            <div className="flex items-end justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+                Komende week
+              </p>
+              <Link
+                href="/maintenance"
+                className="text-xs font-medium text-stera-green underline-offset-4 hover:underline"
+              >
+                Alle afspraken →
+              </Link>
+            </div>
+            <ul className="space-y-2">
+              {upcomingVisits.map((visit: any) => (
+                <li key={visit.id}>
+                  <Link
+                    href={`/maintenance/${visit.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-stera-ink">
+                        {locationLine(visit)}
+                      </p>
+                      <p className="truncate text-xs text-stera-ink-soft">
+                        {visit.title}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      <span className="block font-medium text-stera-ink">
+                        {formatDay(visit.scheduled_start)}
+                      </span>
+                      <span className="text-stera-ink-soft">
+                        {formatTime(visit.scheduled_start)}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </main>
   )

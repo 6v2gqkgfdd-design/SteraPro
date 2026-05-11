@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteCompanyButton from '@/components/delete-company-button'
+import { RowMenu, RowMenuItem } from '@/components/row-menu'
 
 export default async function CompanyDetailPage({
   params,
@@ -45,48 +46,52 @@ export default async function CompanyDetailPage({
               ← Klanten
             </Link>
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
-              {company.name}
-            </h1>
-            {company.has_maintenance_contract ? (
-              <span className="rounded-full bg-stera-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
-                Contract
-              </span>
-            ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+                  {company.name}
+                </h1>
+                {company.has_maintenance_contract ? (
+                  <span className="rounded-full bg-stera-green/10 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                    Contract
+                  </span>
+                ) : null}
+              </div>
+              {(company.contact_name || company.email || company.phone) && (
+                <p className="mt-1 text-sm text-stera-ink-soft">
+                  {[company.contact_name, company.email, company.phone]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
+              {company.notes && (
+                <p className="mt-1 text-sm text-stera-ink-soft">
+                  {company.notes}
+                </p>
+              )}
+            </div>
+            <RowMenu>
+              <RowMenuItem href={`/companies/${company.id}/edit`}>
+                Bewerken
+              </RowMenuItem>
+              <div className="border-t border-stera-line" />
+              <DeleteCompanyButton companyId={company.id} variant="menu" />
+            </RowMenu>
           </div>
-          {(company.contact_name || company.email || company.phone) && (
-            <p className="text-sm text-stera-ink-soft">
-              {[company.contact_name, company.email, company.phone]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          )}
-          {company.notes && (
-            <p className="text-sm text-stera-ink-soft">{company.notes}</p>
-          )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Locaties
             <span className="ml-2 opacity-70">{locations?.length ?? 0}</span>
           </span>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/companies/${company.id}/edit`}
-              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
-            >
-              Bewerken
-            </Link>
-            <DeleteCompanyButton companyId={company.id} />
-            <Link
-              href={`/companies/${company.id}/locations/new`}
-              className="stera-cta stera-cta-primary"
-            >
-              + Nieuwe locatie
-            </Link>
-          </div>
+          <Link
+            href={`/companies/${company.id}/locations/new`}
+            className="stera-cta stera-cta-primary"
+          >
+            + Nieuwe locatie
+          </Link>
         </div>
 
         {locationsError ? (

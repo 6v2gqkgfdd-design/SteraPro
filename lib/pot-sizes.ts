@@ -33,6 +33,15 @@ export const POT_SIZES: PotSize[] = [
   { code: 'C12', liters: 12, minDiameter: 30, maxDiameter: 32, estimatedPriceCents: 2400 },
   { code: 'C15', liters: 15, minDiameter: 33, maxDiameter: 35, estimatedPriceCents: 2900 },
   { code: 'C20', liters: 20, minDiameter: 35, maxDiameter: 38, estimatedPriceCents: 3700 },
+  { code: 'C25', liters: 25, minDiameter: 38, maxDiameter: 40, estimatedPriceCents: 4500 },
+  { code: 'C30', liters: 30, minDiameter: 40, maxDiameter: 42, estimatedPriceCents: 5500 },
+  { code: 'C35', liters: 35, minDiameter: 42, maxDiameter: 45, estimatedPriceCents: 6500 },
+  { code: 'C45', liters: 45, minDiameter: 45, maxDiameter: 48, estimatedPriceCents: 8500 },
+  { code: 'C55', liters: 55, minDiameter: 48, maxDiameter: 50, estimatedPriceCents: 10000 },
+  { code: 'C70', liters: 70, minDiameter: 50, maxDiameter: 55, estimatedPriceCents: 13000 },
+  { code: 'C90', liters: 90, minDiameter: 55, maxDiameter: 60, estimatedPriceCents: 17000 },
+  { code: 'C130', liters: 130, minDiameter: 60, maxDiameter: 65, estimatedPriceCents: 23000 },
+  { code: 'C180', liters: 180, minDiameter: 65, maxDiameter: 75, estimatedPriceCents: 30000 },
 ]
 
 /** Vind een potmaat op basis van zijn code. */

@@ -7,6 +7,7 @@ import {
   statusColor,
   type PlantOverviewPlant,
 } from '@/components/plant-overview'
+import { RowMenu, RowMenuItem } from '@/components/row-menu'
 
 export default async function RoomDetailPage({
   params,
@@ -87,33 +88,34 @@ export default async function RoomDetailPage({
               </Link>
             ) : null}
           </p>
-          <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
-            {room.name}
-          </h1>
-          {room.notes && (
-            <p className="text-sm text-stera-ink-soft">{room.notes}</p>
-          )}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+                {room.name}
+              </h1>
+              {room.notes && (
+                <p className="mt-1 text-sm text-stera-ink-soft">{room.notes}</p>
+              )}
+            </div>
+            <RowMenu>
+              <RowMenuItem href={`/rooms/${room.id}/edit`}>
+                Bewerken
+              </RowMenuItem>
+            </RowMenu>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Planten
             <span className="ml-2 opacity-70">{plants?.length ?? 0}</span>
           </span>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/rooms/${room.id}/edit`}
-              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
-            >
-              Ruimte bewerken
-            </Link>
-            <Link
-              href={`/rooms/${room.id}/plants/new`}
-              className="stera-cta stera-cta-primary"
-            >
-              + Nieuwe plant
-            </Link>
-          </div>
+          <Link
+            href={`/rooms/${room.id}/plants/new`}
+            className="stera-cta stera-cta-primary"
+          >
+            + Nieuwe plant
+          </Link>
         </div>
 
         {!plants || plants.length === 0 ? (
