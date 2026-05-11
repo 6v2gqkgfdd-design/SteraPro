@@ -104,8 +104,8 @@ export default async function WorkOrdersPage({
               href={`/work-orders?tab=${s}`}
               className={
                 activeTab === s
-                  ? 'rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white'
-                  : 'rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green'
+                  ? 'rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white'
+                  : 'rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green'
               }
             >
               {STATUS_LABEL[s]}

@@ -97,20 +97,20 @@ export default async function LocationDetailPage({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white">
+          <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Ruimtes
             <span className="ml-2 opacity-70">{rooms?.length ?? 0}</span>
           </span>
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/locations/${location.id}/edit`}
-              className="rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
             >
               Bewerken
             </Link>
             <Link
               href={`/locations/${location.id}/qr`}
-              className="rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
             >
               QR-labels
             </Link>

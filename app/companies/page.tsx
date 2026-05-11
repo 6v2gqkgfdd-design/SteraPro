@@ -25,7 +25,7 @@ export default async function CompaniesPage() {
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white">
+          <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Klanten<span className="ml-2 opacity-70">{count}</span>
           </span>
           <Link href="/companies/new" className="stera-cta stera-cta-primary">

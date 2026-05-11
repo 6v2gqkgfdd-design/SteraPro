@@ -93,8 +93,8 @@ export default async function MaintenancePage({
               href="/maintenance?tab=planned"
               className={
                 activeTab === 'planned'
-                  ? 'rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white'
-                  : 'rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green'
+                  ? 'rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white'
+                  : 'rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green'
               }
             >
               Gepland
@@ -105,8 +105,8 @@ export default async function MaintenancePage({
               href="/maintenance?tab=completed"
               className={
                 activeTab === 'completed'
-                  ? 'rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white'
-                  : 'rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green'
+                  ? 'rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white'
+                  : 'rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green'
               }
             >
               Afgewerkt

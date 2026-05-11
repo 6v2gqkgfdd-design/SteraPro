@@ -68,14 +68,14 @@ export default async function CompanyDetailPage({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white">
+          <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Locaties
             <span className="ml-2 opacity-70">{locations?.length ?? 0}</span>
           </span>
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/companies/${company.id}/edit`}
-              className="rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
             >
               Bewerken
             </Link>

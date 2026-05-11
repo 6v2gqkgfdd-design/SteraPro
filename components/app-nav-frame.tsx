@@ -26,5 +26,16 @@ export default function AppNavFrame({
     return <>{children}</>
   }
 
-  return <div className="md:pl-20 pb-24 md:pb-0">{children}</div>
+  // pb-24 ruimt de bottom-nav op mobile; md:pl-20 maakt plaats voor de
+  // sidebar op desktop. paddingTop = safe-area-inset-top zodat we onder
+  // de iPhone notch / Dynamic Island uitkomen wanneer de app als PWA
+  // draait (zonder browser-balk bovenaan).
+  return (
+    <div
+      className="md:pl-20 pb-24 md:pb-0"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      {children}
+    </div>
+  )
 }
