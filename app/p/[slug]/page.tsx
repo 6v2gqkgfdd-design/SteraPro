@@ -237,12 +237,27 @@ export default async function PublicPlantPage({
     <Shell>
       <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 shrink-0 sm:w-12">
-            <AnimatedPlant
-              mood={deriveMood(plant)}
-              seed={plant.qr_slug || plant.id}
-            />
-          </div>
+          {(() => {
+            const mood = deriveMood(plant)
+            const ringClass =
+              mood === 'healthy'
+                ? 'ring-stera-green'
+                : mood === 'needs-attention'
+                  ? 'ring-amber-500'
+                  : mood === 'dying'
+                    ? 'ring-orange-500'
+                    : 'ring-red-500'
+            return (
+              <div
+                className={`w-11 shrink-0 rounded-full bg-white ring-2 ring-offset-2 ring-offset-stera-cream sm:w-14 ${ringClass}`}
+              >
+                <AnimatedPlant
+                  mood={mood}
+                  seed={plant.qr_slug || plant.id}
+                />
+              </div>
+            )
+          })()}
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">
               {plantTitle(plant)}
