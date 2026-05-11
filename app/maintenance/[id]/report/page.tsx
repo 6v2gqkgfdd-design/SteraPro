@@ -6,13 +6,13 @@ import PrintButton from './print-button'
 const ACTION_LABELS: Record<string, string> = {
   action_checked: 'Plant gecontroleerd',
   action_watered: 'Water gegeven',
-  action_pruned: 'Gesnoeid',
   action_fed: 'Voeding toegevoegd',
-  action_cleaned: 'Bladeren gereinigd',
+  action_pruned: 'Gesnoeid',
   action_rotated: 'Gedraaid',
-  action_polished: 'Bladglans',
+  action_cleaned: 'Bladeren gereinigd',
   action_repotted: 'Verpot',
   action_replaced: 'Vervangen',
+  // 'action_polished' (bladglans) zit nu onder bladeren gereinigd
 }
 
 const HEALTH_LABELS: Record<string, string> = {

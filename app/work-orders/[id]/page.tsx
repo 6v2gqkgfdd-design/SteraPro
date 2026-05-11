@@ -28,13 +28,13 @@ const LIGHT_LABELS: Record<'high' | 'medium' | 'low', string> = {
 const ACTION_LABELS: Record<string, string> = {
   action_checked: 'gecontroleerd',
   action_watered: 'water',
-  action_pruned: 'gesnoeid',
   action_fed: 'voeding',
-  action_cleaned: 'bladeren gereinigd',
+  action_pruned: 'gesnoeid',
   action_rotated: 'gedraaid',
-  action_polished: 'bladglans',
+  action_cleaned: 'bladeren gereinigd',
   action_repotted: 'verpot',
   action_replaced: 'vervangen',
+  // 'action_polished' bewust niet meer apart — zit onder cleaned
 }
 
 function formatDateTime(value: string | null) {

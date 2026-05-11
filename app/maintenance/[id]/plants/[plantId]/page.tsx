@@ -352,9 +352,9 @@ export default function MaintenancePlantDetailPage() {
           setWatered(true)
           setPruned(true)
           setFed(true)
-          setCleaned(false)
+          setCleaned(true) // bladeren reinigen valt in standaard (incl. bladglans)
           setRotated(true)
-          setPolished(true)
+          setPolished(false) // niet langer apart — onder cleaned
           setRepotted(false)
           setReplaced(false)
           setChecked(true)

@@ -50,14 +50,14 @@ export type PlantOverviewLog = {
 
 const TASK_LABELS: Array<{ key: keyof NonNullable<PlantOverviewLog>; label: string }> = [
   { key: 'watered', label: 'Water' },
-  { key: 'pruned', label: 'Gesnoeid' },
-  { key: 'dusted', label: 'Stofvrij' },
-  { key: 'rotated', label: 'Gedraaid' },
   { key: 'fed', label: 'Voeding' },
-  { key: 'pest_treated', label: 'Plagen' },
+  { key: 'pruned', label: 'Gesnoeid' },
+  { key: 'rotated', label: 'Gedraaid' },
+  { key: 'dusted', label: 'Bladeren gereinigd' },
+  { key: 'pest_treated', label: 'Behandeld' },
   { key: 'repotted', label: 'Verpot' },
   { key: 'soil_refreshed', label: 'Verse aarde' },
-  { key: 'polished', label: 'Opgeblonken' },
+  // Bewust niet meer apart: 'polished' (bladglans) — zit nu onder 'dusted'.
 ]
 
 export function plantTitle(plant: PlantOverviewPlant): string {

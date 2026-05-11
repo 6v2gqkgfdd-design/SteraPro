@@ -15,23 +15,22 @@ export const STANDARD_MAINTENANCE_ACTIONS = {
   action_pruned: true,
   action_fed: true,
   action_rotated: true,
-  action_polished: true,
+  action_cleaned: true,
   // Bewust NIET in standaard:
-  //   action_cleaned (extra bladreiniging — gebeurt minder routine)
-  //   action_repotted (alleen indien nodig)
-  //   action_replaced (alleen indien nodig)
+  //   action_polished (zit nu onder cleaned — bladglans = onderdeel van reinigen)
+  //   action_repotted (alleen indien nodig — apart aanvinken)
+  //   action_replaced (alleen indien nodig — apart aanvinken)
 } as const
 
 // Plastiek / kunstplanten krijgen geen water, voeding, snoei of draaien —
-// enkel een snelle controle + bladglans-spuitbus.
+// enkel een snelle controle + bladeren reinigen.
 export const STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL = {
   action_checked: true,
   action_watered: false,
   action_pruned: false,
   action_fed: false,
   action_rotated: false,
-  action_polished: true,
-  action_cleaned: true, // even afstoffen mag wel
+  action_cleaned: true,
 } as const
 
 export const STANDARD_MAINTENANCE_HEALTH_STATUS = 'healthy'

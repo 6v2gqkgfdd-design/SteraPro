@@ -40,13 +40,13 @@ const STATUS_TONES: Record<string, string> = {
 
 const ACTION_LABELS: Record<string, string> = {
   action_watered: 'water',
-  action_pruned: 'gesnoeid',
   action_fed: 'voeding',
-  action_cleaned: 'bladeren gereinigd',
+  action_pruned: 'gesnoeid',
   action_rotated: 'gedraaid',
-  action_polished: 'bladglans',
+  action_cleaned: 'bladeren gereinigd',
   action_repotted: 'verpot',
   action_replaced: 'vervangen',
+  // bladglans (action_polished) zit nu onder bladeren gereinigd
 }
 
 function plantTitle(plant: PublicPlant): string {
