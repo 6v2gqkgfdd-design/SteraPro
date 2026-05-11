@@ -19,28 +19,25 @@ export default async function CompaniesPage() {
     .select('id, name, contact_name, email')
     .order('name', { ascending: true })
 
+  const count = companies?.length ?? 0
+
   return (
     <main className="bg-stera-cream p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="stera-display text-3xl sm:text-4xl">Klanten</h1>
-          </div>
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white">
+            Klanten<span className="ml-2 opacity-70">{count}</span>
+          </span>
           <Link href="/companies/new" className="stera-cta stera-cta-primary">
-            Nieuwe klant
+            + Nieuwe klant
           </Link>
         </div>
 
         {error ? (
-          <p className="text-red-600">
-            Fout bij ophalen: {error.message}
-          </p>
+          <p className="text-red-600">Fout bij ophalen: {error.message}</p>
         ) : !companies || companies.length === 0 ? (
-          <div className="stera-card">
-            <p className="text-sm text-stera-ink-soft">
-              Nog geen klanten toegevoegd.
-            </p>
+          <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
+            Nog geen klanten.
           </div>
         ) : (
           <ul className="space-y-3">
