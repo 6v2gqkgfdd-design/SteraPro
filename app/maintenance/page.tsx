@@ -52,9 +52,8 @@ export default async function MaintenancePage({
       title,
       status,
       scheduled_start,
-      locations (
-        name
-      )
+      companies ( name ),
+      locations ( name, street, number, city )
     `)
     .in('status', ['scheduled', 'in_progress', 'paused'])
     .order('scheduled_start', { ascending: true })
@@ -67,11 +66,10 @@ export default async function MaintenancePage({
       status,
       scheduled_start,
       ended_at,
-      locations (
-        name
-      )
+      companies ( name ),
+      locations ( name, street, number, city )
     `)
-    .eq('status', 'completed')
+    .in('status', ['completed', 'cancelled'])
     .order('scheduled_start', { ascending: false })
 
   const visits = activeTab === 'completed' ? completedVisits : plannedVisits
@@ -120,7 +118,7 @@ export default async function MaintenancePage({
                 : 'stera-cta stera-cta-ghost'
             }
           >
-            Voltooid
+            Voltooid / geannuleerd
           </Link>
         </div>
 
@@ -131,43 +129,70 @@ export default async function MaintenancePage({
         )}
 
         <div className="grid gap-4">
-          {visits?.map((visit: any) => (
-            <Link
-              key={visit.id}
-              href={`/maintenance/${visit.id}`}
-              className="stera-card transition hover:border-stera-green"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-stera-ink">{visit.title}</p>
-                  <p className="text-sm text-stera-ink-soft">
-                    {visit.locations?.name ?? 'Onbekende locatie'}
-                  </p>
-                </div>
+          {visits?.map((visit: any) => {
+            const company = Array.isArray(visit.companies)
+              ? visit.companies[0]
+              : visit.companies
+            const location = Array.isArray(visit.locations)
+              ? visit.locations[0]
+              : visit.locations
+            const locationLabel = [
+              location?.name,
+              [location?.street, location?.number]
+                .filter(Boolean)
+                .join(' ') || null,
+              location?.city,
+            ]
+              .filter(Boolean)
+              .join(' · ')
 
-                <div className="text-right text-sm">
-                  <p className="text-stera-ink-soft">
-                    {visit.scheduled_start
-                      ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
-                      : 'Geen datum'}
-                  </p>
-                  <span
-                    className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                      visit.status
-                    )}`}
-                  >
-                    {getStatusLabel(visit.status)}
-                  </span>
+            return (
+              <Link
+                key={visit.id}
+                href={`/maintenance/${visit.id}`}
+                className="stera-card transition hover:border-stera-green"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-lg font-semibold text-stera-ink">
+                      {company?.name ?? 'Onbekende klant'}
+                    </p>
+                    <p className="text-sm text-stera-ink-soft">
+                      {locationLabel || 'Geen locatie-info'}
+                    </p>
+                    {visit.title ? (
+                      <p className="mt-2 inline-block rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-medium text-stera-ink">
+                        {visit.title}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="text-right text-sm">
+                    <p className="text-stera-ink-soft">
+                      {visit.scheduled_start
+                        ? new Date(visit.scheduled_start).toLocaleString(
+                            'nl-BE'
+                          )
+                        : 'Geen datum'}
+                    </p>
+                    <span
+                      className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(
+                        visit.status
+                      )}`}
+                    >
+                      {getStatusLabel(visit.status)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          })}
 
           {!visits?.length && (
             <div className="rounded-xl border border-dashed border-stera-line p-6 text-sm text-stera-ink-soft">
               {activeTab === 'planned'
                 ? 'Nog geen geplande onderhoudsafspraken gevonden.'
-                : 'Nog geen voltooide onderhoudsbeurten gevonden.'}
+                : 'Nog geen voltooide of geannuleerde beurten gevonden.'}
             </div>
           )}
         </div>

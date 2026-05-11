@@ -224,19 +224,45 @@ export default function NewMaintenancePage() {
           </div>
 
           {/* Step 3 — details */}
-          <div className="space-y-1">
+          <div className="space-y-2">
             <label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
-              3 · Titel
+              3 · Type bezoek
             </label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                'Eerste analyse',
+                'Routine onderhoud',
+                'Behandeling',
+                'Vervangingen',
+                'Levering',
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setTitle(preset)}
+                  className={
+                    title === preset
+                      ? 'rounded-full bg-stera-green px-3 py-1 text-xs font-semibold text-white'
+                      : 'rounded-full border border-stera-line bg-white px-3 py-1 text-xs font-medium text-stera-ink hover:border-stera-green'
+                  }
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
             <input
               id="title"
               type="text"
-              placeholder="Bijv. Onderhoud lente Q2"
+              placeholder="Of typ vrij — bv. 'Onderhoud + analyse'"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-lg border border-stera-line bg-white p-3"
               required
             />
+            <p className="text-xs text-stera-ink-soft">
+              Klant en locatie tonen we sowieso in de lijst — de titel
+              beschrijft kort wát voor bezoek het is.
+            </p>
           </div>
 
           <div className="space-y-1">

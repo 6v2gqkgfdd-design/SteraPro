@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import MaintenanceActions from './maintenance-actions'
 import VisitConsumables from './visit-consumables'
+import VisitManagement from './visit-management'
 import { applyStandardMaintenance } from './standard-actions'
 
 type FollowupItem = {
@@ -41,13 +42,24 @@ export default async function MaintenanceDetailPage({
     .from('maintenance_visits')
     .select(`
       *,
+      companies ( id, name ),
       locations (
         id,
-        name
+        name,
+        street,
+        number,
+        city
       )
     `)
     .eq('id', id)
     .single()
+
+  // Werkbon voor deze beurt (voor de actie-knoppen).
+  const { data: workOrderRow } = await supabase
+    .from('work_orders')
+    .select('id, status')
+    .eq('visit_id', id)
+    .maybeSingle()
 
   const { data: visitPlants } = await supabase
     .from('maintenance_visit_plants')
@@ -210,15 +222,39 @@ export default async function MaintenanceDetailPage({
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="stera-display text-3xl sm:text-4xl">{visit.title}</h1>
+            <p className="stera-eyebrow mb-1">
+              {visit.title || 'Onderhoud'}
+            </p>
+            <h1 className="stera-display text-3xl sm:text-4xl">
+              {(Array.isArray(visit.companies)
+                ? visit.companies[0]?.name
+                : visit.companies?.name) || 'Onbekende klant'}
+            </h1>
             <p className="mt-2 text-sm text-stera-ink-soft">
-              {visit.locations?.name ?? 'Onbekende locatie'} •{' '}
+              {[
+                visit.locations?.name,
+                [visit.locations?.street, visit.locations?.number]
+                  .filter(Boolean)
+                  .join(' ') || null,
+                visit.locations?.city,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Geen locatie-info'}
+              {' • '}
               {visit.scheduled_start
                 ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
                 : 'Geen datum'}
             </p>
           </div>
+        </div>
 
+        <div className="stera-card">
+          <p className="stera-eyebrow mb-3">Beheer</p>
+          <VisitManagement
+            visitId={visit.id}
+            status={visit.status}
+            workOrder={workOrderRow ?? null}
+          />
         </div>
 
         <div className="stera-card">
