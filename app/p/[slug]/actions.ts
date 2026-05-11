@@ -23,6 +23,8 @@ export type SubmitReportInput = {
   message: string
   reporterName?: string
   reporterEmail?: string
+  photoPath?: string | null
+  photoUrl?: string | null
 }
 
 export type SubmitReportResult =
@@ -79,6 +81,8 @@ export async function submitPlantReport(
       message: message || null,
       reporter_name: reporterName || null,
       reporter_email: reporterEmail || null,
+      photo_path: input.photoPath || null,
+      photo_url: input.photoUrl || null,
     },
   ])
 

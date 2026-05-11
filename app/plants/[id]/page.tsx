@@ -152,9 +152,14 @@ export default async function PlantDetailPage({
                 Plant bewerken
               </RowMenuItem>
               {typedPlant.qr_slug ? (
-                <RowMenuItem href={`/p/${typedPlant.qr_slug}`}>
-                  Klantweergave openen
-                </RowMenuItem>
+                <>
+                  <RowMenuItem href={`/plants/${typedPlant.id}/qr`}>
+                    QR-label openen
+                  </RowMenuItem>
+                  <RowMenuItem href={`/p/${typedPlant.qr_slug}`}>
+                    Klantweergave openen
+                  </RowMenuItem>
+                </>
               ) : null}
               {typedPlant.location_id ? (
                 <>

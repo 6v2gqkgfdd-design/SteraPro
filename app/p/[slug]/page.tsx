@@ -237,13 +237,13 @@ export default async function PublicPlantPage({
   return (
     <Shell>
       <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5">
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center gap-3">
           <AnimatedPlant
             mood={deriveMood(plant)}
             seed={plant.qr_slug || plant.id}
-            className="max-w-[120px] sm:max-w-[180px]"
+            className="max-w-[56px] shrink-0 sm:max-w-[72px]"
           />
-          <div className="min-w-0 flex-1 text-left">
+          <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">
               {plantTitle(plant)}
             </h1>
@@ -260,10 +260,10 @@ export default async function PublicPlantPage({
           <img
             src={plant.photo_url}
             alt={plantTitle(plant)}
-            className="h-44 w-full rounded-2xl border border-stera-line object-cover sm:h-56"
+            className="aspect-[4/5] w-full rounded-2xl border border-stera-line object-cover sm:aspect-[4/3]"
           />
         ) : (
-          <div className="h-44 w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:h-56">
+          <div className="aspect-[4/5] w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3]">
             Geen foto beschikbaar
           </div>
         )}
