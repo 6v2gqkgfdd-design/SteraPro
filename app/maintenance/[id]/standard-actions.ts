@@ -25,10 +25,10 @@ export async function applyStandardMaintenance(formData: FormData) {
 
   const supabase = await createClient()
 
-  // 1) Visit ophalen — we hebben location_id nodig.
+  // 1) Visit + gekoppelde ruimtes ophalen.
   const { data: visit, error: visitErr } = await supabase
     .from('maintenance_visits')
-    .select('id, location_id')
+    .select('id, location_id, maintenance_visit_rooms ( room_id )')
     .eq('id', visitId)
     .maybeSingle()
 
@@ -37,11 +37,21 @@ export async function applyStandardMaintenance(formData: FormData) {
     return
   }
 
-  // 2) Alle planten op de locatie.
-  const { data: plants, error: plantsErr } = await supabase
-    .from('plants')
-    .select('id, is_artificial')
-    .eq('location_id', visit.location_id)
+  const roomIds: string[] = Array.isArray(visit.maintenance_visit_rooms)
+    ? (visit.maintenance_visit_rooms as Array<{ room_id: string | null }>)
+        .map((r) => r.room_id)
+        .filter((id): id is string => Boolean(id))
+    : []
+
+  // 2) Planten ophalen — gescoped op ruimtes als die gekoppeld zijn,
+  //    anders alle planten op de locatie.
+  let plantsQuery = supabase.from('plants').select('id, is_artificial')
+  if (roomIds.length > 0) {
+    plantsQuery = plantsQuery.in('room_id', roomIds)
+  } else {
+    plantsQuery = plantsQuery.eq('location_id', visit.location_id)
+  }
+  const { data: plants, error: plantsErr } = await plantsQuery
 
   if (plantsErr) {
     console.error('[standard maintenance] plants fetch failed', plantsErr)

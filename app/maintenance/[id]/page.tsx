@@ -87,20 +87,47 @@ export default async function MaintenanceDetailPage({
     )
   }
 
-  // Hoeveel planten staan op de locatie en hoeveel zijn al behandeld?
-  // Voor de "standaard-onderhoud-bulk" knop.
-  const { count: locationPlantCount } = visit.location_id
-    ? await supabase
-        .from('plants')
-        .select('id', { count: 'exact', head: true })
-        .eq('location_id', visit.location_id)
-    : { count: 0 }
+  // Hoeveel planten zitten in scope (alleen de geselecteerde ruimtes
+  // van deze visit, of alle planten op de locatie als er geen ruimtes
+  // expliciet gekozen zijn).
+  const visitRoomIds: string[] = Array.isArray(visit.maintenance_visit_rooms)
+    ? visit.maintenance_visit_rooms
+        .map((mvr: any) => {
+          const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+          return (r?.id as string | undefined) || null
+        })
+        .filter((v: string | null): v is string => Boolean(v))
+    : []
+
+  let scopedPlantCount = 0
+  if (visitRoomIds.length > 0) {
+    const { count } = await supabase
+      .from('plants')
+      .select('id', { count: 'exact', head: true })
+      .in('room_id', visitRoomIds)
+    scopedPlantCount = count ?? 0
+  } else if (visit.location_id) {
+    const { count } = await supabase
+      .from('plants')
+      .select('id', { count: 'exact', head: true })
+      .eq('location_id', visit.location_id)
+    scopedPlantCount = count ?? 0
+  }
 
   const handledCount = (visitPlants ?? []).length
-  const pendingPlantCount = Math.max(
-    0,
-    (locationPlantCount ?? 0) - handledCount
-  )
+  const pendingPlantCount = Math.max(0, scopedPlantCount - handledCount)
+
+  // Naam van de scope om in de knop te tonen ('in Kantoren verdiep 1, ...').
+  const scopeRoomLabel: string =
+    visitRoomIds.length > 0 && Array.isArray(visit.maintenance_visit_rooms)
+      ? visit.maintenance_visit_rooms
+          .map((mvr: any) => {
+            const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+            return r?.name as string | undefined
+          })
+          .filter((n: string | undefined): n is string => Boolean(n))
+          .join(', ')
+      : ''
 
   // ── Voorbereidingslijst: zoek de meest recente AFGESLOTEN beurt op
   // dezelfde locatie vóór deze beurt en aggregeer alle follow-up flags
@@ -411,7 +438,8 @@ export default async function MaintenanceDetailPage({
             <p className="stera-eyebrow mb-2">Snel afronden</p>
             <p className="text-sm text-stera-ink">
               Er staan nog {pendingPlantCount} plant
-              {pendingPlantCount === 1 ? '' : 'en'} op deze locatie zonder
+              {pendingPlantCount === 1 ? '' : 'en'}
+              {scopeRoomLabel ? ` in ${scopeRoomLabel}` : ''} zonder
               registratie. Pas in één klik het standaard onderhoud toe (water,
               voeding, snoei, controle, draaien, bladglans).
             </p>
