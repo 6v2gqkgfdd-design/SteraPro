@@ -237,11 +237,12 @@ export default async function PublicPlantPage({
     <Shell>
       <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5">
         <div className="flex items-center gap-3">
-          <AnimatedPlant
-            mood={deriveMood(plant)}
-            seed={plant.qr_slug || plant.id}
-            className="max-w-[56px] shrink-0 sm:max-w-[72px]"
-          />
+          <div className="w-10 shrink-0 sm:w-12">
+            <AnimatedPlant
+              mood={deriveMood(plant)}
+              seed={plant.qr_slug || plant.id}
+            />
+          </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">
               {plantTitle(plant)}
