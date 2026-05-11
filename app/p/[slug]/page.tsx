@@ -2,7 +2,6 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import AnimatedPlant, { type PlantMood } from '@/components/animated-plant'
-import PlantReportForm from './report-form'
 
 type PublicPlant = {
   id: string
@@ -290,14 +289,12 @@ export default async function PublicPlantPage({
           )}
         </div>
 
-        <details className="rounded-xl border border-stera-line bg-white">
-          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stera-green">
-            Iets opgevallen? Meld het hier →
-          </summary>
-          <div className="border-t border-stera-line p-4">
-            <PlantReportForm slug={slug} />
-          </div>
-        </details>
+        <Link
+          href={`/p/${slug}/report`}
+          className="block rounded-xl border border-stera-line bg-white px-4 py-3 text-center text-sm font-medium text-stera-green transition hover:border-stera-green"
+        >
+          Iets opgevallen? Meld het hier →
+        </Link>
       </div>
     </Shell>
   )
