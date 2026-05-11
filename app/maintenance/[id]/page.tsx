@@ -461,12 +461,73 @@ export default async function MaintenanceDetailPage({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="stera-eyebrow">Behandelde planten</p>
 
-            <Link
-              href={`/maintenance/${id}/plants`}
-              className="stera-cta stera-cta-primary"
-            >
-              Plant toevoegen / scannen
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/maintenance/${id}/plants/scan`}
+                title="QR-code scannen"
+                aria-label="Plant scannen"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-stera-line bg-white text-stera-ink transition hover:border-stera-green hover:text-stera-green"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 18h2M18 14h3" />
+                </svg>
+              </Link>
+
+              <Link
+                href={`/maintenance/${id}/plants/select`}
+                title="Bestaande plant kiezen"
+                aria-label="Bestaande plant kiezen"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-stera-line bg-white text-stera-ink transition hover:border-stera-green hover:text-stera-green"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 6h13M3 12h13M3 18h10" />
+                  <circle cx="20" cy="6" r="1.4" />
+                  <circle cx="20" cy="12" r="1.4" />
+                  <circle cx="17" cy="18" r="1.4" />
+                </svg>
+              </Link>
+
+              <Link
+                href={`/maintenance/${id}/plants/new`}
+                title="Nieuwe plant toevoegen"
+                aria-label="Nieuwe plant toevoegen"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-stera-green text-white transition hover:bg-stera-green/90"
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </Link>
+            </div>
           </div>
 
           <div className="space-y-3">
