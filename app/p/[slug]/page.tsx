@@ -144,7 +144,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
       <div className="flex-1 px-5 py-4 sm:px-10 sm:py-12">{children}</div>
-      <footer className="px-5 py-3 sm:px-10 text-[10px] sm:text-xs text-stera-ink-soft border-t border-stera-line">
+      <footer className="px-5 py-1.5 text-center text-[10px] leading-tight text-stera-ink-soft sm:border-t sm:border-stera-line sm:px-10 sm:py-3 sm:text-left sm:text-xs">
         © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
       </footer>
     </main>
