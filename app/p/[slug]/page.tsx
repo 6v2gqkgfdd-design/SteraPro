@@ -264,10 +264,10 @@ export default async function PublicPlantPage({
           <img
             src={plant.photo_url}
             alt={plantTitle(plant)}
-            className="aspect-[4/5] w-full rounded-2xl border border-stera-line object-cover sm:aspect-[4/3]"
+            className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:aspect-[4/3]"
           />
         ) : (
-          <div className="aspect-[4/5] w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3]">
+          <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3]">
             Geen foto beschikbaar
           </div>
         )}
