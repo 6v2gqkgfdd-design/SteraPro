@@ -22,9 +22,9 @@ export default async function CompaniesPage() {
   const count = companies?.length ?? 0
 
   return (
-    <main className="bg-stera-cream p-6">
+    <main className="bg-stera-cream px-5 pt-3 pb-6 sm:p-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap items-center justify-between gap-3 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Klanten<span className="ml-2 opacity-70">{count}</span>
           </span>

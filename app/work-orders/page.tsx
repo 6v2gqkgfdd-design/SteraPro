@@ -95,9 +95,9 @@ export default async function WorkOrdersPage({
   const active = groups[activeTab]
 
   return (
-    <main className="bg-stera-cream px-5 py-6 sm:px-8">
+    <main className="bg-stera-cream px-5 pt-3 pb-6 sm:px-8 sm:pt-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div className="flex flex-wrap gap-2">
+        <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap gap-2 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           {TAB_ORDER.map((s) => (
             <Link
               key={s}

@@ -222,16 +222,103 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="bg-stera-cream px-5 py-8 sm:px-8 sm:py-12">
-      <div className="mx-auto max-w-4xl space-y-8">
-        <div>
-          <SteraLogo variant="hero" href={null} />
-          <p className="mt-4 text-base text-stera-ink">
-            {greeting}. Vandaag is het {todayLabel}.
-          </p>
-          <p className="mt-1 text-sm text-stera-ink-soft">{summaryLine}</p>
-          {weather ? <WeatherPill weather={weather} /> : null}
+    <main className="bg-stera-cream px-5 py-6 sm:px-8 sm:py-10">
+      <div className="mx-auto max-w-4xl space-y-6">
+        {/* Hero — compact */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <SteraLogo variant="default" href={null} />
+            {weather ? <WeatherPill weather={weather} /> : null}
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-stera-ink">
+              {greeting}, Jelle.
+            </p>
+            <p className="text-sm text-stera-ink-soft">{todayLabel}</p>
+          </div>
         </div>
+
+        {/* KPI-tegels */}
+        <div className="grid grid-cols-3 gap-3">
+          <Link
+            href="/maintenance?tab=planned"
+            className="rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
+          >
+            <p className="text-xs text-stera-ink-soft">Vandaag</p>
+            <p className="mt-1 text-2xl font-semibold text-stera-ink">
+              {todaysCount}
+            </p>
+          </Link>
+          <Link
+            href="/maintenance?tab=planned"
+            className={`rounded-xl border p-3 transition ${
+              flaggedCount > 0
+                ? 'border-amber-200 bg-amber-50 hover:border-amber-400'
+                : 'border-stera-line bg-white hover:border-stera-green'
+            }`}
+          >
+            <p className="text-xs text-stera-ink-soft">Aandacht</p>
+            <p
+              className={`mt-1 text-2xl font-semibold ${
+                flaggedCount > 0 ? 'text-amber-800' : 'text-stera-ink'
+              }`}
+            >
+              {flaggedCount}
+            </p>
+          </Link>
+          <div
+            className={`rounded-xl border p-3 ${
+              reportCount > 0
+                ? 'border-amber-200 bg-amber-50'
+                : 'border-stera-line bg-white'
+            }`}
+          >
+            <p className="text-xs text-stera-ink-soft">Meldingen</p>
+            <p
+              className={`mt-1 text-2xl font-semibold ${
+                reportCount > 0 ? 'text-amber-800' : 'text-stera-ink'
+              }`}
+            >
+              {reportCount}
+            </p>
+          </div>
+        </div>
+
+        {/* Snelle acties */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Link
+            href="/scan"
+            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
+          >
+            <span className="text-2xl">📷</span>
+            <span className="text-xs font-medium text-stera-ink">Scan plant</span>
+          </Link>
+          <Link
+            href="/maintenance/new"
+            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
+          >
+            <span className="text-2xl">➕</span>
+            <span className="text-xs font-medium text-stera-ink">Nieuwe afspraak</span>
+          </Link>
+          <Link
+            href="/work-orders"
+            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
+          >
+            <span className="text-2xl">📋</span>
+            <span className="text-xs font-medium text-stera-ink">Werkbonnen</span>
+          </Link>
+          <Link
+            href="/companies"
+            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
+          >
+            <span className="text-2xl">🏢</span>
+            <span className="text-xs font-medium text-stera-ink">Klanten</span>
+          </Link>
+        </div>
+
+        {summaryLine && summaryLine !== 'Geen afspraken vandaag' ? (
+          <p className="text-sm text-stera-ink-soft">{summaryLine}</p>
+        ) : null}
 
         {/* Klantmeldingen — alleen als er openstaande zijn */}
         {openReports && openReports.length > 0 ? (
