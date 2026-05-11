@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -10,12 +10,15 @@ type Props = {
   status: string
   // Werkbon-info opgehaald in de server-component
   workOrder: { id: string; status: string } | null
+  /** 'card' = grote actie-rij. 'menu' = compact 3-dot dropdown. */
+  variant?: 'card' | 'menu'
 }
 
 export default function VisitManagement({
   visitId,
   status,
   workOrder,
+  variant = 'card',
 }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -24,12 +27,27 @@ export default function VisitManagement({
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const isScheduled = status === 'scheduled'
   const isCancelled = status === 'cancelled'
   const isCompleted = status === 'completed'
   const hasWorkOrder = workOrder !== null
   const workOrderIsSigned = workOrder?.status === 'signed'
+
+  useEffect(() => {
+    if (variant !== 'menu' || !menuOpen) return
+    function onDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+        setConfirmDelete(false)
+        setConfirmCancel(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [variant, menuOpen])
 
   async function handleCreateWorkOrder() {
     setBusy(true)
@@ -132,6 +150,118 @@ export default function VisitManagement({
       setBusy(false)
       setConfirmDelete(false)
     }
+  }
+
+  if (variant === 'menu') {
+    const menuItemClass =
+      'block w-full px-4 py-3 text-left text-sm transition hover:bg-stera-cream-deep disabled:opacity-50'
+    const dangerItemClass =
+      'block w-full px-4 py-3 text-left text-sm text-red-700 transition hover:bg-red-50 disabled:opacity-50'
+    return (
+      <div ref={menuRef} className="relative">
+        <button
+          type="button"
+          aria-label="Meer acties"
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-stera-line bg-white text-stera-ink transition hover:border-stera-green"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="5" cy="12" r="1.2" />
+            <circle cx="12" cy="12" r="1.2" />
+            <circle cx="19" cy="12" r="1.2" />
+          </svg>
+        </button>
+        {menuOpen ? (
+          <div className="absolute right-0 z-30 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-stera-line bg-white py-1 shadow-lg">
+            <Link
+              href={`/maintenance/${visitId}/edit`}
+              className={menuItemClass}
+              onClick={() => setMenuOpen(false)}
+            >
+              Bewerken
+            </Link>
+
+            {isCompleted && !hasWorkOrder && (
+              <button
+                type="button"
+                onClick={handleCreateWorkOrder}
+                disabled={busy}
+                className={menuItemClass}
+              >
+                {busy ? 'Werkbon maken...' : 'Werkbon maken'}
+              </button>
+            )}
+
+            {hasWorkOrder && (
+              <Link
+                href={`/work-orders/${workOrder!.id}`}
+                className={menuItemClass}
+                onClick={() => setMenuOpen(false)}
+              >
+                Werkbon openen ({workOrder!.status})
+              </Link>
+            )}
+
+            {isScheduled && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Beurt markeren als geannuleerd?')) {
+                    handleCancel()
+                  }
+                }}
+                disabled={busy}
+                className={menuItemClass}
+              >
+                Beurt annuleren
+              </button>
+            )}
+
+            {isCancelled && (
+              <button
+                type="button"
+                onClick={handleReactivate}
+                disabled={busy}
+                className={menuItemClass}
+              >
+                Heractiveren
+              </button>
+            )}
+
+            <div className="border-t border-stera-line" />
+
+            <button
+              type="button"
+              onClick={() => {
+                if (workOrderIsSigned) {
+                  alert(
+                    'Werkbon is ondertekend — verwijder eerst de werkbon via "Werkbon openen".'
+                  )
+                  return
+                }
+                if (
+                  window.confirm(
+                    'Zeker? Alles van deze beurt (planten, verbruik, werkbon) wordt verwijderd.'
+                  )
+                ) {
+                  handleDelete()
+                }
+              }}
+              disabled={busy || workOrderIsSigned}
+              className={dangerItemClass}
+            >
+              Verwijderen
+            </button>
+
+            {error && (
+              <p className="border-t border-stera-line px-4 py-2 text-xs text-red-700">
+                {error}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
   }
 
   return (

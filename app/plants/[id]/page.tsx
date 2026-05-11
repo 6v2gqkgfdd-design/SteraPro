@@ -12,6 +12,7 @@ import PlantOverview, {
 import PlantReportList, {
   type PlantReportRow,
 } from '@/components/plant-report-list'
+import { RowMenu, RowMenuItem } from '@/components/row-menu'
 
 type PlantRow = PlantOverviewPlant & {
   room_id?: string | null
@@ -143,40 +144,41 @@ export default async function PlantDetailPage({
           room={(room ?? null) as PlantOverviewRoom}
           latestLog={(latestLog ?? null) as PlantOverviewLog}
           actions={
-            <>
-              <Link
-                href={`/plants/${typedPlant.id}/maintenance/new`}
-                className="stera-cta stera-cta-primary"
-              >
-                Onderhoud registreren
-              </Link>
-              <Link
-                href={`/plants/${typedPlant.id}/edit`}
-                className="stera-cta stera-cta-secondary"
-              >
-                Plant bewerken
-              </Link>
+            <div className="flex items-center justify-between gap-3">
               {typedPlant.species ? (
                 <RegenerateCareTipsButton
                   plantId={typedPlant.id}
                   hasTips={Boolean(typedPlant.care_tips)}
                 />
-              ) : null}
-              {typedPlant.qr_slug ? (
-                <Link
-                  href={`/p/${typedPlant.qr_slug}`}
-                  className="stera-cta stera-cta-ghost"
+              ) : (
+                <span />
+              )}
+              <RowMenu>
+                <RowMenuItem
+                  href={`/plants/${typedPlant.id}/maintenance/new`}
                 >
-                  Klantweergave openen →
-                </Link>
-              ) : null}
-              {typedPlant.location_id ? (
-                <DeletePlantButton
-                  plantId={typedPlant.id}
-                  locationId={typedPlant.location_id}
-                />
-              ) : null}
-            </>
+                  Onderhoud registreren
+                </RowMenuItem>
+                <RowMenuItem href={`/plants/${typedPlant.id}/edit`}>
+                  Plant bewerken
+                </RowMenuItem>
+                {typedPlant.qr_slug ? (
+                  <RowMenuItem href={`/p/${typedPlant.qr_slug}`}>
+                    Klantweergave openen
+                  </RowMenuItem>
+                ) : null}
+                {typedPlant.location_id ? (
+                  <>
+                    <div className="border-t border-stera-line" />
+                    <DeletePlantButton
+                      plantId={typedPlant.id}
+                      locationId={typedPlant.location_id}
+                      variant="menu"
+                    />
+                  </>
+                ) : null}
+              </RowMenu>
+            </div>
           }
         />
 

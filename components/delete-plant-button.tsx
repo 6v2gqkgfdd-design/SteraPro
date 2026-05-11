@@ -7,9 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 export default function DeletePlantButton({
   plantId,
   locationId,
+  variant = 'cta',
 }: {
   plantId: string
   locationId: string
+  variant?: 'cta' | 'menu'
 }) {
   const router = useRouter()
   const supabase = createClient()
@@ -46,6 +48,19 @@ export default function DeletePlantButton({
 
     router.push(`/locations/${locationId}`)
     router.refresh()
+  }
+
+  if (variant === 'menu') {
+    return (
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={loading}
+        className="block w-full px-4 py-3 text-left text-sm text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+      >
+        {loading ? 'Verwijderen...' : 'Plant verwijderen'}
+      </button>
+    )
   }
 
   return (

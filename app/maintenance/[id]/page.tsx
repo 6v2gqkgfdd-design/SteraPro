@@ -4,6 +4,7 @@ import MaintenanceActions from './maintenance-actions'
 import VisitConsumables from './visit-consumables'
 import VisitManagement from './visit-management'
 import { applyStandardMaintenance } from './standard-actions'
+import { RowMenu } from '@/components/row-menu'
 
 type FollowupItem = {
   plantId: string
@@ -223,17 +224,14 @@ export default async function MaintenanceDetailPage({
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="stera-eyebrow mb-1">
-              {visit.title || 'Onderhoud'}
-            </p>
-            <h1 className="stera-display text-3xl sm:text-4xl">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
               {(Array.isArray(visit.companies)
                 ? visit.companies[0]?.name
                 : visit.companies?.name) || 'Onbekende klant'}
             </h1>
-            <p className="mt-2 text-sm text-stera-ink-soft">
+            <p className="mt-1 text-sm text-stera-ink-soft">
               {[
                 visit.locations?.name,
                 [visit.locations?.street, visit.locations?.number]
@@ -243,7 +241,8 @@ export default async function MaintenanceDetailPage({
               ]
                 .filter(Boolean)
                 .join(' · ') || 'Geen locatie-info'}
-              {' • '}
+            </p>
+            <p className="text-sm text-stera-ink-soft">
               {visit.scheduled_start
                 ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
                 : 'Geen datum'}
@@ -266,14 +265,11 @@ export default async function MaintenanceDetailPage({
                 </div>
               )}
           </div>
-        </div>
-
-        <div className="stera-card">
-          <p className="stera-eyebrow mb-3">Beheer</p>
           <VisitManagement
             visitId={visit.id}
             status={visit.status}
             workOrder={workOrderRow ?? null}
+            variant="menu"
           />
         </div>
 
@@ -410,10 +406,6 @@ export default async function MaintenanceDetailPage({
           <MaintenanceActions visit={visit} />
         </div>
 
-        <div className="stera-card">
-          <VisitConsumables visitId={visit.id} />
-        </div>
-
         {isOpenVisit && pendingPlantCount > 0 ? (
           <div className="stera-card border-stera-green/40 bg-stera-cream-deep/40">
             <p className="stera-eyebrow mb-2">Snel afronden</p>
@@ -486,6 +478,10 @@ export default async function MaintenanceDetailPage({
               </p>
             )}
           </div>
+        </div>
+
+        <div className="stera-card">
+          <VisitConsumables visitId={visit.id} />
         </div>
       </div>
     </main>
