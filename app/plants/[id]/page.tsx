@@ -143,42 +143,38 @@ export default async function PlantDetailPage({
           location={(location ?? null) as PlantOverviewLocation}
           room={(room ?? null) as PlantOverviewRoom}
           latestLog={(latestLog ?? null) as PlantOverviewLog}
+          headerMenu={
+            <RowMenu>
+              <RowMenuItem href={`/plants/${typedPlant.id}/maintenance/new`}>
+                Onderhoud registreren
+              </RowMenuItem>
+              <RowMenuItem href={`/plants/${typedPlant.id}/edit`}>
+                Plant bewerken
+              </RowMenuItem>
+              {typedPlant.qr_slug ? (
+                <RowMenuItem href={`/p/${typedPlant.qr_slug}`}>
+                  Klantweergave openen
+                </RowMenuItem>
+              ) : null}
+              {typedPlant.location_id ? (
+                <>
+                  <div className="border-t border-stera-line" />
+                  <DeletePlantButton
+                    plantId={typedPlant.id}
+                    locationId={typedPlant.location_id}
+                    variant="menu"
+                  />
+                </>
+              ) : null}
+            </RowMenu>
+          }
           actions={
-            <div className="flex items-center justify-between gap-3">
-              {typedPlant.species ? (
-                <RegenerateCareTipsButton
-                  plantId={typedPlant.id}
-                  hasTips={Boolean(typedPlant.care_tips)}
-                />
-              ) : (
-                <span />
-              )}
-              <RowMenu>
-                <RowMenuItem
-                  href={`/plants/${typedPlant.id}/maintenance/new`}
-                >
-                  Onderhoud registreren
-                </RowMenuItem>
-                <RowMenuItem href={`/plants/${typedPlant.id}/edit`}>
-                  Plant bewerken
-                </RowMenuItem>
-                {typedPlant.qr_slug ? (
-                  <RowMenuItem href={`/p/${typedPlant.qr_slug}`}>
-                    Klantweergave openen
-                  </RowMenuItem>
-                ) : null}
-                {typedPlant.location_id ? (
-                  <>
-                    <div className="border-t border-stera-line" />
-                    <DeletePlantButton
-                      plantId={typedPlant.id}
-                      locationId={typedPlant.location_id}
-                      variant="menu"
-                    />
-                  </>
-                ) : null}
-              </RowMenu>
-            </div>
+            typedPlant.species ? (
+              <RegenerateCareTipsButton
+                plantId={typedPlant.id}
+                hasTips={Boolean(typedPlant.care_tips)}
+              />
+            ) : null
           }
         />
 

@@ -83,16 +83,16 @@ export function getMood(plant: PlantOverviewPlant): PlantMood {
   return 'healthy'
 }
 
-export function moodMessage(mood: PlantMood, name: string): string {
+export function moodMessage(mood: PlantMood, _name: string): string {
   switch (mood) {
     case 'healthy':
-      return `${name} voelt zich kiplekker.`
+      return 'Voelt zich kiplekker.'
     case 'needs-attention':
-      return `${name} kan wat extra aandacht gebruiken.`
+      return 'Kan wat extra aandacht gebruiken.'
     case 'dying':
-      return `${name} heeft het moeilijk en heeft snel hulp nodig.`
+      return 'Heeft het moeilijk en heeft snel hulp nodig.'
     case 'dead':
-      return `${name} heeft het laatste blaadje gegeven.`
+      return 'Heeft het laatste blaadje gegeven.'
   }
 }
 
@@ -128,12 +128,15 @@ export default function PlantOverview({
   room,
   latestLog,
   actions,
+  headerMenu,
 }: {
   plant: PlantOverviewPlant
   location: PlantOverviewLocation
   room?: PlantOverviewRoom
   latestLog: PlantOverviewLog
   actions?: React.ReactNode
+  /** Optioneel menu rechts bovenaan (bv. 3-dot RowMenu). */
+  headerMenu?: React.ReactNode
 }) {
   const title = plantTitle(plant)
   const mood = getMood(plant)
@@ -142,7 +145,10 @@ export default function PlantOverview({
     : []
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="relative mx-auto w-full max-w-2xl">
+      {headerMenu ? (
+        <div className="absolute right-0 top-0 z-10">{headerMenu}</div>
+      ) : null}
       <div className="mb-6 flex flex-col items-center text-center sm:flex-row sm:items-center sm:gap-6 sm:text-left">
         <div className="w-48 sm:w-56 shrink-0">
           <AnimatedPlant mood={mood} />
@@ -157,7 +163,7 @@ export default function PlantOverview({
           <p className="mt-3 text-sm text-stera-ink">
             {moodMessage(mood, title)}
           </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <div
               className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusColor(plant)}`}
             >
@@ -224,9 +230,14 @@ export default function PlantOverview({
             <dt className="stera-eyebrow text-stera-ink-soft">Ruimte</dt>
             <dd className="mt-1 text-sm text-stera-ink">
               {room.name}
-              {room.floor && (
-                <span className="text-stera-ink-soft"> · {room.floor}</span>
-              )}
+              {room.floor ? (
+                <span className="text-stera-ink-soft">
+                  {' · '}
+                  {/^\d+$/.test(room.floor.trim())
+                    ? `Verdiep ${room.floor.trim()}`
+                    : room.floor}
+                </span>
+              ) : null}
             </dd>
           </div>
         )}
