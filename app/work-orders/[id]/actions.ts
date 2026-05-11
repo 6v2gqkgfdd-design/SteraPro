@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 export async function markAsSent(formData: FormData) {
@@ -45,6 +46,33 @@ export async function reopenWorkOrder(formData: FormData) {
 
   revalidatePath('/work-orders')
   revalidatePath(`/work-orders/${id}`)
+}
+
+// Verwijder een werkbon ongeacht zijn status (ook getekend).
+// Bedoeld voor beheerder: bv. werkbon was per ongeluk aangemaakt of
+// klant wil hem ongedaan maken. Na verwijderen blijft de
+// onderhoudsbeurt zelf gewoon bestaan en kan er evt. een nieuwe
+// werkbon van gemaakt worden.
+export async function deleteWorkOrder(formData: FormData) {
+  const id = String(formData.get('id') || '')
+  const visitId = String(formData.get('visit_id') || '')
+  if (!id) return
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('work_orders').delete().eq('id', id)
+
+  if (error) {
+    console.error('[work_orders] delete failed', error)
+    return
+  }
+
+  revalidatePath('/work-orders')
+  if (visitId) {
+    revalidatePath(`/maintenance/${visitId}`)
+    redirect(`/maintenance/${visitId}`)
+  } else {
+    redirect('/work-orders')
+  }
 }
 
 export async function markAsSignedManually(formData: FormData) {

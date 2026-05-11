@@ -8,6 +8,7 @@ import {
   markAsSignedManually,
 } from './actions'
 import CopyLinkButton from './copy-link-button'
+import DeleteWorkOrderButton from './delete-work-order-button'
 import { formatEur, formatPotSize, findPotSize, nextPotSize } from '@/lib/pot-sizes'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -578,6 +579,19 @@ export default async function WorkOrderDetailPage({
             </p>
           ) : null}
         </article>
+
+        <div className="stera-card border-red-100">
+          <p className="stera-eyebrow mb-2 text-red-700">Beheer (admin)</p>
+          <p className="mb-3 text-sm text-stera-ink-soft">
+            Alleen gebruiken als de werkbon per ongeluk aangemaakt is, of
+            als je de onderhoudsbeurt zelf nadien wil verwijderen.
+          </p>
+          <DeleteWorkOrderButton
+            workOrderId={workOrder.id}
+            visitId={visit.id}
+            status={workOrder.status}
+          />
+        </div>
 
         <div className="flex justify-between text-sm">
           <Link
