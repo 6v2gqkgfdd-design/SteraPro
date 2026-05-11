@@ -138,6 +138,26 @@ export default async function PlantDetailPage({
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
+        {typedPlant.room_id && room ? (
+          <p className="text-xs text-stera-ink-soft">
+            <Link
+              href={`/rooms/${typedPlant.room_id}`}
+              className="hover:text-stera-green"
+            >
+              ← {room.name || 'Ruimte'}
+            </Link>
+          </p>
+        ) : typedPlant.location_id && location ? (
+          <p className="text-xs text-stera-ink-soft">
+            <Link
+              href={`/locations/${typedPlant.location_id}`}
+              className="hover:text-stera-green"
+            >
+              ← {location.name || 'Locatie'}
+            </Link>
+          </p>
+        ) : null}
+
         <PlantOverview
           plant={typedPlant}
           location={(location ?? null) as PlantOverviewLocation}
