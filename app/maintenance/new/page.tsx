@@ -17,17 +17,26 @@ type Location = {
   room: string | null
 }
 
+type Room = {
+  id: string
+  name: string
+  floor: string | null
+}
+
 export default function NewMaintenancePage() {
   const supabase = createClient()
   const router = useRouter()
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [rooms, setRooms] = useState<Room[]>([])
   const [loadingCompanies, setLoadingCompanies] = useState(true)
   const [loadingLocations, setLoadingLocations] = useState(false)
+  const [loadingRooms, setLoadingRooms] = useState(false)
 
   const [companyId, setCompanyId] = useState('')
   const [locationId, setLocationId] = useState('')
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [scheduledStart, setScheduledStart] = useState('')
   const [plannedTasks, setPlannedTasks] = useState('')
@@ -97,6 +106,60 @@ export default function NewMaintenancePage() {
     }
   }, [companyId, supabase])
 
+  // Load rooms whenever location changes
+  useEffect(() => {
+    if (!locationId) {
+      setRooms([])
+      setSelectedRoomIds([])
+      return
+    }
+
+    let cancelled = false
+
+    async function loadRooms() {
+      setLoadingRooms(true)
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('id, name, floor')
+        .eq('location_id', locationId)
+        .order('name', { ascending: true })
+
+      if (cancelled) return
+
+      if (error) {
+        setError(error.message)
+        setLoadingRooms(false)
+        return
+      }
+
+      setRooms((data ?? []) as Room[])
+      setSelectedRoomIds([])
+      setLoadingRooms(false)
+    }
+
+    loadRooms()
+
+    return () => {
+      cancelled = true
+    }
+  }, [locationId, supabase])
+
+  function toggleRoom(roomId: string) {
+    setSelectedRoomIds((prev) =>
+      prev.includes(roomId)
+        ? prev.filter((r) => r !== roomId)
+        : [...prev, roomId]
+    )
+  }
+
+  function selectAllRooms() {
+    setSelectedRoomIds(rooms.map((r) => r.id))
+  }
+
+  function clearRooms() {
+    setSelectedRoomIds([])
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -115,7 +178,7 @@ export default function NewMaintenancePage() {
         .limit(1)
         .maybeSingle()
 
-      const { data, error } = await supabase
+      const { data: insertedVisit, error } = await supabase
         .from('maintenance_visits')
         .insert([
           {
@@ -133,8 +196,25 @@ export default function NewMaintenancePage() {
         .select('id')
         .single()
 
-      if (error) {
-        throw new Error(error.message)
+      if (error || !insertedVisit) {
+        throw new Error(error?.message || 'Opslaan mislukt.')
+      }
+
+      // Koppel geselecteerde ruimtes aan de beurt
+      if (selectedRoomIds.length > 0) {
+        const { error: roomLinkError } = await supabase
+          .from('maintenance_visit_rooms')
+          .insert(
+            selectedRoomIds.map((roomId) => ({
+              visit_id: insertedVisit.id,
+              room_id: roomId,
+            }))
+          )
+        if (roomLinkError) {
+          throw new Error(
+            `Beurt aangemaakt maar ruimtes koppelen mislukt: ${roomLinkError.message}`
+          )
+        }
       }
 
       router.push('/maintenance')
@@ -223,10 +303,75 @@ export default function NewMaintenancePage() {
             </select>
           </div>
 
-          {/* Step 3 — details */}
+          {/* Step 3 — ruimte(s) */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
+              3 · Ruimte(s)
+            </label>
+            {!locationId ? (
+              <p className="text-xs text-stera-ink-soft">
+                Kies eerst een locatie.
+              </p>
+            ) : loadingRooms ? (
+              <p className="text-xs text-stera-ink-soft">Ruimtes laden...</p>
+            ) : rooms.length === 0 ? (
+              <p className="text-xs text-stera-ink-soft">
+                Geen ruimtes gevonden voor deze locatie. Voeg er eerst een toe
+                via de locatiepagina.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {rooms.map((room) => {
+                    const selected = selectedRoomIds.includes(room.id)
+                    const label = room.floor
+                      ? `${room.name} · ${room.floor}`
+                      : room.name
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => toggleRoom(room.id)}
+                        className={
+                          selected
+                            ? 'rounded-full bg-stera-green px-3 py-1 text-xs font-semibold text-white'
+                            : 'rounded-full border border-stera-line bg-white px-3 py-1 text-xs font-medium text-stera-ink hover:border-stera-green'
+                        }
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex gap-3 text-xs">
+                  <button
+                    type="button"
+                    onClick={selectAllRooms}
+                    className="text-stera-green underline-offset-4 hover:underline"
+                  >
+                    Volledige locatie
+                  </button>
+                  {selectedRoomIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearRooms}
+                      className="text-stera-ink-soft underline-offset-4 hover:underline"
+                    >
+                      Wissen
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-stera-ink-soft">
+                  Tijdens onderhoud filteren we planten op deze ruimte(s).
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Step 4 — type bezoek */}
           <div className="space-y-2">
             <label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
-              3 · Type bezoek
+              4 · Type bezoek
             </label>
             <div className="flex flex-wrap gap-2">
               {[
@@ -267,7 +412,7 @@ export default function NewMaintenancePage() {
 
           <div className="space-y-1">
             <label htmlFor="scheduled_start" className="text-xs font-semibold uppercase tracking-wider text-stera-green">
-              4 · Datum & tijdstip
+              5 · Datum & tijdstip
             </label>
             <input
               id="scheduled_start"

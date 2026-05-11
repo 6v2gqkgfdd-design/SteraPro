@@ -49,6 +49,9 @@ export default async function MaintenanceDetailPage({
         street,
         number,
         city
+      ),
+      maintenance_visit_rooms (
+        rooms ( id, name, floor )
       )
     `)
     .eq('id', id)
@@ -245,6 +248,24 @@ export default async function MaintenanceDetailPage({
                 ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
                 : 'Geen datum'}
             </p>
+            {Array.isArray(visit.maintenance_visit_rooms) &&
+              visit.maintenance_visit_rooms.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {visit.maintenance_visit_rooms.map((mvr: any, i: number) => {
+                    const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+                    if (!r) return null
+                    return (
+                      <span
+                        key={r.id || i}
+                        className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
+                      >
+                        {r.name}
+                        {r.floor ? ` · ${r.floor}` : ''}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
           </div>
         </div>
 

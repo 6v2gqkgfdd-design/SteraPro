@@ -33,6 +33,11 @@ export default function EditMaintenancePage() {
   const [companyName, setCompanyName] = useState('')
   const [locationName, setLocationName] = useState('')
 
+  type Room = { id: string; name: string; floor: string | null }
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([])
+  const [originalRoomIds, setOriginalRoomIds] = useState<string[]>([])
+
   const [title, setTitle] = useState('')
   const [scheduledStart, setScheduledStart] = useState('')
   const [plannedTasks, setPlannedTasks] = useState('')
@@ -51,10 +56,11 @@ export default function EditMaintenancePage() {
       const { data, error } = await supabase
         .from('maintenance_visits')
         .select(
-          `id, title, scheduled_start, planned_tasks, access_notes,
+          `id, title, location_id, scheduled_start, planned_tasks, access_notes,
            internal_notes, general_notes,
            companies ( name ),
-           locations ( name )`
+           locations ( name ),
+           maintenance_visit_rooms ( room_id )`
         )
         .eq('id', visitId)
         .single()
@@ -82,6 +88,23 @@ export default function EditMaintenancePage() {
       setAccessNotes(data.access_notes ?? '')
       setInternalNotes(data.internal_notes ?? '')
       setGeneralNotes(data.general_notes ?? '')
+
+      const existingRoomIds: string[] = (data.maintenance_visit_rooms ?? [])
+        .map((r: { room_id: string | null }) => r.room_id)
+        .filter((id: string | null): id is string => Boolean(id))
+      setSelectedRoomIds(existingRoomIds)
+      setOriginalRoomIds(existingRoomIds)
+
+      // Load all rooms for this location for the picker
+      if (data.location_id) {
+        const { data: roomsData } = await supabase
+          .from('rooms')
+          .select('id, name, floor')
+          .eq('location_id', data.location_id)
+          .order('name', { ascending: true })
+        if (!cancelled) setRooms((roomsData ?? []) as Room[])
+      }
+
       setLoadingContext(false)
     }
 
@@ -114,6 +137,32 @@ export default function EditMaintenancePage() {
 
       if (error) throw new Error(error.message)
 
+      // Diff de ruimtes: verwijder weggehaalde, voeg nieuwe toe
+      const toAdd = selectedRoomIds.filter(
+        (id) => !originalRoomIds.includes(id)
+      )
+      const toRemove = originalRoomIds.filter(
+        (id) => !selectedRoomIds.includes(id)
+      )
+
+      if (toRemove.length > 0) {
+        const { error: delErr } = await supabase
+          .from('maintenance_visit_rooms')
+          .delete()
+          .eq('visit_id', visitId)
+          .in('room_id', toRemove)
+        if (delErr) throw new Error(delErr.message)
+      }
+
+      if (toAdd.length > 0) {
+        const { error: insErr } = await supabase
+          .from('maintenance_visit_rooms')
+          .insert(
+            toAdd.map((roomId) => ({ visit_id: visitId, room_id: roomId }))
+          )
+        if (insErr) throw new Error(insErr.message)
+      }
+
       router.push(`/maintenance/${visitId}`)
       router.refresh()
     } catch (err) {
@@ -139,6 +188,66 @@ export default function EditMaintenancePage() {
         </div>
 
         <form onSubmit={handleSubmit} className="stera-card space-y-5">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
+              Ruimte(s)
+            </label>
+            {rooms.length === 0 ? (
+              <p className="text-xs text-stera-ink-soft">
+                Geen ruimtes gevonden voor deze locatie.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {rooms.map((room) => {
+                    const selected = selectedRoomIds.includes(room.id)
+                    const label = room.floor
+                      ? `${room.name} · ${room.floor}`
+                      : room.name
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedRoomIds((prev) =>
+                            prev.includes(room.id)
+                              ? prev.filter((r) => r !== room.id)
+                              : [...prev, room.id]
+                          )
+                        }
+                        className={
+                          selected
+                            ? 'rounded-full bg-stera-green px-3 py-1 text-xs font-semibold text-white'
+                            : 'rounded-full border border-stera-line bg-white px-3 py-1 text-xs font-medium text-stera-ink hover:border-stera-green'
+                        }
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex gap-3 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRoomIds(rooms.map((r) => r.id))}
+                    className="text-stera-green underline-offset-4 hover:underline"
+                  >
+                    Volledige locatie
+                  </button>
+                  {selectedRoomIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRoomIds([])}
+                      className="text-stera-ink-soft underline-offset-4 hover:underline"
+                    >
+                      Wissen
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="space-y-2">
             <label
               htmlFor="title"

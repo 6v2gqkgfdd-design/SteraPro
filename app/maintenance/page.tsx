@@ -53,7 +53,10 @@ export default async function MaintenancePage({
       status,
       scheduled_start,
       companies ( name ),
-      locations ( name, street, number, city )
+      locations ( name, street, number, city ),
+      maintenance_visit_rooms (
+        rooms ( id, name, floor )
+      )
     `)
     .in('status', ['scheduled', 'in_progress', 'paused'])
     .order('scheduled_start', { ascending: true })
@@ -67,7 +70,10 @@ export default async function MaintenancePage({
       scheduled_start,
       ended_at,
       companies ( name ),
-      locations ( name, street, number, city )
+      locations ( name, street, number, city ),
+      maintenance_visit_rooms (
+        rooms ( id, name, floor )
+      )
     `)
     .in('status', ['completed', 'cancelled'])
     .order('scheduled_start', { ascending: false })
@@ -146,6 +152,13 @@ export default async function MaintenancePage({
               .filter(Boolean)
               .join(' · ')
 
+            const roomNames: string[] = (visit.maintenance_visit_rooms ?? [])
+              .map((mvr: any) => {
+                const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+                return r?.name as string | undefined
+              })
+              .filter((n: string | undefined): n is string => Boolean(n))
+
             return (
               <Link
                 key={visit.id}
@@ -160,11 +173,21 @@ export default async function MaintenancePage({
                     <p className="text-sm text-stera-ink-soft">
                       {locationLabel || 'Geen locatie-info'}
                     </p>
-                    {visit.title ? (
-                      <p className="mt-2 inline-block rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-medium text-stera-ink">
-                        {visit.title}
-                      </p>
-                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {roomNames.map((name) => (
+                        <span
+                          key={name}
+                          className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
+                        >
+                          {name}
+                        </span>
+                      ))}
+                      {visit.title ? (
+                        <span className="inline-block rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-medium text-stera-ink">
+                          {visit.title}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="text-right text-sm">
