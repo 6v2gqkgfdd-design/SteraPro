@@ -32,7 +32,6 @@ export default async function DashboardPage() {
 
   const [
     { data: todaysVisits },
-    { data: upcomingVisits },
     { data: flaggedVisitPlants },
     { data: openReports },
     weather,
@@ -48,19 +47,6 @@ export default async function DashboardPage() {
       .lt('scheduled_start', startOfTomorrowIso)
       .in('status', ['scheduled', 'in_progress', 'paused'])
       .order('scheduled_start', { ascending: true }),
-
-    // Komende 7 dagen (na vandaag)
-    supabase
-      .from('maintenance_visits')
-      .select(
-        `id, title, status, scheduled_start, location_id,
-         locations ( name, companies ( name ) )`
-      )
-      .gte('scheduled_start', startOfTomorrowIso)
-      .lt('scheduled_start', sevenDaysLaterIso)
-      .in('status', ['scheduled', 'in_progress', 'paused'])
-      .order('scheduled_start', { ascending: true })
-      .limit(5),
 
     // Planten met aandacht nodig
     supabase
@@ -210,44 +196,45 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="bg-stera-cream px-5 py-6 sm:px-8 sm:py-10">
-      <div className="mx-auto max-w-4xl space-y-6">
+    <main className="bg-stera-cream px-5 pt-3 pb-4 sm:px-8 sm:pt-10 sm:pb-10">
+      <div className="mx-auto max-w-4xl space-y-3 sm:space-y-6">
         {/* Hero — compact */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <SteraLogo variant="default" href={null} />
-            {weather ? <WeatherPill weather={weather} /> : null}
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-stera-ink">
-              {greeting}, Jelle.
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-stera-ink">
+              {greeting}, Jelle
             </p>
-            <p className="text-sm text-stera-ink-soft">{todayLabel}</p>
+            <p className="text-xs text-stera-ink-soft">{todayLabel}</p>
           </div>
+          {weather ? <WeatherPill weather={weather} /> : null}
         </div>
 
         {/* KPI-tegels */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <Link
             href="/maintenance?tab=planned"
-            className="rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
+            className="rounded-xl border border-stera-line bg-white p-2.5 transition hover:border-stera-green"
           >
-            <p className="text-xs text-stera-ink-soft">Vandaag</p>
-            <p className="mt-1 text-2xl font-semibold text-stera-ink">
+            <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
+              Vandaag
+            </p>
+            <p className="text-xl font-semibold text-stera-ink">
               {todaysCount}
             </p>
           </Link>
           <Link
             href="/maintenance?tab=planned"
-            className={`rounded-xl border p-3 transition ${
+            className={`rounded-xl border p-2.5 transition ${
               flaggedCount > 0
                 ? 'border-amber-200 bg-amber-50 hover:border-amber-400'
                 : 'border-stera-line bg-white hover:border-stera-green'
             }`}
           >
-            <p className="text-xs text-stera-ink-soft">Aandacht</p>
+            <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
+              Aandacht
+            </p>
             <p
-              className={`mt-1 text-2xl font-semibold ${
+              className={`text-xl font-semibold ${
                 flaggedCount > 0 ? 'text-amber-800' : 'text-stera-ink'
               }`}
             >
@@ -255,15 +242,17 @@ export default async function DashboardPage() {
             </p>
           </Link>
           <div
-            className={`rounded-xl border p-3 ${
+            className={`rounded-xl border p-2.5 ${
               reportCount > 0
                 ? 'border-amber-200 bg-amber-50'
                 : 'border-stera-line bg-white'
             }`}
           >
-            <p className="text-xs text-stera-ink-soft">Meldingen</p>
+            <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
+              Meldingen
+            </p>
             <p
-              className={`mt-1 text-2xl font-semibold ${
+              className={`text-xl font-semibold ${
                 reportCount > 0 ? 'text-amber-800' : 'text-stera-ink'
               }`}
             >
@@ -273,248 +262,84 @@ export default async function DashboardPage() {
         </div>
 
         {/* Snelle acties */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <Link
             href="/scan"
-            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
+            className="flex items-center gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
           >
-            <span className="text-2xl">📷</span>
-            <span className="text-xs font-medium text-stera-ink">Scan plant</span>
+            <span className="text-xl">📷</span>
+            <span className="text-sm font-medium text-stera-ink">
+              Scan plant
+            </span>
           </Link>
           <Link
             href="/maintenance/new"
-            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
+            className="flex items-center gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
           >
-            <span className="text-2xl">➕</span>
-            <span className="text-xs font-medium text-stera-ink">Nieuwe afspraak</span>
+            <span className="text-xl">➕</span>
+            <span className="text-sm font-medium text-stera-ink">
+              Nieuwe afspraak
+            </span>
           </Link>
         </div>
 
-        {summaryLine && summaryLine !== 'Geen afspraken vandaag' ? (
-          <p className="text-sm text-stera-ink-soft">{summaryLine}</p>
-        ) : null}
-
-        {/* Klantmeldingen — alleen als er openstaande zijn */}
-        {openReports && openReports.length > 0 ? (
-          <section className="space-y-3">
-            <p className="stera-eyebrow text-amber-700">Klantmeldingen</p>
-            <ul className="space-y-3">
-              {openReports.map((row: any) => {
-                const plant = Array.isArray(row.plants)
-                  ? row.plants[0]
-                  : row.plants
-                const plantName =
-                  plant?.nickname ||
-                  plant?.species ||
-                  plant?.reference_code ||
-                  'Plant'
-                const label = REPORT_LABELS[row.issue_type] || row.issue_type
-                const isNew = row.status === 'new'
-                return (
-                  <li key={row.id}>
-                    <Link
-                      href={`/plants/${row.plant_id}`}
-                      className="stera-card block transition hover:border-stera-green"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-stera-ink">
-                            {plantName}
-                          </p>
-                          <p className="mt-1 text-sm text-stera-ink-soft">
-                            {label}
-                            {row.reporter_name
-                              ? ` · door ${row.reporter_name}`
-                              : ''}
-                          </p>
-                          {row.message ? (
-                            <p className="mt-2 line-clamp-2 text-sm text-stera-ink-soft">
-                              {row.message}
-                            </p>
-                          ) : null}
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
-                            isNew
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-stera-cream-deep text-stera-ink'
-                          }`}
-                        >
-                          {isNew ? 'Nieuw' : 'Gezien'}
-                        </span>
-                      </div>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        ) : null}
-
-        {/* Vandaag */}
-        <section className="space-y-3">
+        {/* Vandaag — compact, max 2 zichtbaar zodat alles in 1 scherm past */}
+        <section className="space-y-2">
           <div className="flex items-end justify-between gap-3">
-            <p className="stera-eyebrow">Vandaag</p>
-            <Link
-              href="/maintenance/new"
-              className="text-sm text-stera-green underline-offset-4 hover:underline"
-            >
-              Afspraak inplannen →
-            </Link>
-          </div>
-
-          {routeUrl ? (
-            <div className="stera-card flex flex-wrap items-center justify-between gap-3 border-stera-green/40 bg-stera-cream-deep/40">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-stera-ink">
-                  Route van vandaag
-                </p>
-                <p className="text-xs text-stera-ink-soft">
-                  Open de stops in volgorde van uur in Google Maps.
-                  {skippedAddressCount > 0
-                    ? ` ${skippedAddressCount} stop${skippedAddressCount === 1 ? '' : 's'} zonder adres niet meegenomen.`
-                    : ''}
-                </p>
-              </div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+              Vandaag
+            </p>
+            {routeUrl ? (
               <a
                 href={routeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="stera-cta stera-cta-primary"
+                className="text-xs font-medium text-stera-green underline-offset-4 hover:underline"
               >
-                Open in Maps →
+                Route in Maps →
               </a>
-            </div>
-          ) : null}
-
-          {todaysVisits && todaysVisits.length > 0 ? (
-            <ul className="space-y-3">
-              {todaysVisits.map((visit: any) => (
-                <li key={visit.id}>
-                  <Link
-                    href={`/maintenance/${visit.id}`}
-                    className="stera-card block transition hover:border-stera-green"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-stera-ink">{visit.title}</p>
-                        <p className="mt-1 text-sm text-stera-ink-soft">
-                          {locationLine(visit)}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-medium text-stera-green">
-                        {formatTime(visit.scheduled_start)}
-                      </p>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="stera-card text-sm text-stera-ink-soft">
-              Geen afspraken vandaag. Geniet ervan, of plan er een in.
-            </div>
-          )}
-        </section>
-
-        {/* Komende week */}
-        <section className="space-y-3">
-          <div className="flex items-end justify-between gap-3">
-            <p className="stera-eyebrow">Komende week</p>
-            <Link
-              href="/maintenance"
-              className="text-sm text-stera-green underline-offset-4 hover:underline"
-            >
-              Alle afspraken →
-            </Link>
+            ) : null}
           </div>
 
-          {upcomingVisits && upcomingVisits.length > 0 ? (
-            <ul className="space-y-3">
-              {upcomingVisits.map((visit: any) => (
+          {todaysVisits && todaysVisits.length > 0 ? (
+            <ul className="space-y-2">
+              {todaysVisits.slice(0, 2).map((visit: any) => (
                 <li key={visit.id}>
                   <Link
                     href={`/maintenance/${visit.id}`}
-                    className="stera-card block transition hover:border-stera-green"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-stera-ink">{visit.title}</p>
-                        <p className="mt-1 text-sm text-stera-ink-soft">
-                          {locationLine(visit)}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-right text-sm text-stera-ink-soft">
-                        <span className="block font-medium text-stera-ink">
-                          {formatDay(visit.scheduled_start)}
-                        </span>
-                        {formatTime(visit.scheduled_start)}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-stera-ink">
+                        {locationLine(visit)}
+                      </p>
+                      <p className="truncate text-xs text-stera-ink-soft">
+                        {visit.title}
                       </p>
                     </div>
+                    <span className="shrink-0 text-sm font-medium text-stera-green">
+                      {formatTime(visit.scheduled_start)}
+                    </span>
                   </Link>
                 </li>
               ))}
+              {todaysVisits.length > 2 ? (
+                <li>
+                  <Link
+                    href="/maintenance?tab=planned"
+                    className="block rounded-xl border border-dashed border-stera-line bg-white p-2 text-center text-xs text-stera-ink-soft hover:border-stera-green hover:text-stera-green"
+                  >
+                    +{todaysVisits.length - 2} meer afspraken vandaag →
+                  </Link>
+                </li>
+              ) : null}
             </ul>
           ) : (
-            <div className="stera-card text-sm text-stera-ink-soft">
-              Niets gepland deze week.
+            <div className="rounded-xl border border-dashed border-stera-line p-3 text-center text-xs text-stera-ink-soft">
+              Geen afspraken vandaag.
             </div>
           )}
         </section>
-
-        {/* Aandacht nodig */}
-        <section className="space-y-3">
-          <p className="stera-eyebrow">Aandacht nodig</p>
-
-          {flaggedPlants.length > 0 ? (
-            <ul className="space-y-3">
-              {flaggedPlants.map((row: any) => {
-                const plant = Array.isArray(row.plants) ? row.plants[0] : row.plants
-                const isDying = row.health_status === 'dying'
-                return (
-                  <li key={row.id}>
-                    <Link
-                      href={`/plants/${row.plant_id}`}
-                      className="stera-card block transition hover:border-stera-green"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-stera-ink">
-                            {plant?.nickname || plant?.species || 'Plant'}
-                          </p>
-                          <p className="mt-1 text-sm text-stera-ink-soft">
-                            {[plant?.species, plant?.reference_code]
-                              .filter(Boolean)
-                              .join(' · ') || 'Geen extra info'}
-                          </p>
-                          {row.notes ? (
-                            <p className="mt-2 line-clamp-2 text-sm text-stera-ink-soft">
-                              {row.notes}
-                            </p>
-                          ) : null}
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
-                            isDying
-                              ? 'bg-red-50 text-red-700'
-                              : 'bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          {isDying ? 'Stervend' : 'Aandacht'}
-                        </span>
-                      </div>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <div className="stera-card text-sm text-stera-ink-soft">
-              Alle planten zijn op dit moment in goede gezondheid.
-            </div>
-          )}
-        </section>
-
       </div>
     </main>
   )
