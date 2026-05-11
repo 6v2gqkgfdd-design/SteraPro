@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { formatRoomLabel } from '@/lib/rooms'
 
 function getStatusBadgeClass(status: string) {
   switch (status) {
@@ -149,9 +150,9 @@ export default async function MaintenancePage({
             const roomNames: string[] = (visit.maintenance_visit_rooms ?? [])
               .map((mvr: any) => {
                 const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
-                return r?.name as string | undefined
+                return r ? formatRoomLabel(r.name, r.floor) : null
               })
-              .filter((n: string | undefined): n is string => Boolean(n))
+              .filter((n: string | null): n is string => Boolean(n))
 
             return (
               <Link

@@ -8,6 +8,7 @@ import {
   type PlantOverviewPlant,
 } from '@/components/plant-overview'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
+import { formatRoomLabel } from '@/lib/rooms'
 
 export default async function RoomDetailPage({
   params,
@@ -91,7 +92,7 @@ export default async function RoomDetailPage({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
-                {room.name}
+                {formatRoomLabel(room.name, room.floor)}
               </h1>
               {room.notes && (
                 <p className="mt-1 text-sm text-stera-ink-soft">{room.notes}</p>

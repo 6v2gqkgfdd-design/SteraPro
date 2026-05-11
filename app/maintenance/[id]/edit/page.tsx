@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { formatRoomLabel } from '@/lib/rooms'
 
 const TITLE_PRESETS = [
   'Eerste analyse',
@@ -201,7 +202,7 @@ export default function EditMaintenancePage() {
                 <div className="flex flex-wrap gap-2">
                   {rooms.map((room) => {
                     const selected = selectedRoomIds.includes(room.id)
-                    const label = room.name
+                    const label = formatRoomLabel(room.name, room.floor)
                     return (
                       <button
                         key={room.id}

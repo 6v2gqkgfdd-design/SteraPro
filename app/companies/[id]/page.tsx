@@ -37,6 +37,16 @@ export default async function CompanyDetailPage({
     .eq('company_id', id)
     .order('created_at', { ascending: false })
 
+  // Gestorven planten van deze klant — voor de "Te vervangen"-sectie.
+  const { data: deadPlants } = await supabase
+    .from('plants')
+    .select(
+      'id, nickname, species, reference_code, photo_url, status, location_id, room_id, rooms ( name, floor )'
+    )
+    .eq('company_id', id)
+    .eq('status', 'dead')
+    .order('updated_at', { ascending: false })
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-5">
@@ -135,6 +145,67 @@ export default async function CompanyDetailPage({
             ))}
           </ul>
         )}
+
+        {deadPlants && deadPlants.length > 0 ? (
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="stera-eyebrow text-red-700">
+                Gestorven planten ({deadPlants.length})
+              </p>
+              <span className="text-xs text-stera-ink-soft">
+                Te vervangen — offerte opmaken
+              </span>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {deadPlants.map((plant: any) => {
+                const r = Array.isArray(plant.rooms)
+                  ? plant.rooms[0]
+                  : plant.rooms
+                return (
+                  <li key={plant.id}>
+                    <Link
+                      href={`/plants/${plant.id}`}
+                      className="flex gap-3 rounded-xl border border-red-200 bg-red-50/40 p-3 transition hover:border-red-400"
+                    >
+                      {plant.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={plant.photo_url}
+                          alt={plant.nickname || 'Plant'}
+                          className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-red-100 text-xl">
+                          🥀
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-stera-ink">
+                          {plant.nickname || plant.species || 'Plant'}
+                        </p>
+                        {plant.species && plant.nickname ? (
+                          <p className="truncate text-xs text-stera-ink-soft">
+                            {plant.species}
+                          </p>
+                        ) : null}
+                        {r?.name ? (
+                          <p className="truncate text-xs text-stera-ink-soft">
+                            {r.name}
+                            {r.floor && /^\d+$/.test(String(r.floor).trim())
+                              ? ` · Verdiep ${r.floor}`
+                              : r.floor
+                                ? ` · ${r.floor}`
+                                : ''}
+                          </p>
+                        ) : null}
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
       </div>
     </main>
   )

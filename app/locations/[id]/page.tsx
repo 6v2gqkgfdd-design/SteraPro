@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteLocationButton from '@/components/delete-location-button'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
+import { formatRoomLabel } from '@/lib/rooms'
 
 type RoomRow = {
   id: string
@@ -148,7 +149,7 @@ export default async function LocationDetailPage({
                   <Link href={`/rooms/${room.id}`} className="block">
                     <div className="flex items-baseline justify-between gap-3">
                       <p className="font-semibold text-stera-ink">
-                        {room.name || 'Ruimte'}
+                        {formatRoomLabel(room.name, room.floor)}
                       </p>
                       <p className="text-xs text-stera-ink-soft">
                         {plantCount} {plantCount === 1 ? 'plant' : 'planten'}

@@ -1,4 +1,5 @@
 import AnimatedPlant, { type PlantMood } from './animated-plant'
+import { formatRoomLabel } from '@/lib/rooms'
 
 export type PlantOverviewPlant = {
   id: string
@@ -245,15 +246,7 @@ export default function PlantOverview({
           <div>
             <dt className="stera-eyebrow text-stera-ink-soft">Ruimte</dt>
             <dd className="mt-1 text-sm text-stera-ink">
-              {room.name}
-              {room.floor ? (
-                <span className="text-stera-ink-soft">
-                  {' · '}
-                  {/^\d+$/.test(room.floor.trim())
-                    ? `Verdiep ${room.floor.trim()}`
-                    : room.floor}
-                </span>
-              ) : null}
+              {formatRoomLabel(room.name, room.floor)}
             </dd>
           </div>
         )}

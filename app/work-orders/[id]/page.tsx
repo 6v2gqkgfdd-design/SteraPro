@@ -140,8 +140,50 @@ export default async function WorkOrderDetailPage({
     .eq('visit_id', visit.id)
     .order('created_at', { ascending: true })
 
-  const replacements = (visitPlants ?? []).filter((vp: any) => vp.followup_replace)
-  const treated = (visitPlants ?? []).filter((vp: any) => !vp.followup_replace)
+  // Categoriseer behandelde planten in 4 buckets voor op de werkbon:
+  //   Gezond · Ziek · Verpot · Dood
+  // Dode planten zijn alles met action_replaced, plant.status='dead'
+  // of die expliciet voor vervanging gemarkeerd zijn (followup_replace).
+  const groups: {
+    healthy: any[]
+    sick: any[]
+    repotted: any[]
+    dead: any[]
+  } = { healthy: [], sick: [], repotted: [], dead: [] }
+
+  for (const vp of visitPlants ?? []) {
+    const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
+    const plantStatus = plant?.status || ''
+    const healthStatus = vp.health_status || ''
+    const isDead =
+      vp.action_replaced ||
+      vp.followup_replace ||
+      plantStatus === 'dead' ||
+      healthStatus === 'dead'
+    if (isDead) {
+      groups.dead.push(vp)
+      continue
+    }
+    if (vp.action_repotted) {
+      groups.repotted.push(vp)
+      continue
+    }
+    const isSick =
+      healthStatus === 'needs_attention' ||
+      healthStatus === 'dying' ||
+      plantStatus === 'needs_attention' ||
+      plantStatus === 'maintenance_due' ||
+      plantStatus === 'replacement_needed'
+    if (isSick) {
+      groups.sick.push(vp)
+      continue
+    }
+    groups.healthy.push(vp)
+  }
+
+  // Voor de bestaande contract-banner en backwards-compat blijven we
+  // ook 'replacements' beschikbaar houden (= dood, met specs).
+  const replacements = groups.dead
 
   const duration = formatDuration(
     visit.started_at,
@@ -350,73 +392,84 @@ export default async function WorkOrderDetailPage({
             </section>
           ) : null}
 
-          <section>
-            <p className="stera-eyebrow text-stera-green mb-2">
-              Behandelde planten
-            </p>
-            {treated.length === 0 ? (
-              <p className="text-sm text-stera-ink-soft">
-                Geen planten geregistreerd.
-              </p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {treated.map((vp: any) => {
-                  const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
-                  const photoUrl = vp.photo_url || plant?.photo_url || null
-                  const actions = Object.entries(ACTION_LABELS)
-                    .filter(([key]) => Boolean(vp[key]))
-                    .map(([, label]) => label)
-                  return (
-                    <li
-                      key={vp.id}
-                      className="rounded border border-stera-line bg-white/60 p-3"
-                    >
-                      <div className="flex flex-wrap gap-3">
-                        {photoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={photoUrl}
-                            alt={plant?.nickname || 'Plant'}
-                            className="h-20 w-20 shrink-0 rounded object-cover"
-                          />
-                        ) : null}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">
-                            {plant?.nickname ||
-                              plant?.species ||
-                              plant?.reference_code ||
-                              'Plant'}
-                          </p>
-                          {plant?.reference_code &&
-                          plant.reference_code !== plant?.nickname ? (
-                            <p className="text-xs font-mono text-stera-ink-soft">
-                              {plant.reference_code}
-                            </p>
+          {(
+            [
+              { key: 'healthy', label: 'Gezond', items: groups.healthy, accent: 'text-stera-green' },
+              { key: 'sick', label: 'Ziek', items: groups.sick, accent: 'text-orange-700' },
+              { key: 'repotted', label: 'Verpot', items: groups.repotted, accent: 'text-stera-green' },
+            ] as const
+          ).map((cat) =>
+            cat.items.length === 0 ? null : (
+              <section key={cat.key}>
+                <p className={`stera-eyebrow mb-2 ${cat.accent}`}>
+                  {cat.label} ({cat.items.length})
+                </p>
+                <ul className="space-y-2 text-sm">
+                  {cat.items.map((vp: any) => {
+                    const plant = Array.isArray(vp.plants)
+                      ? vp.plants[0]
+                      : vp.plants
+                    const photoUrl = vp.photo_url || plant?.photo_url || null
+                    const actions = Object.entries(ACTION_LABELS)
+                      .filter(([key]) => Boolean(vp[key]))
+                      .map(([, label]) => label)
+                    return (
+                      <li
+                        key={vp.id}
+                        className="rounded border border-stera-line bg-white/60 p-3"
+                      >
+                        <div className="flex flex-wrap gap-3">
+                          {photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={photoUrl}
+                              alt={plant?.nickname || 'Plant'}
+                              className="h-20 w-20 shrink-0 rounded object-cover"
+                            />
                           ) : null}
-                          {actions.length > 0 ? (
-                            <p className="mt-1 text-xs text-stera-ink-soft">
-                              {actions.join(' · ')}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium">
+                              {plant?.nickname ||
+                                plant?.species ||
+                                plant?.reference_code ||
+                                'Plant'}
                             </p>
-                          ) : null}
-                          {vp.notes ? (
-                            <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
-                              {vp.notes}
-                            </p>
-                          ) : null}
+                            {plant?.reference_code &&
+                            plant.reference_code !== plant?.nickname ? (
+                              <p className="text-xs font-mono text-stera-ink-soft">
+                                {plant.reference_code}
+                              </p>
+                            ) : null}
+                            {actions.length > 0 ? (
+                              <p className="mt-1 text-xs text-stera-ink-soft">
+                                {actions.join(' · ')}
+                              </p>
+                            ) : null}
+                            {vp.notes ? (
+                              <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
+                                {vp.notes}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </section>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )
+          )}
 
           {replacements.length > 0 ? (
             <section>
-              <p className="stera-eyebrow text-stera-green mb-2">
-                Voorstel: te vervangen planten
-              </p>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="stera-eyebrow text-red-700">
+                  Dood ({replacements.length})
+                </p>
+                <span className="text-xs text-stera-ink-soft">
+                  Te vervangen — offerte opmaken
+                </span>
+              </div>
               <ul className="space-y-4 text-sm">
                 {replacements.map((vp: any) => {
                   const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
@@ -527,6 +580,20 @@ export default async function WorkOrderDetailPage({
                             {vp.replacement_notes}
                           </p>
                         ) : null}
+
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stera-line pt-3">
+                          <span className="text-[11px] text-stera-ink-soft">
+                            Offerte via Nieuwkoop volgt bij volgende update
+                          </span>
+                          <button
+                            type="button"
+                            disabled
+                            title="Binnenkort: voorstellen ophalen via Nieuwkoop-API"
+                            className="stera-cta stera-cta-secondary cursor-not-allowed opacity-60"
+                          >
+                            Vervangen via offerte →
+                          </button>
+                        </div>
                       </div>
                     </li>
                   )

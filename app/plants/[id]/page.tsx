@@ -13,6 +13,7 @@ import PlantReportList, {
   type PlantReportRow,
 } from '@/components/plant-report-list'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
+import { formatRoomLabel } from '@/lib/rooms'
 
 type PlantRow = PlantOverviewPlant & {
   room_id?: string | null
@@ -144,7 +145,7 @@ export default async function PlantDetailPage({
               href={`/rooms/${typedPlant.room_id}`}
               className="hover:text-stera-green"
             >
-              ← {room.name || 'Ruimte'}
+              ← {formatRoomLabel(room.name, room.floor)}
             </Link>
           </p>
         ) : typedPlant.location_id && location ? (

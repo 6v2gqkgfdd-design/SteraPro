@@ -5,6 +5,7 @@ import VisitConsumables from './visit-consumables'
 import VisitManagement from './visit-management'
 import { applyStandardMaintenance } from './standard-actions'
 import { RowMenu } from '@/components/row-menu'
+import { formatRoomLabel } from '@/lib/rooms'
 
 type FollowupItem = {
   plantId: string
@@ -123,9 +124,9 @@ export default async function MaintenanceDetailPage({
       ? visit.maintenance_visit_rooms
           .map((mvr: any) => {
             const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
-            return r?.name as string | undefined
+            return r ? formatRoomLabel(r.name, r.floor) : null
           })
-          .filter((n: string | undefined): n is string => Boolean(n))
+          .filter((n: string | null): n is string => Boolean(n))
           .join(', ')
       : ''
 
@@ -285,7 +286,7 @@ export default async function MaintenanceDetailPage({
                         key={r.id || i}
                         className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
                       >
-                        {r.name}
+                        {formatRoomLabel(r.name, r.floor)}
                       </span>
                     )
                   })}

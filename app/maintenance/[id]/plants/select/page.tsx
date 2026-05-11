@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { formatRoomLabel } from '@/lib/rooms'
 
 export default async function MaintenancePlantSelectPage({
   params,
@@ -24,7 +25,7 @@ export default async function MaintenancePlantSelectPage({
         name
       ),
       maintenance_visit_rooms (
-        rooms ( id, name )
+        rooms ( id, name, floor )
       )
     `)
     .eq('id', id)
@@ -46,19 +47,28 @@ export default async function MaintenancePlantSelectPage({
 
   // Gekoppelde ruimtes — als die er zijn, scopen we de planten-lijst
   // tot die ruimtes. Zo niet: alle planten op de locatie.
-  const visitRooms: Array<{ id: string; name: string | null }> = Array.isArray(
-    visit.maintenance_visit_rooms
-  )
+  const visitRooms: Array<{
+    id: string
+    name: string | null
+    floor: string | null
+  }> = Array.isArray(visit.maintenance_visit_rooms)
     ? visit.maintenance_visit_rooms
         .map((mvr: any) => {
           const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
-          return r as { id: string; name: string | null } | null
+          return r as
+            | { id: string; name: string | null; floor: string | null }
+            | null
         })
-        .filter((r): r is { id: string; name: string | null } => Boolean(r))
+        .filter(
+          (
+            r
+          ): r is { id: string; name: string | null; floor: string | null } =>
+            Boolean(r)
+        )
     : []
   const visitRoomIds = visitRooms.map((r) => r.id)
   const visitRoomLabel = visitRooms
-    .map((r) => r.name)
+    .map((r) => formatRoomLabel(r.name, r.floor))
     .filter(Boolean)
     .join(', ')
 
