@@ -169,6 +169,15 @@ export default function MaintenancePlantDetailPage() {
   const [photoPreview, setPhotoPreview] = useState('')
   const [photoError, setPhotoError] = useState('')
 
+  // Foto van de ruimte (waar de nieuwe vervangings-plant moet komen).
+  // Wordt later gebruikt om een AI-render te maken met de voorgestelde
+  // plant op dezelfde locatie.
+  const [existingRoomPhotoUrl, setExistingRoomPhotoUrl] = useState<
+    string | null
+  >(null)
+  const [roomPhotoFile, setRoomPhotoFile] = useState<File | null>(null)
+  const [roomPhotoPreview, setRoomPhotoPreview] = useState('')
+
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -332,6 +341,9 @@ export default function MaintenancePlantDetailPage() {
           )
           setReplacementNotes(existingVisitPlant.replacement_notes || '')
           setExistingPhotoUrl(existingVisitPlant.photo_url ?? null)
+          setExistingRoomPhotoUrl(
+            existingVisitPlant.replacement_room_photo_url ?? null
+          )
         } else {
           // Geen bestaand visit_plant — pre-vul met de standaard
           // onderhoudsacties zodat Jelle alleen hoeft uit te vinken wat
@@ -453,6 +465,25 @@ export default function MaintenancePlantDetailPage() {
         photoUrl = publicUrlData.publicUrl
       }
 
+      // Optionele ruimte-foto voor vervangingsplant (Phase 1 offerte).
+      let roomPhotoPath: string | null | undefined = undefined
+      let roomPhotoUrl: string | null | undefined = undefined
+      if (followupReplace && roomPhotoFile) {
+        const fileName = `visits/${visitId}/${plantId}-room-${Date.now()}.jpg`
+        const { error: uploadError } = await supabase.storage
+          .from('plant-photos')
+          .upload(fileName, roomPhotoFile, {
+            upsert: false,
+            contentType: 'image/jpeg',
+          })
+        if (uploadError) throw new Error(uploadError.message)
+        roomPhotoPath = fileName
+        const { data: publicUrlData } = supabase.storage
+          .from('plant-photos')
+          .getPublicUrl(fileName)
+        roomPhotoUrl = publicUrlData.publicUrl
+      }
+
       const payload: Record<string, unknown> = {
         visit_id: visitId,
         plant_id: plantId,
@@ -494,6 +525,14 @@ export default function MaintenancePlantDetailPage() {
       if (photoPath !== undefined) {
         payload.photo_path = photoPath
         payload.photo_url = photoUrl
+      }
+      if (roomPhotoPath !== undefined) {
+        payload.replacement_room_photo_path = roomPhotoPath
+        payload.replacement_room_photo_url = roomPhotoUrl
+      } else if (!followupReplace) {
+        // Geen vervanging meer aangevinkt → ruimte-foto niet meer relevant.
+        payload.replacement_room_photo_path = null
+        payload.replacement_room_photo_url = null
       }
 
       if (existingVisitPlantId) {
@@ -939,9 +978,47 @@ export default function MaintenancePlantDetailPage() {
                     Specs voor de vervangingsplant
                   </p>
                   <p className="text-xs text-stera-ink-soft">
-                    Deze info komt in het klantrapport en in de
-                    voorbereiding voor het volgende bezoek.
+                    Deze info gebruiken we voor de offerte: we matchen de
+                    leveranciers-catalogus tegen deze specs en tonen de
+                    nieuwe plant gerendered op je foto van de ruimte.
                   </p>
+                </div>
+
+                {/* Foto van de ruimte */}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-stera-ink">
+                    Foto van de ruimte
+                  </p>
+                  <p className="text-xs text-stera-ink-soft">
+                    Neem de hoek waar de nieuwe plant moet komen — we
+                    plakken de voorgestelde plant er nadien in via AI.
+                  </p>
+                  {roomPhotoPreview || existingRoomPhotoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={roomPhotoPreview || existingRoomPhotoUrl || ''}
+                      alt="Foto van de ruimte voor vervanging"
+                      className="max-h-64 w-full rounded-lg border border-stera-line object-cover"
+                    />
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null
+                      if (roomPhotoPreview)
+                        URL.revokeObjectURL(roomPhotoPreview)
+                      if (!f) {
+                        setRoomPhotoFile(null)
+                        setRoomPhotoPreview('')
+                        return
+                      }
+                      setRoomPhotoFile(f)
+                      setRoomPhotoPreview(URL.createObjectURL(f))
+                    }}
+                    className="w-full rounded-lg border border-stera-line bg-white p-3 text-sm"
+                  />
                 </div>
 
                 <fieldset className="space-y-2">

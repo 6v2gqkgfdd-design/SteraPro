@@ -33,7 +33,6 @@ export default async function DashboardPage() {
   const [
     { data: todaysVisits },
     { data: upcomingVisits },
-    { data: recentVisits },
     { data: flaggedVisitPlants },
     { data: openReports },
     weather,
@@ -285,7 +284,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Snelle acties */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3">
           <Link
             href="/scan"
             className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
@@ -299,20 +298,6 @@ export default async function DashboardPage() {
           >
             <span className="text-2xl">➕</span>
             <span className="text-xs font-medium text-stera-ink">Nieuwe afspraak</span>
-          </Link>
-          <Link
-            href="/work-orders"
-            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
-          >
-            <span className="text-2xl">📋</span>
-            <span className="text-xs font-medium text-stera-ink">Werkbonnen</span>
-          </Link>
-          <Link
-            href="/companies"
-            className="flex flex-col items-center gap-2 rounded-xl border border-stera-line bg-white p-4 transition hover:border-stera-green"
-          >
-            <span className="text-2xl">🏢</span>
-            <span className="text-xs font-medium text-stera-ink">Klanten</span>
           </Link>
         </div>
 
@@ -541,39 +526,6 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        {/* Recent voltooid */}
-        <section className="space-y-3">
-          <p className="stera-eyebrow">Recent voltooid</p>
-
-          {recentVisits && recentVisits.length > 0 ? (
-            <ul className="space-y-3">
-              {recentVisits.map((visit: any) => (
-                <li key={visit.id}>
-                  <Link
-                    href={`/maintenance/${visit.id}/report`}
-                    className="stera-card block transition hover:border-stera-green"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-stera-ink">{visit.title}</p>
-                        <p className="mt-1 text-sm text-stera-ink-soft">
-                          {locationLine(visit)}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm text-stera-ink-soft">
-                        {formatDay(visit.ended_at)}
-                      </p>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="stera-card text-sm text-stera-ink-soft">
-              Nog geen onderhoudsbeurten afgerond.
-            </div>
-          )}
-        </section>
       </div>
     </main>
   )
