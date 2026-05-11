@@ -81,50 +81,44 @@ export default async function MaintenancePage({
   const visits = activeTab === 'completed' ? completedVisits : plannedVisits
   const error = activeTab === 'completed' ? completedError : plannedError
 
+  const plannedCount = plannedVisits?.length ?? 0
+  const completedCount = completedVisits?.length ?? 0
+
   return (
     <main className="bg-stera-cream p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="stera-display text-3xl sm:text-4xl">
-              Geplande en voltooide beurten
-            </h1>
-            <p className="mt-2 text-sm text-stera-ink-soft">
-              Beheer geplande en afgewerkte onderhoudsbeurten.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
             <Link
-              href="/maintenance/new"
-              className="stera-cta stera-cta-primary"
+              href="/maintenance?tab=planned"
+              className={
+                activeTab === 'planned'
+                  ? 'rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white'
+                  : 'rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green'
+              }
             >
-              Nieuwe afspraak
+              Gepland
+              <span className="ml-2 opacity-70">{plannedCount}</span>
+            </Link>
+
+            <Link
+              href="/maintenance?tab=completed"
+              className={
+                activeTab === 'completed'
+                  ? 'rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white'
+                  : 'rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green'
+              }
+            >
+              Afgewerkt
+              <span className="ml-2 opacity-70">{completedCount}</span>
             </Link>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/maintenance?tab=planned"
-            className={
-              activeTab === 'planned'
-                ? 'stera-cta stera-cta-primary'
-                : 'stera-cta stera-cta-ghost'
-            }
-          >
-            Gepland
-          </Link>
 
           <Link
-            href="/maintenance?tab=completed"
-            className={
-              activeTab === 'completed'
-                ? 'stera-cta stera-cta-primary'
-                : 'stera-cta stera-cta-ghost'
-            }
+            href="/maintenance/new"
+            className="stera-cta stera-cta-primary"
           >
-            Voltooid / geannuleerd
+            + Nieuwe afspraak
           </Link>
         </div>
 
@@ -212,10 +206,8 @@ export default async function MaintenancePage({
           })}
 
           {!visits?.length && (
-            <div className="rounded-xl border border-dashed border-stera-line p-6 text-sm text-stera-ink-soft">
-              {activeTab === 'planned'
-                ? 'Nog geen geplande onderhoudsafspraken gevonden.'
-                : 'Nog geen voltooide of geannuleerde beurten gevonden.'}
+            <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
+              {activeTab === 'planned' ? 'Niks gepland.' : 'Niks afgewerkt.'}
             </div>
           )}
         </div>

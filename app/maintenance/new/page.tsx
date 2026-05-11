@@ -324,9 +324,7 @@ export default function NewMaintenancePage() {
                 <div className="flex flex-wrap gap-2">
                   {rooms.map((room) => {
                     const selected = selectedRoomIds.includes(room.id)
-                    const label = room.floor
-                      ? `${room.name} · ${room.floor}`
-                      : room.name
+                    const label = room.name
                     return (
                       <button
                         key={room.id}

@@ -260,7 +260,6 @@ export default async function MaintenanceDetailPage({
                         className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
                       >
                         {r.name}
-                        {r.floor ? ` · ${r.floor}` : ''}
                       </span>
                     )
                   })}
