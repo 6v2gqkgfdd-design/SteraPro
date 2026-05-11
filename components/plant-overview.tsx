@@ -257,12 +257,6 @@ export default function PlantOverview({
             </dd>
           </div>
         )}
-        {plant.status && (
-          <div>
-            <dt className="stera-eyebrow text-stera-ink-soft">Conditie</dt>
-            <dd className="mt-1 text-sm text-stera-ink">{plant.status}</dd>
-          </div>
-        )}
       </dl>
 
       {plant.care_tips && plant.care_tips.trim() && (
@@ -323,7 +317,7 @@ export default function PlantOverview({
       </section>
 
       {actions ? (
-        <div className="mt-10 flex flex-col sm:flex-row flex-wrap gap-3">
+        <div className="mt-10 flex flex-wrap justify-center gap-3 sm:justify-start">
           {actions}
         </div>
       ) : null}
