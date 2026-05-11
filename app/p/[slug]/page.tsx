@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import SteraLogo from '@/components/stera-logo'
 import AnimatedPlant, { type PlantMood } from '@/components/animated-plant'
 import PlantReportForm from './report-form'
 
@@ -163,11 +162,18 @@ export async function generateMetadata({
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
-      <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
-        <SteraLogo variant="default" />
+      <header className="px-5 py-3 sm:px-10 sm:py-6 border-b border-stera-line">
+        <span className="inline-flex items-baseline">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/stera-logo.png"
+            alt="Stera"
+            className="h-9 sm:h-11 w-auto select-none"
+          />
+        </span>
       </header>
-      <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">{children}</div>
-      <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
+      <div className="flex-1 px-5 py-4 sm:px-10 sm:py-12">{children}</div>
+      <footer className="px-5 py-3 sm:px-10 text-[10px] sm:text-xs text-stera-ink-soft border-t border-stera-line">
         © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
       </footer>
     </main>
@@ -230,24 +236,23 @@ export default async function PublicPlantPage({
 
   return (
     <Shell>
-      <div className="mx-auto w-full max-w-md space-y-6">
-        <div className="flex justify-center">
+      <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5">
+        <div className="flex items-center justify-center gap-3">
           <AnimatedPlant
             mood={deriveMood(plant)}
             seed={plant.qr_slug || plant.id}
-            className="max-w-[260px]"
+            className="max-w-[120px] sm:max-w-[180px]"
           />
-        </div>
-
-        <div className="space-y-2 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">
-            {plantTitle(plant)}
-          </h1>
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusTone}`}
-          >
-            {statusLabel}
-          </span>
+          <div className="min-w-0 flex-1 text-left">
+            <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">
+              {plantTitle(plant)}
+            </h1>
+            <span
+              className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusTone}`}
+            >
+              {statusLabel}
+            </span>
+          </div>
         </div>
 
         {plant.photo_url ? (
@@ -255,35 +260,44 @@ export default async function PublicPlantPage({
           <img
             src={plant.photo_url}
             alt={plantTitle(plant)}
-            className="aspect-square w-full rounded-2xl border border-stera-line object-cover"
+            className="h-44 w-full rounded-2xl border border-stera-line object-cover sm:h-56"
           />
         ) : (
-          <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft">
+          <div className="h-44 w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:h-56">
             Geen foto beschikbaar
           </div>
         )}
 
-        <div className="rounded-xl border border-stera-line bg-white p-4">
-          <p className="stera-eyebrow text-stera-green mb-1">
+        <div className="rounded-xl border border-stera-line bg-white p-3">
+          <p className="stera-eyebrow text-stera-green text-[10px]">
             Laatste onderhoud
           </p>
           {lastDate ? (
             <>
-              <p className="text-sm font-medium text-stera-ink">{lastDate}</p>
+              <p className="mt-0.5 text-sm font-medium text-stera-ink">
+                {lastDate}
+              </p>
               {latestVisit?.actions && latestVisit.actions.length > 0 ? (
-                <p className="mt-1 text-sm text-stera-ink-soft">
+                <p className="mt-0.5 line-clamp-1 text-xs text-stera-ink-soft">
                   {latestVisit.actions.join(' · ')}
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-stera-ink-soft">
+            <p className="mt-0.5 text-sm text-stera-ink-soft">
               Nog geen onderhoud geregistreerd.
             </p>
           )}
         </div>
 
-        <PlantReportForm slug={slug} />
+        <details className="rounded-xl border border-stera-line bg-white">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stera-green">
+            Iets opgevallen? Meld het hier →
+          </summary>
+          <div className="border-t border-stera-line p-4">
+            <PlantReportForm slug={slug} />
+          </div>
+        </details>
       </div>
     </Shell>
   )
