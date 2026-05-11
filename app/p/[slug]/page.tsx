@@ -1,7 +1,14 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import AnimatedPlant, { type PlantMood } from '@/components/animated-plant'
+import AnimatedPlant from '@/components/animated-plant'
+import {
+  getMood,
+  moodMessage,
+  statusColor,
+  statusLabel,
+  type PlantOverviewPlant,
+} from '@/components/plant-overview'
 
 type PublicPlant = {
   id: string
@@ -20,22 +27,6 @@ type PublicPlant = {
 type LatestVisit = {
   performed_at: string | null
   actions: string[]
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  healthy: 'Gezond',
-  maintenance_due: 'Onderhoud vereist',
-  needs_attention: 'Ziek',
-  replacement_needed: 'Ziek', // mapped naar nieuwe terminologie
-  dead: 'Dood',
-}
-
-const STATUS_TONES: Record<string, string> = {
-  healthy: 'bg-stera-green/10 text-stera-green',
-  maintenance_due: 'bg-amber-50 text-amber-700',
-  needs_attention: 'bg-orange-50 text-orange-700',
-  replacement_needed: 'bg-orange-50 text-orange-700',
-  dead: 'bg-red-50 text-red-700',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -57,25 +48,6 @@ function plantTitle(plant: PublicPlant): string {
     plant.plant_code ||
     'Plant'
   )
-}
-
-function deriveStatusKey(plant: PublicPlant): string {
-  if (plant.is_dead) return 'dead'
-  if (plant.needs_replacement) return 'replacement_needed'
-  if (plant.is_dying) return 'replacement_needed'
-  return plant.status || 'healthy'
-}
-
-function deriveMood(plant: PublicPlant): PlantMood {
-  if (plant.is_dead || plant.status === 'dead') return 'dead'
-  if (plant.needs_replacement || plant.is_dying) return 'dying'
-  if (
-    plant.status === 'needs_attention' ||
-    plant.status === 'maintenance_due' ||
-    plant.status === 'replacement_needed'
-  )
-    return 'needs-attention'
-  return 'healthy'
 }
 
 async function lookupPlant(slug: string): Promise<PublicPlant | null> {
@@ -228,26 +200,33 @@ export default async function PublicPlantPage({
   }
 
   const latestVisit = await lookupLatestVisit(plant.id)
-  const statusKey = deriveStatusKey(plant)
-  const statusLabel = STATUS_LABELS[statusKey] || 'Gezond'
-  const statusTone = STATUS_TONES[statusKey] || STATUS_TONES.healthy
   const lastDate = formatDate(latestVisit?.performed_at ?? null)
+
+  // Hergebruik dezelfde statusLabel/statusColor/mood-logica als de
+  // interne plant-detail pagina zodat de header er identiek uitziet.
+  const overviewPlant = {
+    ...plant,
+    notes: null,
+    location_id: null,
+    is_artificial: false,
+  } as PlantOverviewPlant
 
   return (
     <Shell>
       <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5">
-        <div className="flex items-center gap-3">
-          {(() => {
-            const mood = deriveMood(plant)
-            const ringClass =
-              mood === 'healthy'
-                ? 'ring-stera-green'
-                : mood === 'needs-attention'
-                  ? 'ring-amber-500'
-                  : mood === 'dying'
-                    ? 'ring-orange-500'
-                    : 'ring-red-500'
-            return (
+        {(() => {
+          const mood = getMood(overviewPlant)
+          const ringClass =
+            mood === 'healthy'
+              ? 'ring-stera-green'
+              : mood === 'needs-attention'
+                ? 'ring-amber-500'
+                : mood === 'dying'
+                  ? 'ring-orange-500'
+                  : 'ring-red-500'
+          const title = plantTitle(plant)
+          return (
+            <div className="flex items-center gap-3">
               <div
                 className={`w-11 shrink-0 rounded-full bg-white ring-2 ring-offset-2 ring-offset-stera-cream sm:w-14 ${ringClass}`}
               >
@@ -256,19 +235,29 @@ export default async function PublicPlantPage({
                   seed={plant.qr_slug || plant.id}
                 />
               </div>
-            )
-          })()}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">
-              {plantTitle(plant)}
-            </h1>
-            <span
-              className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusTone}`}
-            >
-              {statusLabel}
-            </span>
-          </div>
-        </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
+                  {title}
+                </h1>
+                {plant.species && plant.species !== title ? (
+                  <p className="mt-0.5 text-sm text-stera-ink-soft">
+                    {plant.species}
+                  </p>
+                ) : null}
+                <p className="mt-1 text-xs text-stera-ink-soft">
+                  {moodMessage(mood, title)}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div
+                    className={`inline-flex items-center border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColor(overviewPlant)}`}
+                  >
+                    {statusLabel(overviewPlant)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {plant.photo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
