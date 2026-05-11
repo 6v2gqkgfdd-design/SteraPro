@@ -23,8 +23,6 @@ const TABS: Tab[] = [
     icon: 'maintenance',
     matches: (p) =>
       p.startsWith('/maintenance') ||
-      p.startsWith('/plants/') ||
-      p.startsWith('/rooms/') ||
       p === '/scan' ||
       p.startsWith('/plants/search'),
   },
@@ -41,7 +39,9 @@ const TABS: Tab[] = [
     matches: (p) =>
       p === '/companies' ||
       p.startsWith('/companies/') ||
-      p.startsWith('/locations/'),
+      p.startsWith('/locations/') ||
+      p.startsWith('/rooms/') ||
+      p.startsWith('/plants/'),
   },
 ]
 

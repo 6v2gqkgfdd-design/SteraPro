@@ -38,90 +38,98 @@ export default async function CompanyDetailPage({
 
   return (
     <main className="bg-stera-cream p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-
-        <div>
-          <p className="stera-eyebrow mb-2">Klant</p>
-          <h1 className="stera-display text-3xl sm:text-4xl">{company.name}</h1>
-
-          {company.has_maintenance_contract ? (
-            <span className="mt-3 inline-flex items-center rounded-full bg-stera-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
-              Onderhoudscontract
-            </span>
-          ) : null}
-
-          <div className="mt-3 space-y-1 text-sm text-stera-ink-soft">
-            {company.contact_name && <p>Contact: {company.contact_name}</p>}
-            {company.email && <p>E-mail: {company.email}</p>}
-            {company.phone && <p>Telefoon: {company.phone}</p>}
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="space-y-1">
+          <p className="text-xs text-stera-ink-soft">
+            <Link href="/companies" className="hover:text-stera-green">
+              ← Klanten
+            </Link>
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+              {company.name}
+            </h1>
+            {company.has_maintenance_contract ? (
+              <span className="rounded-full bg-stera-green/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                Contract
+              </span>
+            ) : null}
           </div>
-
+          {(company.contact_name || company.email || company.phone) && (
+            <p className="text-sm text-stera-ink-soft">
+              {[company.contact_name, company.email, company.phone]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
           {company.notes && (
-            <p className="mt-3 text-sm text-stera-ink-soft">
-              {company.notes}
-            </p>
+            <p className="text-sm text-stera-ink-soft">{company.notes}</p>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/companies/${company.id}/locations/new`}
-            className="stera-cta stera-cta-primary"
-          >
-            Nieuwe locatie
-          </Link>
-
-          <Link
-            href={`/companies/${company.id}/edit`}
-            className="stera-cta stera-cta-secondary"
-          >
-            Klant bewerken
-          </Link>
-
-          <DeleteCompanyButton companyId={company.id} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white">
+            Locaties
+            <span className="ml-2 opacity-70">{locations?.length ?? 0}</span>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/companies/${company.id}/edit`}
+              className="rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+            >
+              Bewerken
+            </Link>
+            <DeleteCompanyButton companyId={company.id} />
+            <Link
+              href={`/companies/${company.id}/locations/new`}
+              className="stera-cta stera-cta-primary"
+            >
+              + Nieuwe locatie
+            </Link>
+          </div>
         </div>
 
-        <section className="space-y-3">
-          <p className="stera-eyebrow">Locaties</p>
-
-          {locationsError ? (
-            <p className="text-red-600">
-              Fout bij ophalen locaties: {locationsError.message}
-            </p>
-          ) : !locations || locations.length === 0 ? (
-            <div className="stera-card">
-              <p className="text-sm text-stera-ink-soft">Nog geen locaties toegevoegd.</p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {locations.map((location) => (
-                <li key={location.id} className="stera-card transition hover:border-stera-green">
-                  <Link href={`/locations/${location.id}`} className="block">
-                    <p className="font-semibold text-stera-ink">{location.name}</p>
-
-                    {location.floor && (
-                      <p className="mt-1 text-sm text-stera-ink-soft">
-                        Verdieping: {location.floor}
-                      </p>
-                    )}
-
-                    {location.room && (
-                      <p className="text-sm text-stera-ink-soft">
-                        Ruimte: {location.room}
-                      </p>
-                    )}
-
-                    {location.notes && (
-                      <p className="mt-2 text-sm text-stera-ink-soft">
-                        {location.notes}
-                      </p>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {locationsError ? (
+          <p className="text-red-600">
+            Fout bij ophalen locaties: {locationsError.message}
+          </p>
+        ) : !locations || locations.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
+            Nog geen locaties.
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {locations.map((location) => (
+              <li
+                key={location.id}
+                className="stera-card transition hover:border-stera-green"
+              >
+                <Link href={`/locations/${location.id}`} className="block">
+                  <p className="font-semibold text-stera-ink">
+                    {location.name}
+                  </p>
+                  {(location.street || location.city) && (
+                    <p className="mt-1 text-sm text-stera-ink-soft">
+                      {[
+                        [location.street, location.number]
+                          .filter(Boolean)
+                          .join(' '),
+                        location.city,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  )}
+                  {location.notes && (
+                    <p className="mt-2 text-sm text-stera-ink-soft">
+                      {location.notes}
+                    </p>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </main>
   )

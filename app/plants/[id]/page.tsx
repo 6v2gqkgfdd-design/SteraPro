@@ -37,7 +37,7 @@ export default async function PlantDetailPage({
   const { data: plant, error: plantError } = await supabase
     .from('plants')
     .select(
-      'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips'
+      'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips, is_artificial'
     )
     .eq('id', id)
     .maybeSingle()
@@ -49,7 +49,8 @@ export default async function PlantDetailPage({
   const typedPlant = plant as PlantRow
 
   const [
-    { data: latestLog },
+    { data: latestStandaloneLog },
+    { data: latestVisitPlant },
     { data: location },
     { data: room },
     { data: reports },
@@ -61,6 +62,18 @@ export default async function PlantDetailPage({
       )
       .eq('plant_id', typedPlant.id)
       .order('performed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('maintenance_visit_plants')
+      .select(
+        `notes, action_watered, action_pruned, action_cleaned, action_rotated,
+         action_fed, action_repotted, action_replaced, action_checked,
+         action_polished,
+         maintenance_visits ( id, scheduled_start, started_at, ended_at )`
+      )
+      .eq('plant_id', typedPlant.id)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
     typedPlant.location_id
@@ -86,6 +99,38 @@ export default async function PlantDetailPage({
       .order('created_at', { ascending: false })
       .limit(20),
   ])
+
+  // Bouw een PlantOverviewLog uit de meest recente visit_plant rij.
+  let visitLog: PlantOverviewLog = null
+  if (latestVisitPlant) {
+    const v = Array.isArray(latestVisitPlant.maintenance_visits)
+      ? latestVisitPlant.maintenance_visits[0]
+      : latestVisitPlant.maintenance_visits
+    const when = v?.ended_at || v?.started_at || v?.scheduled_start || null
+    if (when) {
+      visitLog = {
+        performed_at: when,
+        watered: latestVisitPlant.action_watered,
+        pruned: latestVisitPlant.action_pruned,
+        dusted: latestVisitPlant.action_cleaned,
+        rotated: latestVisitPlant.action_rotated,
+        fed: latestVisitPlant.action_fed,
+        pest_treated: false,
+        repotted: latestVisitPlant.action_repotted,
+        soil_refreshed: false,
+        polished: latestVisitPlant.action_polished,
+        notes: latestVisitPlant.notes,
+      }
+    }
+  }
+
+  // Kies de meest recente tussen het oude standalone-log en de visit-log.
+  const tStandalone = latestStandaloneLog?.performed_at
+    ? Date.parse(latestStandaloneLog.performed_at)
+    : 0
+  const tVisit = visitLog?.performed_at ? Date.parse(visitLog.performed_at) : 0
+  const latestLog: PlantOverviewLog =
+    tVisit > tStandalone ? visitLog : (latestStandaloneLog as PlantOverviewLog)
 
   const reportRows = (reports ?? []) as PlantReportRow[]
 

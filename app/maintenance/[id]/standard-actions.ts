@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
   STANDARD_MAINTENANCE_ACTIONS,
+  STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL,
   STANDARD_MAINTENANCE_HEALTH_STATUS,
 } from '@/lib/standard-maintenance'
 
@@ -39,7 +40,7 @@ export async function applyStandardMaintenance(formData: FormData) {
   // 2) Alle planten op de locatie.
   const { data: plants, error: plantsErr } = await supabase
     .from('plants')
-    .select('id')
+    .select('id, is_artificial')
     .eq('location_id', visit.location_id)
 
   if (plantsErr) {
@@ -67,11 +68,14 @@ export async function applyStandardMaintenance(formData: FormData) {
   }
 
   // 4) Bulk-insert visit_plant records met standaard acties.
-  const rows = toApply.map((p) => ({
+  // Plastiek/kunstplanten krijgen een ander set van vinkjes.
+  const rows = toApply.map((p: any) => ({
     visit_id: visitId,
     plant_id: p.id,
     health_status: STANDARD_MAINTENANCE_HEALTH_STATUS,
-    ...STANDARD_MAINTENANCE_ACTIONS,
+    ...(p.is_artificial
+      ? STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL
+      : STANDARD_MAINTENANCE_ACTIONS),
   }))
 
   const { error: insertErr } = await supabase

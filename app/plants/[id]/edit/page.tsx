@@ -16,6 +16,7 @@ export default function EditPlantPage() {
   const [nickname, setNickname] = useState('')
   const [species, setSpecies] = useState('')
   const [status, setStatus] = useState('healthy')
+  const [isArtificial, setIsArtificial] = useState(false)
   const [notes, setNotes] = useState('')
   const [potSizeCode, setPotSizeCode] = useState('')
 
@@ -30,7 +31,9 @@ export default function EditPlantPage() {
     async function load() {
       const { data, error } = await supabase
         .from('plants')
-        .select('nickname, species, status, notes, pot_size_code')
+        .select(
+          'nickname, species, status, notes, pot_size_code, is_artificial'
+        )
         .eq('id', plantId)
         .maybeSingle()
 
@@ -45,6 +48,7 @@ export default function EditPlantPage() {
       setNickname(data.nickname ?? '')
       setSpecies(data.species ?? '')
       setStatus(data.status ?? 'healthy')
+      setIsArtificial(Boolean(data.is_artificial))
       setNotes(data.notes ?? '')
       setPotSizeCode(data.pot_size_code ?? '')
       setLoading(false)
@@ -70,6 +74,7 @@ export default function EditPlantPage() {
         nickname: nickname.trim() || null,
         species: species.trim() || null,
         status,
+        is_artificial: isArtificial,
         notes: notes.trim() || null,
         pot_size_code: potSizeCode || null,
       })
@@ -138,6 +143,23 @@ export default function EditPlantPage() {
                 <option value="dead">Dood</option>
               </select>
             </div>
+
+            <label className="flex items-start gap-3 rounded-lg border border-stera-line bg-white p-3">
+              <input
+                type="checkbox"
+                checked={isArtificial}
+                onChange={(e) => setIsArtificial(e.target.checked)}
+                className="mt-1"
+              />
+              <span className="text-sm">
+                <span className="block font-medium">
+                  Plastiek / kunst plant
+                </span>
+                <span className="block text-stera-ink-soft">
+                  Krijgt geen water of voeding — enkel controle + bladglans.
+                </span>
+              </span>
+            </label>
 
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">

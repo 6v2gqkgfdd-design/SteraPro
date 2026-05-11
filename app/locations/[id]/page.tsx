@@ -73,95 +73,93 @@ export default async function LocationDetailPage({
 
   return (
     <main className="bg-stera-cream p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-
-        <div>
-          <p className="stera-eyebrow mb-2">Locatie</p>
-          <h1 className="stera-display text-3xl sm:text-4xl">{location.name}</h1>
-
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="space-y-1">
+          <p className="text-xs text-stera-ink-soft">
+            {location.companies?.id ? (
+              <Link
+                href={`/companies/${location.companies.id}`}
+                className="hover:text-stera-green"
+              >
+                ← {location.companies.name || 'Klant'}
+              </Link>
+            ) : null}
+          </p>
+          <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+            {location.name}
+          </h1>
           {fullAddress && (
-            <p className="mt-3 text-sm text-stera-ink-soft">{fullAddress}</p>
+            <p className="text-sm text-stera-ink-soft">{fullAddress}</p>
           )}
-
           {location.notes && (
-            <p className="mt-3 text-sm text-stera-ink-soft">{location.notes}</p>
+            <p className="text-sm text-stera-ink-soft">{location.notes}</p>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/locations/${location.id}/rooms/new`}
-            className="stera-cta stera-cta-primary"
-          >
-            Nieuwe ruimte
-          </Link>
-
-          <Link
-            href={`/locations/${location.id}/edit`}
-            className="stera-cta stera-cta-secondary"
-          >
-            Locatie bewerken
-          </Link>
-
-          <Link
-            href={`/locations/${location.id}/qr`}
-            className="stera-cta stera-cta-ghost"
-          >
-            QR-labels
-          </Link>
-
-          <DeleteLocationButton
-            locationId={location.id}
-            companyId={location.company_id}
-          />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="rounded-full bg-stera-green px-4 py-1.5 text-sm font-semibold text-white">
+            Ruimtes
+            <span className="ml-2 opacity-70">{rooms?.length ?? 0}</span>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/locations/${location.id}/edit`}
+              className="rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+            >
+              Bewerken
+            </Link>
+            <Link
+              href={`/locations/${location.id}/qr`}
+              className="rounded-full border border-stera-line bg-white px-4 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+            >
+              QR-labels
+            </Link>
+            <DeleteLocationButton
+              locationId={location.id}
+              companyId={location.company_id}
+            />
+            <Link
+              href={`/locations/${location.id}/rooms/new`}
+              className="stera-cta stera-cta-primary"
+            >
+              + Nieuwe ruimte
+            </Link>
+          </div>
         </div>
 
-        <section className="space-y-3">
-          <p className="stera-eyebrow">Ruimtes</p>
-
-          {!rooms || rooms.length === 0 ? (
-            <div className="stera-card">
-              <p className="text-sm text-stera-ink-soft">
-                Nog geen ruimtes aangemaakt. Klik op{' '}
-                <span className="font-semibold">Nieuwe ruimte</span> om er een toe
-                te voegen (bv. receptie, vergaderzaal, lokaal 3.04).
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {(rooms as RoomRow[]).map((room) => {
-                const plantCount = plantCountByRoom.get(room.id) ?? 0
-                return (
-                  <li
-                    key={room.id}
-                    className="stera-card transition hover:border-stera-green"
-                  >
-                    <Link href={`/rooms/${room.id}`} className="block">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="font-semibold text-stera-ink">
-                          {room.name || 'Ruimte'}
-                        </p>
-                        <p className="text-xs text-stera-ink-soft">
-                          {plantCount} {plantCount === 1 ? 'plant' : 'planten'}
-                        </p>
-                      </div>
-                      {room.floor && (
-                        <p className="mt-1 text-sm text-stera-ink-soft">
-                          Verdieping: {room.floor}
-                        </p>
-                      )}
-                      {room.notes && (
-                        <p className="mt-2 text-sm text-stera-ink-soft">
-                          {room.notes}
-                        </p>
-                      )}
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
+        {!rooms || rooms.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
+            Nog geen ruimtes. Maak er één voor receptie, vergaderzaal, lokaal 3.04, ...
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {(rooms as RoomRow[]).map((room) => {
+              const plantCount = plantCountByRoom.get(room.id) ?? 0
+              return (
+                <li
+                  key={room.id}
+                  className="stera-card transition hover:border-stera-green"
+                >
+                  <Link href={`/rooms/${room.id}`} className="block">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="font-semibold text-stera-ink">
+                        {room.name || 'Ruimte'}
+                      </p>
+                      <p className="text-xs text-stera-ink-soft">
+                        {plantCount} {plantCount === 1 ? 'plant' : 'planten'}
+                      </p>
+                    </div>
+                    {room.notes && (
+                      <p className="mt-2 text-sm text-stera-ink-soft">
+                        {room.notes}
+                      </p>
+                    )}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
     </main>
   )

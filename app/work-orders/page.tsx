@@ -2,21 +2,23 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
-type Status = 'draft' | 'sent' | 'signed'
+type Status = 'draft' | 'sent' | 'signed' | 'archived'
 
 const STATUS_LABEL: Record<Status, string> = {
   draft: 'Nog te versturen',
   sent: 'Wachten op tekenen',
   signed: 'Goedgekeurd',
+  archived: 'Gearchiveerd',
 }
 
 const STATUS_TONE: Record<Status, string> = {
   draft: 'bg-amber-50 text-amber-700',
   sent: 'bg-blue-50 text-blue-700',
   signed: 'bg-stera-green/10 text-stera-green',
+  archived: 'bg-stera-cream-deep text-stera-ink-soft',
 }
 
-const TAB_ORDER: Status[] = ['draft', 'sent', 'signed']
+const TAB_ORDER: Status[] = ['draft', 'sent', 'signed', 'archived']
 
 function formatDate(value: string | null) {
   if (!value) return ''
@@ -80,11 +82,14 @@ export default async function WorkOrdersPage({
     }
   }
 
-  const groups: Record<Status, any[]> = { draft: [], sent: [], signed: [] }
+  const groups: Record<Status, any[]> = {
+    draft: [], sent: [], signed: [], archived: [],
+  }
   for (const row of rows ?? []) {
     if (row.status === 'draft') groups.draft.push(row)
     else if (row.status === 'sent') groups.sent.push(row)
     else if (row.status === 'signed') groups.signed.push(row)
+    else if (row.status === 'archived') groups.archived.push(row)
   }
 
   const active = groups[activeTab]
@@ -118,6 +123,7 @@ export default async function WorkOrdersPage({
             {activeTab === 'draft' && 'Geen openstaande werkbonnen.'}
             {activeTab === 'sent' && 'Geen werkbonnen wachtend op de klant.'}
             {activeTab === 'signed' && 'Nog geen ondertekende werkbonnen.'}
+            {activeTab === 'archived' && 'Nog geen gearchiveerde werkbonnen.'}
           </div>
         ) : (
           <ul className="space-y-3">

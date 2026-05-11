@@ -22,4 +22,16 @@ export const STANDARD_MAINTENANCE_ACTIONS = {
   //   action_replaced (alleen indien nodig)
 } as const
 
+// Plastiek / kunstplanten krijgen geen water, voeding, snoei of draaien —
+// enkel een snelle controle + bladglans-spuitbus.
+export const STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL = {
+  action_checked: true,
+  action_watered: false,
+  action_pruned: false,
+  action_fed: false,
+  action_rotated: false,
+  action_polished: true,
+  action_cleaned: true, // even afstoffen mag wel
+} as const
+
 export const STANDARD_MAINTENANCE_HEALTH_STATUS = 'healthy'

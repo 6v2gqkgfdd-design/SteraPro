@@ -193,12 +193,24 @@ export default function MaintenanceActions({ visit }: { visit: any }) {
         },
       ])
 
-      // Genereer automatisch een werkbon (status = draft) zodat Jelle
-      // hem kan reviewen en versturen. Als er al een werkbon bestaat
-      // (bv. ondergedrong door re-end) doet de ON CONFLICT niets.
+      // Genereer automatisch een werkbon. Voor contract-klanten meteen
+      // 'archived' (interne admin, geen verstuur/teken-flow). Anders
+      // 'draft' zodat Jelle kan reviewen + versturen.
+      let initialStatus: 'draft' | 'archived' = 'draft'
+      if (visit.company_id) {
+        const { data: company } = await supabase
+          .from('companies')
+          .select('has_maintenance_contract')
+          .eq('id', visit.company_id)
+          .maybeSingle()
+        if (company?.has_maintenance_contract) {
+          initialStatus = 'archived'
+        }
+      }
+
       const { error: workOrderError } = await supabase
         .from('work_orders')
-        .insert([{ visit_id: visit.id }])
+        .insert([{ visit_id: visit.id, status: initialStatus }])
       // 23505 = unique_violation: er is al een werkbon. Dat is OK.
       if (workOrderError && workOrderError.code !== '23505') {
         console.error('[work_orders] auto-create failed', workOrderError)

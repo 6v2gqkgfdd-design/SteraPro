@@ -16,6 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
   sent: 'Wachten op goedkeuring',
   signed: 'Goedgekeurd',
   cancelled: 'Geannuleerd',
+  archived: 'Gearchiveerd',
 }
 
 const LIGHT_LABELS: Record<'high' | 'medium' | 'low', string> = {
@@ -177,6 +178,27 @@ export default async function WorkOrderDetailPage({
             ) : null}
           </div>
         </div>
+
+        {workOrder.status === 'archived' ? (
+          <div className="stera-card border-stera-line/40 bg-stera-cream-deep/30">
+            <p className="stera-eyebrow mb-2">Gearchiveerd</p>
+            <p className="text-sm text-stera-ink">
+              Deze werkbon is automatisch gearchiveerd omdat{' '}
+              <strong>{company?.name || 'de klant'}</strong> een
+              onderhoudscontract heeft. Geen verzending of handtekening
+              nodig — dient enkel als interne registratie.
+            </p>
+            {replacements.length > 0 ? (
+              <p className="mt-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <strong>Let op:</strong> deze beurt bevat{' '}
+                {replacements.length} plant
+                {replacements.length === 1 ? '' : 'en'} voor vervanging.
+                Vervangingen zitten <em>niet</em> in het contract — maak
+                hiervoor een aparte offerte op.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {workOrder.status === 'draft' ? (
           <div className="stera-card border-stera-green/40">

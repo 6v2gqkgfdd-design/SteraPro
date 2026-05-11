@@ -42,6 +42,7 @@ export default function NewPlantInRoomPage() {
   const [referenceCode, setReferenceCode] = useState('')
   const [species, setSpecies] = useState('')
   const [status, setStatus] = useState('healthy')
+  const [isArtificial, setIsArtificial] = useState(false)
   const [notes, setNotes] = useState('')
   const [potSizeCode, setPotSizeCode] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -231,6 +232,7 @@ export default function NewPlantInRoomPage() {
             ai_suggested_species: aiSuggestedSpecies || null,
             ai_confidence: aiConfidence,
             pot_size_code: potSizeCode || null,
+            is_artificial: isArtificial,
           },
         ])
         .select('id')
@@ -360,6 +362,24 @@ export default function NewPlantInRoomPage() {
             <option value="replacement_needed">Vervanging nodig</option>
             <option value="dead">Dood</option>
           </select>
+
+          <label className="flex items-start gap-3 rounded-lg border border-stera-line bg-white p-3">
+            <input
+              type="checkbox"
+              checked={isArtificial}
+              onChange={(e) => setIsArtificial(e.target.checked)}
+              className="mt-1"
+            />
+            <span className="text-sm">
+              <span className="block font-medium">
+                Plastiek / kunst plant
+              </span>
+              <span className="block text-stera-ink-soft">
+                Krijgt geen water of voeding tijdens onderhoud — enkel een
+                snelle controle en bladglans.
+              </span>
+            </span>
+          </label>
 
           <select
             value={potSizeCode}

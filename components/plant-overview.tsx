@@ -15,6 +15,7 @@ export type PlantOverviewPlant = {
   is_dying: boolean | null
   needs_replacement: boolean | null
   care_tips?: string | null
+  is_artificial?: boolean | null
 }
 
 export type PlantOverviewLocation = {
@@ -156,10 +157,17 @@ export default function PlantOverview({
           <p className="mt-3 text-sm text-stera-ink">
             {moodMessage(mood, title)}
           </p>
-          <div
-            className={`mt-3 inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusColor(plant)}`}
-          >
-            {statusLabel(plant)}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div
+              className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusColor(plant)}`}
+            >
+              {statusLabel(plant)}
+            </div>
+            {plant.is_artificial ? (
+              <span className="inline-flex items-center rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-ink">
+                Plastiek
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
