@@ -247,8 +247,8 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-semibold">Verbruiksgoederen</h2>
-        <p className="text-sm text-gray-600">
+        <p className="stera-eyebrow">Verbruiksgoederen</p>
+        <p className="mt-1 text-sm text-stera-ink-soft">
           Wat heb je tijdens deze beurt gebruikt? Komt mee in het rapport voor de klant.
         </p>
       </div>

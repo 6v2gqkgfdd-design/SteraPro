@@ -22,6 +22,9 @@ export default async function MaintenancePlantSelectPage({
       locations (
         id,
         name
+      ),
+      maintenance_visit_rooms (
+        rooms ( id, name )
       )
     `)
     .eq('id', id)
@@ -41,17 +44,36 @@ export default async function MaintenancePlantSelectPage({
     ? (locationData[0]?.name || 'Onbekende locatie')
     : (locationData?.name || 'Onbekende locatie')
 
-  const { data: plants, error: plantsError } = await supabase
+  // Gekoppelde ruimtes — als die er zijn, scopen we de planten-lijst
+  // tot die ruimtes. Zo niet: alle planten op de locatie.
+  const visitRooms: Array<{ id: string; name: string | null }> = Array.isArray(
+    visit.maintenance_visit_rooms
+  )
+    ? visit.maintenance_visit_rooms
+        .map((mvr: any) => {
+          const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+          return r as { id: string; name: string | null } | null
+        })
+        .filter((r): r is { id: string; name: string | null } => Boolean(r))
+    : []
+  const visitRoomIds = visitRooms.map((r) => r.id)
+  const visitRoomLabel = visitRooms
+    .map((r) => r.name)
+    .filter(Boolean)
+    .join(', ')
+
+  let plantsQuery = supabase
     .from('plants')
-    .select(`
-      id,
-      nickname,
-      species,
-      reference_code,
-      location_id
-    `)
-    .eq('location_id', currentLocationId)
-    .order('nickname', { ascending: true })
+    .select(`id, nickname, species, reference_code, location_id, room_id`)
+  if (visitRoomIds.length > 0) {
+    plantsQuery = plantsQuery.in('room_id', visitRoomIds)
+  } else {
+    plantsQuery = plantsQuery.eq('location_id', currentLocationId)
+  }
+  const { data: plants, error: plantsError } = await plantsQuery.order(
+    'nickname',
+    { ascending: true }
+  )
 
   async function addExistingPlant(formData: FormData) {
     'use server'
@@ -65,7 +87,7 @@ export default async function MaintenancePlantSelectPage({
 
     const { data: existingPlant, error: plantError } = await supabase
       .from('plants')
-      .select('id, location_id')
+      .select('id, location_id, room_id')
       .eq('id', plantId)
       .single()
 
@@ -73,8 +95,19 @@ export default async function MaintenancePlantSelectPage({
       redirect(`/maintenance/${id}/plants/select?error=Plant niet gevonden`)
     }
 
-    if (existingPlant.location_id !== currentLocationId) {
-      redirect(`/maintenance/${id}/plants/select?error=Deze plant hoort niet bij deze locatie`)
+    if (visitRoomIds.length > 0) {
+      if (
+        !existingPlant.room_id ||
+        !visitRoomIds.includes(existingPlant.room_id)
+      ) {
+        redirect(
+          `/maintenance/${id}/plants/select?error=Deze plant hoort niet bij een ruimte van deze beurt`
+        )
+      }
+    } else if (existingPlant.location_id !== currentLocationId) {
+      redirect(
+        `/maintenance/${id}/plants/select?error=Deze plant hoort niet bij deze locatie`
+      )
     }
 
     redirect(`/maintenance/${id}/plants/${plantId}`)
@@ -88,18 +121,20 @@ export default async function MaintenancePlantSelectPage({
             <p className="stera-eyebrow mb-2">Onderhoud · Planten</p>
             <h1 className="stera-display text-3xl sm:text-4xl">Bestaande plant kiezen</h1>
             <p className="mt-2 text-sm text-stera-ink-soft">Onderhoud: {visit.title}</p>
-            <p className="text-sm text-stera-ink-soft">Locatie: {locationName}</p>
+            <p className="text-sm text-stera-ink-soft">
+              Locatie: {locationName}
+              {visitRoomLabel ? ` · ${visitRoomLabel}` : ''}
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href={`/maintenance/${id}/plants`}
+              href={`/maintenance/${id}`}
               className="stera-cta stera-cta-ghost"
             >
               Terug
             </Link>
-
-            </div>
+          </div>
         </div>
 
         {query?.error && (
@@ -112,7 +147,9 @@ export default async function MaintenancePlantSelectPage({
           <p className="text-red-600">Fout bij ophalen van planten.</p>
         ) : !plants || plants.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stera-line p-6 text-sm text-stera-ink-soft">
-            Er zijn nog geen planten geregistreerd op deze locatie.
+            {visitRoomLabel
+              ? `Er zijn nog geen planten in ${visitRoomLabel}.`
+              : 'Er zijn nog geen planten geregistreerd op deze locatie.'}
           </div>
         ) : (
           <form action={addExistingPlant} className="stera-card space-y-5">
@@ -138,21 +175,12 @@ export default async function MaintenancePlantSelectPage({
               </select>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                className="stera-cta stera-cta-primary"
-              >
-                Verder naar onderhoud
-              </button>
-
-              <Link
-                href={`/maintenance/${id}/plants`}
-                className="stera-cta stera-cta-ghost"
-              >
-                Annuleren
-              </Link>
-            </div>
+            <button
+              type="submit"
+              className="stera-cta stera-cta-primary"
+            >
+              Verder naar onderhoud
+            </button>
           </form>
         )}
       </div>

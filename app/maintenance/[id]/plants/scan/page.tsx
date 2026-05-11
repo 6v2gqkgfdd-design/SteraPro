@@ -252,7 +252,7 @@ export default function MaintenancePlantScanPage() {
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href={`/maintenance/${visitId}/plants`}
+              href={`/maintenance/${visitId}`}
               className="stera-cta stera-cta-ghost"
             >
               Terug
