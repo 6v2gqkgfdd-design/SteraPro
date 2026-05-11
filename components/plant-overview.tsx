@@ -88,25 +88,29 @@ export function moodMessage(mood: PlantMood, _name: string): string {
     case 'healthy':
       return 'Voelt zich kiplekker.'
     case 'needs-attention':
-      return 'Kan wat extra aandacht gebruiken.'
+      return 'Heeft onderhoud nodig.'
     case 'dying':
-      return 'Heeft het moeilijk en heeft snel hulp nodig.'
+      return 'Lijkt ziek — opvolgen.'
     case 'dead':
       return 'Heeft het laatste blaadje gegeven.'
   }
 }
 
 export function statusLabel(plant: PlantOverviewPlant): string {
-  switch (getMood(plant)) {
-    case 'dead':
-      return 'Plant is dood'
-    case 'dying':
-      return 'Plant is stervend'
-    case 'needs-attention':
-      return 'Vraagt aandacht'
-    case 'healthy':
-      return 'Gezond'
+  // De vier officiële labels die Stera Pro gebruikt:
+  //   Gezond · Onderhoud vereist · Ziek · Dood
+  // Oude waarden (replacement_needed, dying-flags) worden mee omgevormd.
+  if (plant.is_dead || plant.status === 'dead') return 'Dood'
+  if (plant.status === 'maintenance_due') return 'Onderhoud vereist'
+  if (
+    plant.status === 'needs_attention' ||
+    plant.status === 'replacement_needed' ||
+    plant.is_dying ||
+    plant.needs_replacement
+  ) {
+    return 'Ziek'
   }
+  return 'Gezond'
 }
 
 export function statusColor(plant: PlantOverviewPlant): string {
@@ -149,28 +153,40 @@ export default function PlantOverview({
       {headerMenu ? (
         <div className="absolute right-0 top-0 z-10">{headerMenu}</div>
       ) : null}
-      <div className="mb-6 flex flex-col items-center text-center sm:flex-row sm:items-center sm:gap-6 sm:text-left">
-        <div className="w-48 sm:w-56 shrink-0">
+      <div className="mb-6 flex items-center gap-3 pr-14">
+        <div
+          className={`w-11 shrink-0 rounded-full bg-white ring-2 ring-offset-2 ring-offset-stera-cream sm:w-14 ${
+            mood === 'healthy'
+              ? 'ring-stera-green'
+              : mood === 'needs-attention'
+                ? 'ring-amber-500'
+                : mood === 'dying'
+                  ? 'ring-orange-500'
+                  : 'ring-red-500'
+          }`}
+        >
           <AnimatedPlant mood={mood} />
         </div>
-        <div className="mt-4 sm:mt-0">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
             {title}
           </h1>
           {plant.species && plant.species !== title && (
-            <p className="mt-1 text-base text-stera-ink-soft">{plant.species}</p>
+            <p className="mt-0.5 text-sm text-stera-ink-soft">
+              {plant.species}
+            </p>
           )}
-          <p className="mt-3 text-sm text-stera-ink">
+          <p className="mt-1 text-xs text-stera-ink-soft">
             {moodMessage(mood, title)}
           </p>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <div
-              className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${statusColor(plant)}`}
+              className={`inline-flex items-center border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColor(plant)}`}
             >
               {statusLabel(plant)}
             </div>
             {plant.is_artificial ? (
-              <span className="inline-flex items-center rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-ink">
+              <span className="inline-flex items-center rounded-full bg-stera-cream-deep px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stera-ink">
                 Plastiek
               </span>
             ) : null}

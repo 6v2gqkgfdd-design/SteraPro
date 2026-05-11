@@ -17,9 +17,9 @@ const ACTION_LABELS: Record<string, string> = {
 
 const HEALTH_LABELS: Record<string, string> = {
   healthy: 'Gezond',
-  needs_attention: 'Heeft aandacht nodig',
   maintenance_due: 'Onderhoud vereist',
-  replacement_needed: 'Vervanging nodig',
+  needs_attention: 'Ziek',
+  replacement_needed: 'Ziek',
   dead: 'Dood',
 }
 

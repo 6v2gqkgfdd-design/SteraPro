@@ -24,17 +24,17 @@ type LatestVisit = {
 
 const STATUS_LABELS: Record<string, string> = {
   healthy: 'Gezond',
-  needs_attention: 'Heeft aandacht nodig',
   maintenance_due: 'Onderhoud vereist',
-  replacement_needed: 'Vervanging nodig',
+  needs_attention: 'Ziek',
+  replacement_needed: 'Ziek', // mapped naar nieuwe terminologie
   dead: 'Dood',
 }
 
 const STATUS_TONES: Record<string, string> = {
   healthy: 'bg-stera-green/10 text-stera-green',
-  needs_attention: 'bg-amber-50 text-amber-700',
   maintenance_due: 'bg-amber-50 text-amber-700',
-  replacement_needed: 'bg-red-50 text-red-700',
+  needs_attention: 'bg-orange-50 text-orange-700',
+  replacement_needed: 'bg-orange-50 text-orange-700',
   dead: 'bg-red-50 text-red-700',
 }
 
@@ -162,14 +162,14 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-3 sm:px-10 sm:py-6 border-b border-stera-line">
-        <span className="inline-flex items-baseline">
+        <Link href="/dashboard" className="inline-flex items-baseline">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/stera-logo.png"
             alt="Stera"
             className="h-9 sm:h-11 w-auto select-none"
           />
-        </span>
+        </Link>
       </header>
       <div className="flex-1 px-5 py-4 sm:px-10 sm:py-12">{children}</div>
       <footer className="px-5 py-3 sm:px-10 text-[10px] sm:text-xs text-stera-ink-soft border-t border-stera-line">

@@ -378,11 +378,10 @@ export default function NewPlantPage() {
             onChange={(e) => setStatus(e.target.value)}
             className="w-full rounded-lg border border-stera-line bg-white p-3"
           >
-            <option value="healthy">Healthy</option>
-            <option value="needs_attention">Needs attention</option>
-            <option value="maintenance_due">Maintenance due</option>
-            <option value="replacement_needed">Replacement needed</option>
-            <option value="dead">Dead</option>
+            <option value="healthy">Gezond</option>
+            <option value="maintenance_due">Onderhoud vereist</option>
+            <option value="needs_attention">Ziek</option>
+            <option value="dead">Dood</option>
           </select>
 
           <select

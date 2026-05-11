@@ -137,9 +137,8 @@ export default function EditPlantPage() {
                 className="w-full rounded-lg border border-stera-line bg-white p-3"
               >
                 <option value="healthy">Gezond</option>
-                <option value="needs_attention">Vraagt aandacht</option>
                 <option value="maintenance_due">Onderhoud vereist</option>
-                <option value="replacement_needed">Vervanging nodig</option>
+                <option value="needs_attention">Ziek</option>
                 <option value="dead">Dood</option>
               </select>
             </div>
