@@ -118,6 +118,17 @@ export default async function WorkOrderDetailPage({
 
   if (!visit) notFound()
 
+  // Markeer een goedgekeurde werkbon als gezien zodra Jelle 'm opent —
+  // zo verdwijnt de dashboard-melding vanzelf. Faalt silent als de
+  // kolom nog niet bestaat (migration nog niet gerund).
+  if (workOrder.status === 'signed' && !workOrder.acknowledged_at) {
+    await supabase
+      .from('work_orders')
+      .update({ acknowledged_at: new Date().toISOString() })
+      .eq('id', workOrder.id)
+      .then(() => {}, () => {})
+  }
+
   const company = Array.isArray(visit.companies) ? visit.companies[0] : visit.companies
   const location = Array.isArray(visit.locations) ? visit.locations[0] : visit.locations
   const hasContract = Boolean(company?.has_maintenance_contract)

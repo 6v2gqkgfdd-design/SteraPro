@@ -35,6 +35,7 @@ export default async function DashboardPage() {
     { data: upcomingVisits },
     { data: flaggedVisitPlants },
     { data: openReports },
+    { data: newlySignedWorkOrders },
     weather,
   ] = await Promise.all([
     // Vandaag — alleen open beurten (geen voltooide/geannuleerde)
@@ -82,6 +83,22 @@ export default async function DashboardPage() {
       )
       .in('status', ['new', 'seen'])
       .order('created_at', { ascending: false })
+      .limit(10),
+
+    // Net goedgekeurde werkbonnen die Jelle nog niet heeft gezien.
+    // Acknowledged_at wordt gezet zodra hij de werkbon-detailpagina opent.
+    supabase
+      .from('work_orders')
+      .select(
+        `id, signed_at, signed_name,
+         maintenance_visits (
+           title,
+           locations ( name, companies ( name ) )
+         )`
+      )
+      .eq('status', 'signed')
+      .is('acknowledged_at', null)
+      .order('signed_at', { ascending: false })
       .limit(10),
 
     // Weersverwachting (faalveilig — null als API down is)
@@ -223,6 +240,53 @@ export default async function DashboardPage() {
           </p>
           <p className="text-xs text-stera-ink-soft">{todayLabel}</p>
         </div>
+
+        {/* Net goedgekeurde werkbonnen — melding tot Jelle ze opent */}
+        {newlySignedWorkOrders && newlySignedWorkOrders.length > 0 ? (
+          <section className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-3 sm:p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-green mb-2">
+              {newlySignedWorkOrders.length === 1
+                ? '1 werkbon goedgekeurd'
+                : `${newlySignedWorkOrders.length} werkbonnen goedgekeurd`}
+            </p>
+            <ul className="space-y-1.5">
+              {newlySignedWorkOrders.map((wo: any) => {
+                const v = Array.isArray(wo.maintenance_visits)
+                  ? wo.maintenance_visits[0]
+                  : wo.maintenance_visits
+                const loc = Array.isArray(v?.locations)
+                  ? v.locations[0]
+                  : v?.locations
+                const company = Array.isArray(loc?.companies)
+                  ? loc.companies[0]
+                  : loc?.companies
+                const subtitle = [company?.name, loc?.name]
+                  .filter(Boolean)
+                  .join(' · ')
+                return (
+                  <li key={wo.id}>
+                    <Link
+                      href={`/work-orders/${wo.id}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm hover:bg-stera-green/10"
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium text-stera-ink">
+                          {v?.title || 'Onderhoud'}
+                        </span>
+                        {subtitle ? (
+                          <span className="text-stera-ink-soft"> · {subtitle}</span>
+                        ) : null}
+                      </span>
+                      <span className="shrink-0 text-xs text-stera-ink-soft">
+                        {wo.signed_name ? `door ${wo.signed_name}` : 'getekend'}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
 
         {/* KPI-tegels */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
