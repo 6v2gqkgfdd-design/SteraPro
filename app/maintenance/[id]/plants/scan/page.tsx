@@ -69,6 +69,7 @@ export default function MaintenancePlantScanPage() {
   const [startingScanner, setStartingScanner] = useState(false)
   const [scanResult, setScanResult] = useState('')
   const [error, setError] = useState('')
+  const [workOrderLocked, setWorkOrderLocked] = useState(false)
 
   useEffect(() => {
     async function loadVisit() {
@@ -103,6 +104,17 @@ export default function MaintenancePlantScanPage() {
       setVisitTitle(data.title || '')
       setLocationId(data.location_id || '')
       setLocationName(resolvedLocationName)
+
+      // Werkbon goedgekeurd/gefactureerd → scanner niet opstarten
+      const { data: wo } = await supabase
+        .from('work_orders')
+        .select('status')
+        .eq('visit_id', visitId)
+        .maybeSingle()
+      setWorkOrderLocked(
+        wo?.status === 'signed' || wo?.status === 'invoiced'
+      )
+
       setLoadingVisit(false)
     }
 
@@ -113,6 +125,7 @@ export default function MaintenancePlantScanPage() {
 
   useEffect(() => {
     if (loadingVisit || !locationId) return
+    if (workOrderLocked) return // werkbon vast → scanner niet starten
 
     let cancelled = false
 
@@ -230,6 +243,28 @@ export default function MaintenancePlantScanPage() {
       }
     }
   }, [loadingVisit, locationId, router, supabase, visitId])
+
+  if (workOrderLocked) {
+    return (
+      <main className="bg-stera-cream p-6">
+        <div className="mx-auto max-w-2xl space-y-4">
+          <Link
+            href={`/maintenance/${visitId}`}
+            className="text-sm text-stera-green underline-offset-4 hover:underline"
+          >
+            ← Terug naar onderhoud
+          </Link>
+          <div className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-4 text-sm">
+            <p className="font-semibold text-stera-green">Werkbon staat vast</p>
+            <p className="mt-1 text-stera-ink-soft">
+              Geen planten meer scannen voor deze beurt — de werkbon is
+              goedgekeurd of gefactureerd.
+            </p>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="bg-stera-cream p-6">

@@ -132,6 +132,10 @@ export default function EditMaintenancePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!visitId) return
+    if (workOrderLocked) {
+      setError('Werkbon staat vast — geen wijzigingen meer mogelijk.')
+      return
+    }
     setSaving(true)
     setError('')
 
@@ -202,7 +206,21 @@ export default function EditMaintenancePage() {
           )}
         </div>
 
+        {workOrderLocked ? (
+          <div className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-4 text-sm">
+            <p className="font-semibold text-stera-green">
+              Werkbon staat vast
+            </p>
+            <p className="mt-1 text-stera-ink-soft">
+              De klant heeft de werkbon goedgekeurd (of de beurt is al
+              gefactureerd) — wijzigingen aan deze beurt zijn niet meer
+              mogelijk.
+            </p>
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="stera-card space-y-5">
+          <fieldset disabled={workOrderLocked} className="space-y-5 contents">
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-stera-green">
               Ruimte(s)
@@ -392,6 +410,7 @@ export default function EditMaintenancePage() {
           </div>
 
           {error && <p className="text-red-600">{error}</p>}
+          </fieldset>
         </form>
       </div>
     </main>

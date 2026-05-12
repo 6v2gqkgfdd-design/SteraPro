@@ -66,6 +66,7 @@ export default function MaintenanceNewPlantPage() {
 
   const [nicknameLoading, setNicknameLoading] = useState(false)
   const [nicknameEditedByUser, setNicknameEditedByUser] = useState(false)
+  const [workOrderLocked, setWorkOrderLocked] = useState(false)
 
   useEffect(() => {
     setReferenceCode(generateReferenceCode())
@@ -120,6 +121,16 @@ export default function MaintenanceNewPlantPage() {
       setLocationId(data.location_id || '')
       setCompanyId(data.company_id || '')
       setLocationName(resolvedLocationName)
+
+      // Werkbon-status: gelockt voor goedgekeurde of gefactureerde beurten
+      const { data: wo } = await supabase
+        .from('work_orders')
+        .select('status')
+        .eq('visit_id', visitId)
+        .maybeSingle()
+      setWorkOrderLocked(
+        wo?.status === 'signed' || wo?.status === 'invoiced'
+      )
 
       // Ruimtes scopen tot wat in deze beurt gepland staat.
       // Geen ruimtes gekoppeld? → fallback naar alle ruimtes van de locatie.
@@ -248,6 +259,10 @@ export default function MaintenanceNewPlantPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (workOrderLocked) {
+      setError('Werkbon staat vast — geen nieuwe planten toevoegen.')
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -387,7 +402,20 @@ export default function MaintenanceNewPlantPage() {
           </div>
         </div>
 
+        {workOrderLocked ? (
+          <div className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-4 text-sm">
+            <p className="font-semibold text-stera-green">
+              Werkbon staat vast
+            </p>
+            <p className="mt-1 text-stera-ink-soft">
+              Geen nieuwe planten meer toevoegen aan deze beurt — de
+              werkbon is goedgekeurd of gefactureerd.
+            </p>
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="stera-card space-y-4">
+          <fieldset disabled={workOrderLocked} className="space-y-4 contents">
           <div className="rounded-lg bg-stera-cream-deep p-3 text-sm">
             Referentiecode: <strong>{referenceCode || 'Wordt gegenereerd...'}</strong>
           </div>
@@ -528,6 +556,7 @@ export default function MaintenanceNewPlantPage() {
           </button>
 
           {error && <p className="text-red-600">{error}</p>}
+          </fieldset>
         </form>
       </div>
     </main>

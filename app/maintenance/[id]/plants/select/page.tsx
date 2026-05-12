@@ -39,6 +39,37 @@ export default async function MaintenancePlantSelectPage({
     )
   }
 
+  // Werkbon-status: getekend/gefactureerd → geen planten meer toevoegen
+  const { data: workOrderForLock } = await supabase
+    .from('work_orders')
+    .select('status')
+    .eq('visit_id', id)
+    .maybeSingle()
+  if (
+    workOrderForLock?.status === 'signed' ||
+    workOrderForLock?.status === 'invoiced'
+  ) {
+    return (
+      <main className="bg-stera-cream p-6">
+        <div className="mx-auto max-w-2xl space-y-4">
+          <Link
+            href={`/maintenance/${id}`}
+            className="text-sm text-stera-green underline-offset-4 hover:underline"
+          >
+            ← Terug naar onderhoud
+          </Link>
+          <div className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-4 text-sm">
+            <p className="font-semibold text-stera-green">Werkbon staat vast</p>
+            <p className="mt-1 text-stera-ink-soft">
+              Geen planten meer toevoegen aan deze beurt — de werkbon is
+              goedgekeurd of gefactureerd.
+            </p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   const currentLocationId = visit.location_id
   const locationData = visit.locations as any
   const locationName = Array.isArray(locationData)
