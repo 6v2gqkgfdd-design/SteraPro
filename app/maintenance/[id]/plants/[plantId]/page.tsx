@@ -625,7 +625,7 @@ export default function MaintenancePlantDetailPage() {
           .filter(Boolean)
           .join(' · ')
 
-        // 1) Binnenpot zelf — liefst koppelen aan het catalog-item
+        // Binnenpot zelf — liefst koppelen aan het catalog-item
         // "Binnenpot C…" zodat de prijs automatisch meetelt in het
         // totaal. Als de seed (migration 20260512100000) nog niet
         // gerund is, vallen we terug op een custom_name-regel.
@@ -655,44 +655,73 @@ export default function MaintenancePlantDetailPage() {
             insertError
           )
         }
+      }
 
-        // 2) Potgrond — bij verpotting gaat ruwweg de helft van het
-        // potvolume aan nieuwe aarde op. Telt mee in het totaal als
-        // het catalog-item "Potgrond" bestaat (zit in standaard seed).
-        if (pot) {
-          const soilLiters = Math.round((pot.liters / 2) * 100) / 100 // 2 decimalen
-          const { data: potgrondItem } = await supabase
-            .from('consumable_catalog')
-            .select('id')
-            .eq('name', 'Potgrond')
-            .eq('active', true)
-            .maybeSingle()
+      // Aggregaat-regel "Potgrond" voor de hele beurt: één lijn die
+      // telkens herberekend wordt op basis van álle verpotte planten
+      // in deze beurt (½ van het totale nieuwe potvolume). Eigen
+      // marker zodat hij los staat van de per-plant binnenpot-regels.
+      const soilMarker = `[auto:repot-soil:${visitId}]`
+      const { error: soilCleanupError } = await supabase
+        .from('maintenance_visit_consumables')
+        .delete()
+        .eq('visit_id', visitId)
+        .like('notes', `%${soilMarker}%`)
+      if (soilCleanupError) {
+        console.error(
+          '[maintenance plant save] cleanup repot soil consumable',
+          soilCleanupError
+        )
+      }
 
-          const soilNotesLine = [
-            `Aarde voor verpotting naar ${newPotSize} (${pot.liters} L pot)`,
-            plantName ? `voor ${plantName}` : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')
+      const { data: repottedVisitPlants } = await supabase
+        .from('maintenance_visit_plants')
+        .select('plant_id, plants ( pot_size_code )')
+        .eq('visit_id', visitId)
+        .eq('action_repotted', true)
 
-          const { error: soilInsertError } = await supabase
-            .from('maintenance_visit_consumables')
-            .insert([
-              {
-                visit_id: visitId,
-                catalog_item_id: potgrondItem?.id ?? null,
-                custom_name: potgrondItem ? null : 'Potgrond',
-                quantity: soilLiters,
-                unit: 'L',
-                notes: `${soilNotesLine} ${marker}`.trim(),
-              },
-            ])
-          if (soilInsertError) {
-            console.error(
-              '[maintenance plant save] insert repot soil consumable',
-              soilInsertError
-            )
-          }
+      let totalLiters = 0
+      let plantCount = 0
+      for (const row of repottedVisitPlants ?? []) {
+        const plantRel = (row as any).plants
+        const code = Array.isArray(plantRel)
+          ? plantRel[0]?.pot_size_code
+          : plantRel?.pot_size_code
+        const p = findPotSize(code)
+        if (p) {
+          totalLiters += p.liters
+          plantCount += 1
+        }
+      }
+
+      if (totalLiters > 0) {
+        const soilLiters = Math.round((totalLiters / 2) * 100) / 100
+        const { data: potgrondItem } = await supabase
+          .from('consumable_catalog')
+          .select('id')
+          .eq('name', 'Potgrond')
+          .eq('active', true)
+          .maybeSingle()
+
+        const { error: soilInsertError } = await supabase
+          .from('maintenance_visit_consumables')
+          .insert([
+            {
+              visit_id: visitId,
+              catalog_item_id: potgrondItem?.id ?? null,
+              custom_name: potgrondItem ? null : 'Potgrond',
+              quantity: soilLiters,
+              unit: 'L',
+              notes: `Voor ${plantCount} verpotte plant${
+                plantCount === 1 ? '' : 'en'
+              } (½ van het totale potvolume) ${soilMarker}`.trim(),
+            },
+          ])
+        if (soilInsertError) {
+          console.error(
+            '[maintenance plant save] insert repot soil consumable',
+            soilInsertError
+          )
         }
       }
 
