@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
+import { ACTIVE_POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
 
 export default function EditPlantPage() {
   const params = useParams<{ id: string }>()
@@ -170,7 +170,7 @@ export default function EditPlantPage() {
                 className="w-full rounded-lg border border-stera-line bg-white p-3"
               >
                 <option value="">Onbekend / niet opgegeven</option>
-                {POT_SIZES.map((p) => (
+                {ACTIVE_POT_SIZES.map((p) => (
                   <option key={p.code} value={p.code}>
                     {formatPotSize(p)}
                   </option>

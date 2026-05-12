@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SteraLogo from '@/components/stera-logo'
 import {
-  POT_SIZES,
+  ACTIVE_POT_SIZES,
   findPotSize,
   formatPotSize,
   nextPotSize,
@@ -971,7 +971,7 @@ export default function MaintenancePlantDetailPage() {
                 className="w-full rounded-lg border border-stera-line bg-white p-3"
               >
                 <option value="">Kies een nieuwe potmaat</option>
-                {POT_SIZES.map((p) => (
+                {ACTIVE_POT_SIZES.map((p) => (
                   <option key={p.code} value={p.code}>
                     {formatPotSize(p)}
                   </option>

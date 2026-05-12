@@ -19,6 +19,15 @@ export type PotSize = {
   estimatedPriceCents: number
 }
 
+/**
+ * Codes die Stera daadwerkelijk in voorraad heeft (mei 2026).
+ * De dropdowns gebruiken enkel deze; oudere codes blijven in
+ * `POT_SIZES` voor backwards-compat (lookup van oude plantdata).
+ */
+export const ACTIVE_POT_CODES = new Set([
+  'C1,5', 'C2', 'C3', 'C4', 'C5', 'C7,5', 'C10', 'C15', 'C20',
+])
+
 export const POT_SIZES: PotSize[] = [
   { code: 'C1', liters: 1, minDiameter: 11, maxDiameter: 13, estimatedPriceCents: 350 },
   { code: 'C1,3', liters: 1.3, minDiameter: 13, maxDiameter: 13, estimatedPriceCents: 400 },
@@ -50,6 +59,11 @@ export function findPotSize(code: string | null | undefined): PotSize | null {
   if (!code) return null
   return POT_SIZES.find((p) => p.code === code) ?? null
 }
+
+/** Alleen de potmaten die Stera daadwerkelijk verkoopt — voor dropdowns. */
+export const ACTIVE_POT_SIZES: PotSize[] = POT_SIZES.filter((p) =>
+  ACTIVE_POT_CODES.has(p.code)
+)
 
 /** Toonbare label, bv. "C3 — Ø 19-21 cm (3 L)". */
 export function formatPotSize(p: PotSize): string {

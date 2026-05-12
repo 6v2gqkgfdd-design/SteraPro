@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { fetchPlayfulNickname, pickLocalNickname } from '@/lib/nicknames'
 import { prepareImage } from '@/lib/image'
-import { POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
+import { ACTIVE_POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
 
 function slugify(value: string) {
   return value
@@ -408,7 +408,7 @@ export default function NewPlantPage() {
             className="w-full rounded-lg border border-stera-line bg-white p-3"
           >
             <option value="">Potmaat (optioneel)</option>
-            {POT_SIZES.map((p) => (
+            {ACTIVE_POT_SIZES.map((p) => (
               <option key={p.code} value={p.code}>
                 {formatPotSize(p)}
               </option>
