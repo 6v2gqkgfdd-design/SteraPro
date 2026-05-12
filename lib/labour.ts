@@ -44,9 +44,9 @@ export function labourCostCents(billed: number | null): number | null {
 
 /**
  * Geformatteerde "van X tot Y"-tekst voor op de werkbon.
- * Zelfde dag → "Van 29 april 2026 om 14:00 tot 18:00".
- * Andere dag → "Van 29 april 2026 om 22:00 tot 30 april 2026 om 06:00".
- * Alleen start of eind → "Vanaf X om Y" / "Tot X om Y".
+ * Zelfde dag → "Op 29 april 2026, van 14:00 tot 18:00".
+ * Andere dag → "Van 29 april 2026, 22:00 tot 30 april 2026, 06:00".
+ * Alleen start of eind → "Vanaf 29 april 2026, 14:00" / "Tot 29 april 2026, 18:00".
  * Server-side: gerendered in Europe/Brussels, niet de Vercel-UTC.
  */
 export function formatWorkRangeText(
@@ -78,12 +78,12 @@ export function formatWorkRangeText(
     const sTime = timeOf(start)
     const eTime = timeOf(end)
     if (sDate === eDate) {
-      return `Van ${sDate} om ${sTime} tot ${eTime}`
+      return `Op ${sDate}, van ${sTime} tot ${eTime}`
     }
-    return `Van ${sDate} om ${sTime} tot ${eDate} om ${eTime}`
+    return `Van ${sDate}, ${sTime} tot ${eDate}, ${eTime}`
   }
   if (start) {
-    return `Vanaf ${dateOf(start)} om ${timeOf(start)}`
+    return `Vanaf ${dateOf(start)}, ${timeOf(start)}`
   }
-  return `Tot ${dateOf(end!)} om ${timeOf(end!)}`
+  return `Tot ${dateOf(end!)}, ${timeOf(end!)}`
 }
