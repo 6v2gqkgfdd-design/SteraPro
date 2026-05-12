@@ -45,7 +45,7 @@ export async function applyStandardMaintenance(formData: FormData) {
 
   // 2) Planten ophalen — gescoped op ruimtes als die gekoppeld zijn,
   //    anders alle planten op de locatie.
-  let plantsQuery = supabase.from('plants').select('id, is_artificial')
+  let plantsQuery = supabase.from('plants').select('id, is_artificial, status')
   if (roomIds.length > 0) {
     plantsQuery = plantsQuery.in('room_id', roomIds)
   } else {
@@ -79,14 +79,35 @@ export async function applyStandardMaintenance(formData: FormData) {
 
   // 4) Bulk-insert visit_plant records met standaard acties.
   // Plastiek/kunstplanten krijgen een ander set van vinkjes.
-  const rows = toApply.map((p: any) => ({
-    visit_id: visitId,
-    plant_id: p.id,
-    health_status: STANDARD_MAINTENANCE_HEALTH_STATUS,
-    ...(p.is_artificial
-      ? STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL
-      : STANDARD_MAINTENANCE_ACTIONS),
-  }))
+  // Dode planten krijgen GEEN verzorging — enkel een controle —
+  // en hun health_status blijft op 'dead' staan zodat ze niet
+  // valselijk als "gezond" eindigen op de werkbon.
+  const rows = toApply.map((p: any) => {
+    const status = (p.status as string | null) || 'healthy'
+
+    if (status === 'dead' || status === 'replacement_needed') {
+      return {
+        visit_id: visitId,
+        plant_id: p.id,
+        health_status: 'dead',
+        action_checked: true,
+      }
+    }
+
+    const attentionLike =
+      status === 'needs_attention' || status === 'maintenance_due'
+
+    return {
+      visit_id: visitId,
+      plant_id: p.id,
+      health_status: attentionLike
+        ? 'needs_attention'
+        : STANDARD_MAINTENANCE_HEALTH_STATUS,
+      ...(p.is_artificial
+        ? STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL
+        : STANDARD_MAINTENANCE_ACTIONS),
+    }
+  })
 
   const { error: insertErr } = await supabase
     .from('maintenance_visit_plants')

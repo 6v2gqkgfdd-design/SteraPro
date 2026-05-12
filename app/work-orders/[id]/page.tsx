@@ -120,7 +120,7 @@ export default async function WorkOrderDetailPage({
   const { data: visitPlants } = await supabase
     .from('maintenance_visit_plants')
     .select(
-      `*, plants ( id, nickname, species, reference_code, photo_url, pot_size_code )`
+      `*, plants ( id, nickname, species, reference_code, photo_url, pot_size_code, status )`
     )
     .eq('visit_id', visit.id)
     .order('created_at', { ascending: true })
@@ -153,6 +153,7 @@ export default async function WorkOrderDetailPage({
       vp.action_replaced ||
       vp.followup_replace ||
       plantStatus === 'dead' ||
+      plantStatus === 'replacement_needed' ||
       healthStatus === 'dead'
     if (isDead) {
       groups.dead.push(vp)
