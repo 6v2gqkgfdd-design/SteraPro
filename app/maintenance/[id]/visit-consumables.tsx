@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { formatEur } from '@/lib/pot-sizes'
+import { ConfirmModal } from '@/components/confirm-modal'
 
 type CatalogItem = {
   id: string
@@ -68,6 +70,7 @@ export default function VisitConsumables({
   const [unit, setUnit] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   async function loadAll() {
     setLoading(true)
@@ -228,9 +231,12 @@ export default function VisitConsumables({
       if (insertError) throw new Error(insertError.message)
 
       resetForm()
+      toast.success('Verbruiksgoed toegevoegd')
       await loadAll()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Toevoegen mislukt.')
+      const msg = err instanceof Error ? err.message : 'Toevoegen mislukt.'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -238,11 +244,9 @@ export default function VisitConsumables({
 
   async function handleDelete(itemId: string) {
     if (locked) {
-      setError('Werkbon staat vast — geen wijzigingen meer mogelijk.')
+      toast.error('Werkbon staat vast — geen wijzigingen meer mogelijk.')
       return
     }
-    const confirmed = window.confirm('Verbruiksgoed verwijderen?')
-    if (!confirmed) return
 
     setError('')
 
@@ -252,9 +256,10 @@ export default function VisitConsumables({
       .eq('id', itemId)
 
     if (deleteError) {
-      setError(deleteError.message)
+      toast.error(deleteError.message)
       return
     }
+    toast.success('Verwijderd')
 
     await loadAll()
   }
@@ -321,7 +326,7 @@ export default function VisitConsumables({
                     {!locked ? (
                       <button
                         type="button"
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => setConfirmDeleteId(item.id)}
                         className="text-sm text-red-600 underline"
                       >
                         Verwijderen
@@ -458,6 +463,20 @@ export default function VisitConsumables({
         )}
       </form>
       )}
+
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="Verbruiksgoed verwijderen?"
+        description="Deze regel wordt definitief verwijderd uit deze beurt."
+        confirmLabel="Verwijderen"
+        tone="danger"
+        onConfirm={async () => {
+          const id = confirmDeleteId
+          setConfirmDeleteId(null)
+          if (id) await handleDelete(id)
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   )
 }

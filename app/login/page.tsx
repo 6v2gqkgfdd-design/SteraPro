@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import SteraLogo from '@/components/stera-logo'
 
@@ -26,6 +27,7 @@ export default function LoginPage() {
 
     if (error) {
       setError(error.message)
+      toast.error(error.message)
       setLoading(false)
       return
     }

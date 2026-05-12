@@ -643,11 +643,14 @@ export default function MaintenancePlantDetailPage() {
         )
       }
 
+      toast.success(`${plantName || 'Plant'} opgeslagen`)
       router.push(`/maintenance/${visitId}`)
       router.refresh()
     } catch (err) {
       console.error('[maintenance plant save]', err)
-      setSaveError(err instanceof Error ? err.message : 'Opslaan mislukt.')
+      const msg = err instanceof Error ? err.message : 'Opslaan mislukt.'
+      setSaveError(msg)
+      toast.error(msg)
       setSaving(false)
     }
   }
