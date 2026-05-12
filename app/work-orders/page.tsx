@@ -82,8 +82,15 @@ export default async function WorkOrdersPage({
     .order('ended_at', { ascending: false })
 
   const missingWorkOrder = (completedVisits ?? []).filter((v: any) => {
-    const wos = Array.isArray(v.work_orders) ? v.work_orders : []
-    if (wos.length > 0) return false
+    // Supabase geeft work_orders soms als array, soms als object
+    // (door de unique constraint op visit_id wordt het een 1-1 relatie).
+    // Beide gevallen afdekken.
+    const woField = v.work_orders
+    const hasWorkOrder = Array.isArray(woField)
+      ? woField.length > 0
+      : Boolean(woField && woField.id)
+    if (hasWorkOrder) return false
+
     const loc = Array.isArray(v.locations) ? v.locations[0] : v.locations
     const company = Array.isArray(loc?.companies)
       ? loc.companies[0]
