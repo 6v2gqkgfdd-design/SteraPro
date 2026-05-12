@@ -36,6 +36,15 @@ export function formatBilledDuration(billed: number | null): string | null {
     : `${m}min`
 }
 
+/** "15 min pauze", "1u15 pauze", ... of null als geen pauze. */
+export function formatPauseDuration(pauseMin: number | null): string | null {
+  if (!pauseMin || pauseMin <= 0) return null
+  if (pauseMin < 60) return `${pauseMin} min pauze`
+  const h = Math.floor(pauseMin / 60)
+  const m = pauseMin % 60
+  return `${h}u${m === 0 ? '00' : m.toString().padStart(2, '0')} pauze`
+}
+
 /** Kost in cents op basis van te factureren minuten en het uurtarief. */
 export function labourCostCents(billed: number | null): number | null {
   if (billed == null) return null

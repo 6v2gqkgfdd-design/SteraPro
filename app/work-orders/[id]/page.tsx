@@ -14,6 +14,7 @@ import {
   HOURLY_RATE_EUR_CENTS,
   billedMinutes,
   formatBilledDuration,
+  formatPauseDuration,
   formatWorkRangeText,
   labourCostCents,
 } from '@/lib/labour'
@@ -213,6 +214,7 @@ export default async function WorkOrderDetailPage({
   const duration = formatBilledDuration(billed)
   const labourCost = labourCostCents(billed)
   const workRange = formatWorkRangeText(visit.started_at, visit.ended_at)
+  const pauseText = formatPauseDuration(visit.pause_total_minutes)
 
   // Bouw de signing-URL voor deze omgeving (publieke link voor klant).
   const hdrs = await headers()
@@ -428,7 +430,14 @@ export default async function WorkOrderDetailPage({
           {!hasContract && duration ? (
             <section className="rounded border border-stera-line bg-white/60 p-4 text-sm">
               <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
-              <p className="text-lg font-semibold">{duration}</p>
+              <p className="text-lg font-semibold">
+                {duration}
+                {pauseText ? (
+                  <span className="ml-2 text-sm font-normal text-stera-ink-soft">
+                    ({pauseText})
+                  </span>
+                ) : null}
+              </p>
               {workRange ? (
                 <p className="mt-1 text-xs text-stera-ink-soft">{workRange}</p>
               ) : null}
