@@ -35,6 +35,17 @@ type VisitConsumable = {
 
 const CUSTOM_OPTION = '__custom__'
 
+/**
+ * Verwijder de interne `[auto:repot:<plant_id>]`-marker uit notes,
+ * zodat we hem niet aan Jelle tonen. Wordt gezet door de plant-
+ * onderhoud-pagina bij "Verpot + nieuwe maat".
+ */
+function cleanNotes(value: string | null): string | null {
+  if (!value) return null
+  const cleaned = value.replace(/\s*\[auto:repot:[^\]]+\]\s*/g, ' ').trim()
+  return cleaned || null
+}
+
 export default function VisitConsumables({ visitId }: { visitId: string }) {
   const supabase = createClient()
 
@@ -277,9 +288,14 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
                         {item.unit ? ` ${item.unit}` : ''}
                       </span>
                     </p>
-                    {item.notes && (
-                      <p className="mt-1 text-sm text-gray-700">{item.notes}</p>
-                    )}
+                    {(() => {
+                      const visibleNotes = cleanNotes(item.notes)
+                      return visibleNotes ? (
+                        <p className="mt-1 text-sm text-gray-700">
+                          {visibleNotes}
+                        </p>
+                      ) : null
+                    })()}
                   </div>
                   <div className="flex items-baseline gap-3">
                     {total != null ? (

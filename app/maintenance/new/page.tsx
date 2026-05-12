@@ -374,7 +374,7 @@ export default function NewMaintenancePage() {
             </label>
             <div className="flex flex-wrap gap-2">
               {[
-                'Eerste analyse',
+                'Analyse',
                 'Routine onderhoud',
                 'Behandeling',
                 'Vervangingen',

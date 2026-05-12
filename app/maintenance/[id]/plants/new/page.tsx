@@ -65,6 +65,7 @@ export default function MaintenanceNewPlantPage() {
   const [loading, setLoading] = useState(false)
 
   const [nicknameLoading, setNicknameLoading] = useState(false)
+  const [nicknameEditedByUser, setNicknameEditedByUser] = useState(false)
 
   useEffect(() => {
     setReferenceCode(generateReferenceCode())
@@ -222,6 +223,20 @@ export default function MaintenanceNewPlantPage() {
 
       if (result.suggested_species) {
         setSpecies(result.suggested_species)
+        // Bijnaam afstemmen op de herkende soort, tenzij gebruiker al
+        // zelf een bijnaam heeft getypt.
+        if (!nicknameEditedByUser) {
+          setNicknameLoading(true)
+          try {
+            const next = await fetchPlayfulNickname({
+              species: result.suggested_species,
+              avoid: nickname ? [nickname] : [],
+            })
+            setNickname(next)
+          } finally {
+            setNicknameLoading(false)
+          }
+        }
       }
     } catch (err) {
       console.error(err)
@@ -436,7 +451,10 @@ export default function MaintenanceNewPlantPage() {
                 type="text"
                 placeholder="Bijnaam / plantnaam"
                 value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                onChange={(e) => {
+                  setNickname(e.target.value)
+                  setNicknameEditedByUser(true)
+                }}
                 className="flex-1 rounded-lg border border-stera-line bg-white p-3"
               />
               <button

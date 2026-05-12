@@ -54,6 +54,7 @@ export default function NewPlantInRoomPage() {
   const [loading, setLoading] = useState(false)
 
   const [nicknameLoading, setNicknameLoading] = useState(false)
+  const [nicknameEditedByUser, setNicknameEditedByUser] = useState(false)
 
   useEffect(() => {
     setReferenceCode(generateReferenceCode())
@@ -166,7 +167,23 @@ export default function NewPlantInRoomPage() {
 
       setAiSuggestedSpecies(result.suggested_species || '')
       setAiConfidence(typeof result.confidence === 'number' ? result.confidence : null)
-      if (result.suggested_species) setSpecies(result.suggested_species)
+      if (result.suggested_species) {
+        setSpecies(result.suggested_species)
+        // Bijnaam afstemmen op de herkende soort, tenzij gebruiker al
+        // zelf een bijnaam heeft getypt.
+        if (!nicknameEditedByUser) {
+          setNicknameLoading(true)
+          try {
+            const next = await fetchPlayfulNickname({
+              species: result.suggested_species,
+              avoid: nickname ? [nickname] : [],
+            })
+            setNickname(next)
+          } finally {
+            setNicknameLoading(false)
+          }
+        }
+      }
     } catch (err) {
       console.error(err)
       setError(err instanceof Error ? err.message : 'AI-herkenning mislukt.')
@@ -319,14 +336,17 @@ export default function NewPlantInRoomPage() {
                 type="text"
                 placeholder="Bijnaam"
                 value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                onChange={(e) => {
+                  setNickname(e.target.value)
+                  setNicknameEditedByUser(true)
+                }}
                 className="flex-1 rounded-lg border border-stera-line bg-white p-3"
               />
               <button
                 type="button"
                 onClick={regenerateNickname}
                 disabled={nicknameLoading}
-                className="stera-cta stera-cta-ghost shrink-0"
+                className="shrink-0 rounded-lg border border-stera-line bg-white px-3 text-sm font-medium text-stera-ink transition hover:border-stera-green disabled:opacity-50"
                 title={
                   species
                     ? `Verzin bijnaam op basis van ${species}`

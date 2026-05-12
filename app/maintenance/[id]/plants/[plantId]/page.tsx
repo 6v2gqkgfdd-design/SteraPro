@@ -5,6 +5,22 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SteraLogo from '@/components/stera-logo'
+import {
+  POT_SIZES,
+  findPotSize,
+  formatPotSize,
+  nextPotSize,
+} from '@/lib/pot-sizes'
+
+/**
+ * Marker in `notes` om verbruiksregels te herkennen die automatisch
+ * zijn aangemaakt bij een "Verpot"-actie op een specifieke plant.
+ * Wordt verborgen in de UI maar laat ons de regel terugvinden bij
+ * opnieuw opslaan, zodat we niet dubbel inserten.
+ */
+function repotMarkerFor(plantId: string): string {
+  return `[auto:repot:${plantId}]`
+}
 
 function parseIntOrNull(value: string): number | null {
   const trimmed = value.trim()
@@ -144,6 +160,8 @@ export default function MaintenancePlantDetailPage() {
   const [rotated, setRotated] = useState(false)
   const [polished, setPolished] = useState(false)
   const [repotted, setRepotted] = useState(false)
+  const [currentPotSize, setCurrentPotSize] = useState<string | null>(null)
+  const [newPotSize, setNewPotSize] = useState('')
   const [replaced, setReplaced] = useState(false)
   const [checked, setChecked] = useState(true)
   const [healthStatus, setHealthStatus] = useState('healthy')
@@ -222,8 +240,9 @@ export default function MaintenancePlantDetailPage() {
               species,
               status,
               notes,
-              location_id
-            `
+              location_id,
+              pot_size_code
+`
             )
             .eq('id', plantId)
             .maybeSingle(),
@@ -295,6 +314,12 @@ export default function MaintenancePlantDetailPage() {
         setPlantCode(plant.reference_code || plant.plant_code || '')
         setSpecies(plant.species || '')
         setExistingVisitPlantId(existingVisitPlant?.id ?? null)
+        setCurrentPotSize(plant.pot_size_code ?? null)
+        // Default voor nieuwe maat: één maat groter dan de huidige.
+        // Geen huidige maat bekend? Laat leeg — Jelle kiest zelf.
+        setNewPotSize(
+          nextPotSize(plant.pot_size_code)?.code ?? plant.pot_size_code ?? ''
+        )
 
         if (existingVisitPlant) {
           setNotes(existingVisitPlant.notes || '')
@@ -558,16 +583,117 @@ export default function MaintenancePlantDetailPage() {
         setExistingVisitPlantId(data?.id ?? null)
       }
 
+      const plantUpdatePayload: Record<string, unknown> = {
+        status: healthStatus,
+        notes: notes.trim() || null,
+      }
+      // Verpot + nieuwe maat gekozen? → potmaat van de plant bijwerken
+      // zodat de "next size up"-suggestie volgende keer klopt.
+      if (repotted && newPotSize) {
+        plantUpdatePayload.pot_size_code = newPotSize
+      }
+
       const { error: plantUpdateError } = await supabase
         .from('plants')
-        .update({
-          status: healthStatus,
-          notes: notes.trim() || null,
-        })
+        .update(plantUpdatePayload)
         .eq('id', plantId)
 
       if (plantUpdateError) {
         throw plantUpdateError
+      }
+
+      // Automatische verbruiks-regel voor de nieuwe binnenpot.
+      // - Aan: verwijder eventueel een oude auto-regel voor deze plant en
+      //   maak er één nieuwe aan (idempotent bij herhaaldelijk opslaan).
+      // - Uit: ruim een eerder aangemaakte auto-regel op.
+      const marker = repotMarkerFor(plantId)
+      const { error: cleanupError } = await supabase
+        .from('maintenance_visit_consumables')
+        .delete()
+        .eq('visit_id', visitId)
+        .like('notes', `%${marker}%`)
+      if (cleanupError) {
+        console.error('[maintenance plant save] cleanup repot consumable', cleanupError)
+      }
+
+      if (repotted && newPotSize) {
+        const pot = findPotSize(newPotSize)
+        const notesLine = [
+          pot ? formatPotSize(pot) : `Maat ${newPotSize}`,
+          plantName ? `voor ${plantName}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+
+        // 1) Binnenpot zelf — liefst koppelen aan het catalog-item
+        // "Binnenpot C…" zodat de prijs automatisch meetelt in het
+        // totaal. Als de seed (migration 20260512100000) nog niet
+        // gerund is, vallen we terug op een custom_name-regel.
+        const catalogName = `Binnenpot ${newPotSize}`
+        const { data: catalogItem } = await supabase
+          .from('consumable_catalog')
+          .select('id')
+          .eq('name', catalogName)
+          .eq('active', true)
+          .maybeSingle()
+
+        const { error: insertError } = await supabase
+          .from('maintenance_visit_consumables')
+          .insert([
+            {
+              visit_id: visitId,
+              catalog_item_id: catalogItem?.id ?? null,
+              custom_name: catalogItem ? null : catalogName,
+              quantity: 1,
+              unit: 'stuk',
+              notes: `${notesLine} ${marker}`.trim(),
+            },
+          ])
+        if (insertError) {
+          console.error(
+            '[maintenance plant save] insert repot consumable',
+            insertError
+          )
+        }
+
+        // 2) Potgrond — bij verpotting gaat ruwweg de helft van het
+        // potvolume aan nieuwe aarde op. Telt mee in het totaal als
+        // het catalog-item "Potgrond" bestaat (zit in standaard seed).
+        if (pot) {
+          const soilLiters = Math.round((pot.liters / 2) * 100) / 100 // 2 decimalen
+          const { data: potgrondItem } = await supabase
+            .from('consumable_catalog')
+            .select('id')
+            .eq('name', 'Potgrond')
+            .eq('active', true)
+            .maybeSingle()
+
+          const soilNotesLine = [
+            `Aarde voor verpotting naar ${newPotSize} (${pot.liters} L pot)`,
+            plantName ? `voor ${plantName}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+
+          const { error: soilInsertError } = await supabase
+            .from('maintenance_visit_consumables')
+            .insert([
+              {
+                visit_id: visitId,
+                catalog_item_id: potgrondItem?.id ?? null,
+                custom_name: potgrondItem ? null : 'Potgrond',
+                quantity: soilLiters,
+                unit: 'L',
+                notes: `${soilNotesLine} ${marker}`.trim(),
+              },
+            ])
+          if (soilInsertError) {
+            console.error(
+              '[maintenance plant save] insert repot soil consumable',
+              soilInsertError
+            )
+          }
+        }
       }
 
       router.push(`/maintenance/${visitId}`)
@@ -896,6 +1022,41 @@ export default function MaintenancePlantDetailPage() {
               <span>Verpot</span>
             </label>
           </div>
+
+          {repotted && (
+            <div className="space-y-2 rounded-lg border border-stera-line bg-stera-cream-deep/40 p-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <label
+                  htmlFor="new_pot_size"
+                  className="text-sm font-medium text-stera-ink"
+                >
+                  Nieuwe binnenpot
+                </label>
+                <span className="text-xs text-stera-ink-soft">
+                  {currentPotSize
+                    ? `Huidige maat: ${currentPotSize}`
+                    : 'Geen huidige maat geregistreerd'}
+                </span>
+              </div>
+              <select
+                id="new_pot_size"
+                value={newPotSize}
+                onChange={(e) => setNewPotSize(e.target.value)}
+                className="w-full rounded-lg border border-stera-line bg-white p-3"
+              >
+                <option value="">Kies een nieuwe potmaat</option>
+                {POT_SIZES.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {formatPotSize(p)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-stera-ink-soft">
+                We voegen deze pot automatisch toe aan de verbruiksgoederen
+                van deze beurt.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="block text-sm font-medium">

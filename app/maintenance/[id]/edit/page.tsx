@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatRoomLabel } from '@/lib/rooms'
 
 const TITLE_PRESETS = [
-  'Eerste analyse',
+  'Analyse',
   'Routine onderhoud',
   'Behandeling',
   'Vervangingen',
