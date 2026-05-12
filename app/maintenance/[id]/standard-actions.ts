@@ -7,6 +7,7 @@ import {
   STANDARD_MAINTENANCE_ACTIONS_ARTIFICIAL,
   STANDARD_MAINTENANCE_HEALTH_STATUS,
 } from '@/lib/standard-maintenance'
+import { recomputeAutoConsumables } from '@/lib/auto-consumables'
 
 /**
  * Pas het standaard onderhoud toe op alle planten van de locatie die
@@ -116,6 +117,21 @@ export async function applyStandardMaintenance(formData: FormData) {
   if (insertErr) {
     console.error('[standard maintenance] bulk insert failed', insertErr)
     return
+  }
+
+  // Auto-verbruiksgoederen (bladglans, voeding, eventueel neemolie
+  // bij zieke planten, plus binnenpot/potgrond bij verpotting) zijn
+  // afhankelijk van de huidige plant-state. Direct na de bulk-insert
+  // herrekenen, anders ontbreekt bladglans/voeding bij beurten waar
+  // Jelle alleen op de bulk-knop drukt zonder planten individueel te
+  // openen.
+  try {
+    await recomputeAutoConsumables(supabase, visitId)
+  } catch (autoErr) {
+    console.error(
+      '[standard maintenance] recompute auto consumables',
+      autoErr
+    )
   }
 
   revalidatePath(`/maintenance/${visitId}`)

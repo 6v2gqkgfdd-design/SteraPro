@@ -36,13 +36,14 @@ type VisitConsumable = {
 const CUSTOM_OPTION = '__custom__'
 
 /**
- * Verwijder de interne `[auto:repot:...]` en `[auto:repot-soil:...]`
- * markers uit notes, zodat we ze niet aan Jelle tonen. Worden gezet
- * door de plant-onderhoud-pagina bij "Verpot + nieuwe maat".
+ * Verwijder alle interne `[auto:*]`-markers uit notes, zodat we ze
+ * niet aan Jelle tonen. Worden gezet door recomputeAutoConsumables
+ * (verpot-aggregaten, standaard bladglans/voeding, neemolie bij
+ * zieke planten).
  */
 function cleanNotes(value: string | null): string | null {
   if (!value) return null
-  const cleaned = value.replace(/\s*\[auto:repot[^\]]*\]\s*/g, ' ').trim()
+  const cleaned = value.replace(/\s*\[auto:[^\]]+\]\s*/g, ' ').trim()
   return cleaned || null
 }
 

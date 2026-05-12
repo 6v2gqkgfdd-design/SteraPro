@@ -44,3 +44,15 @@ update public.consumable_catalog
        default_quantity = 10,
        description = 'Veenvrij substraat — 21 kg / 45 L zak'
  where name = 'Potgrond';
+
+-- 4) Pokon Plantenvoeding (klein flesje) → € 4,50 excl. btw.
+--    Wordt automatisch toegevoegd aan elke beurt (standaard verbruik,
+--    gemengd in het water). Naam blijft 'Voeding (Pokon)' voor de
+--    auto-aggregatie-lookup.
+update public.consumable_catalog
+   set unit_size = 1,
+       unit_price_cents = 450,
+       default_quantity = 1,
+       default_unit = 'flesje',
+       description = 'Klein flesje Pokon plantenvoeding — gemengd in water per onderhoud'
+ where name = 'Voeding (Pokon)';
