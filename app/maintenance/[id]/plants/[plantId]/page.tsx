@@ -12,15 +12,14 @@ import {
   nextPotSize,
 } from '@/lib/pot-sizes'
 
-/**
- * Marker in `notes` om verbruiksregels te herkennen die automatisch
- * zijn aangemaakt bij een "Verpot"-actie op een specifieke plant.
- * Wordt verborgen in de UI maar laat ons de regel terugvinden bij
- * opnieuw opslaan, zodat we niet dubbel inserten.
- */
-function repotMarkerFor(plantId: string): string {
-  return `[auto:repot:${plantId}]`
-}
+// Markers in `notes` om verbruiksregels te herkennen die automatisch
+// zijn aangemaakt bij een "Verpot"-actie. Worden verborgen in de UI
+// (zie cleanNotes in visit-consumables.tsx) en gebruikt om bij elke
+// save de juiste aggregaten te herbouwen.
+//   [auto:repot-pot:<visit_id>]  → per visit, één per pot-maat
+//   [auto:repot-soil:<visit_id>] → per visit, één voor de potgrond
+// Oude formaat (verwijderd, maar wordt nog opgekuist bij save):
+//   [auto:repot:<plant_id>]      → per plant (legacy)
 
 function parseIntOrNull(value: string): number | null {
   const trimmed = value.trim()
@@ -602,34 +601,54 @@ export default function MaintenancePlantDetailPage() {
         throw plantUpdateError
       }
 
-      // Automatische verbruiks-regel voor de nieuwe binnenpot.
-      // - Aan: verwijder eventueel een oude auto-regel voor deze plant en
-      //   maak er één nieuwe aan (idempotent bij herhaaldelijk opslaan).
-      // - Uit: ruim een eerder aangemaakte auto-regel op.
-      const marker = repotMarkerFor(plantId)
+      // Automatische verbruiksgoederen voor de hele beurt (binnenpot +
+      // potgrond). We gooien álle auto-rijen weg (zowel het oude
+      // per-plant formaat als de vorige aggregaten) en bouwen ze
+      // opnieuw op uit de huidige state van de visit. Zo zit er bij
+      // elke save maximaal één regel per pot-maat én één potgrond-
+      // regel — idempotent en altijd in sync met wat aangevinkt staat.
       const { error: cleanupError } = await supabase
         .from('maintenance_visit_consumables')
         .delete()
         .eq('visit_id', visitId)
-        .like('notes', `%${marker}%`)
+        .like('notes', '%[auto:repot%')
       if (cleanupError) {
-        console.error('[maintenance plant save] cleanup repot consumable', cleanupError)
+        console.error(
+          '[maintenance plant save] cleanup repot consumables',
+          cleanupError
+        )
       }
 
-      if (repotted && newPotSize) {
-        const pot = findPotSize(newPotSize)
-        const notesLine = [
-          pot ? formatPotSize(pot) : `Maat ${newPotSize}`,
-          plantName ? `voor ${plantName}` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ')
+      const { data: repottedVisitPlants } = await supabase
+        .from('maintenance_visit_plants')
+        .select('plant_id, plants ( pot_size_code )')
+        .eq('visit_id', visitId)
+        .eq('action_repotted', true)
 
-        // Binnenpot zelf — liefst koppelen aan het catalog-item
-        // "Binnenpot C…" zodat de prijs automatisch meetelt in het
-        // totaal. Als de seed (migration 20260512100000) nog niet
-        // gerund is, vallen we terug op een custom_name-regel.
-        const catalogName = `Binnenpot ${newPotSize}`
+      // Per maat: hoeveel planten worden er deze beurt naar verpot?
+      const sizeCounts = new Map<string, number>()
+      let totalLiters = 0
+      let plantCount = 0
+      for (const row of repottedVisitPlants ?? []) {
+        const plantRel = (row as any).plants
+        const code = Array.isArray(plantRel)
+          ? plantRel[0]?.pot_size_code
+          : plantRel?.pot_size_code
+        const p = findPotSize(code)
+        if (p) {
+          sizeCounts.set(code, (sizeCounts.get(code) ?? 0) + 1)
+          totalLiters += p.liters
+          plantCount += 1
+        }
+      }
+
+      // 1) Eén binnenpot-regel per maat (quantity = aantal planten).
+      const binnenpotMarker = `[auto:repot-pot:${visitId}]`
+      for (const [code, count] of sizeCounts.entries()) {
+        const pot = findPotSize(code)
+        if (!pot) continue
+
+        const catalogName = `Binnenpot ${code}`
         const { data: catalogItem } = await supabase
           .from('consumable_catalog')
           .select('id')
@@ -644,58 +663,23 @@ export default function MaintenancePlantDetailPage() {
               visit_id: visitId,
               catalog_item_id: catalogItem?.id ?? null,
               custom_name: catalogItem ? null : catalogName,
-              quantity: 1,
+              quantity: count,
               unit: 'stuk',
-              notes: `${notesLine} ${marker}`.trim(),
+              notes: `${formatPotSize(pot)} ${binnenpotMarker}`.trim(),
             },
           ])
         if (insertError) {
           console.error(
-            '[maintenance plant save] insert repot consumable',
+            '[maintenance plant save] insert repot binnenpot',
             insertError
           )
         }
       }
 
-      // Aggregaat-regel "Potgrond" voor de hele beurt: één lijn die
-      // telkens herberekend wordt op basis van álle verpotte planten
-      // in deze beurt (½ van het totale nieuwe potvolume). Eigen
-      // marker zodat hij los staat van de per-plant binnenpot-regels.
-      const soilMarker = `[auto:repot-soil:${visitId}]`
-      const { error: soilCleanupError } = await supabase
-        .from('maintenance_visit_consumables')
-        .delete()
-        .eq('visit_id', visitId)
-        .like('notes', `%${soilMarker}%`)
-      if (soilCleanupError) {
-        console.error(
-          '[maintenance plant save] cleanup repot soil consumable',
-          soilCleanupError
-        )
-      }
-
-      const { data: repottedVisitPlants } = await supabase
-        .from('maintenance_visit_plants')
-        .select('plant_id, plants ( pot_size_code )')
-        .eq('visit_id', visitId)
-        .eq('action_repotted', true)
-
-      let totalLiters = 0
-      let plantCount = 0
-      for (const row of repottedVisitPlants ?? []) {
-        const plantRel = (row as any).plants
-        const code = Array.isArray(plantRel)
-          ? plantRel[0]?.pot_size_code
-          : plantRel?.pot_size_code
-        const p = findPotSize(code)
-        if (p) {
-          totalLiters += p.liters
-          plantCount += 1
-        }
-      }
-
+      // 2) Eén potgrond-regel voor de hele beurt (½ totaal potvolume).
       if (totalLiters > 0) {
         const soilLiters = Math.round((totalLiters / 2) * 100) / 100
+        const soilMarker = `[auto:repot-soil:${visitId}]`
         const { data: potgrondItem } = await supabase
           .from('consumable_catalog')
           .select('id')
@@ -714,7 +698,7 @@ export default function MaintenancePlantDetailPage() {
               unit: 'L',
               notes: `Voor ${plantCount} verpotte plant${
                 plantCount === 1 ? '' : 'en'
-              } (½ van het totale potvolume) ${soilMarker}`.trim(),
+              } ${soilMarker}`.trim(),
             },
           ])
         if (soilInsertError) {
