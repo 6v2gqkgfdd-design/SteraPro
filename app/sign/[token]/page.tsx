@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import SteraLogo from '@/components/stera-logo'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -62,7 +61,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-5 sm:px-10 sm:py-8 border-b border-stera-line">
-        <SteraLogo variant="default" />
+        {/* Klant-pagina: logo niet klikbaar (geen navigatie naar de app) */}
+        <SteraLogo variant="default" href={null} />
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">
         <div className="mx-auto w-full max-w-2xl space-y-8">{children}</div>
@@ -98,11 +98,6 @@ export default async function SignPage({
             De werkbon is mogelijk al getekend, ingetrokken of de link bevat
             een fout. Vraag Stera om je een nieuwe link te bezorgen.
           </p>
-          <div className="mt-6">
-            <Link href="/" className="stera-cta stera-cta-secondary">
-              Terug naar start
-            </Link>
-          </div>
         </div>
       </Shell>
     )

@@ -65,12 +65,15 @@ export default async function WorkOrdersPage({
     .order('created_at', { ascending: false })
 
   // Afgewerkte beurten waarvoor nog GEEN werkbon bestaat —
-  // melding bovenaan om Jelle te herinneren.
+  // melding bovenaan om Jelle te herinneren. Contract-klanten
+  // krijgen automatisch een 'archived' werkbon bij het beëindigen
+  // van de beurt, dus die filteren we hier uit: voor hen is geen
+  // actie nodig.
   const { data: completedVisits } = await supabase
     .from('maintenance_visits')
     .select(
       `id, title, scheduled_start, ended_at,
-       locations ( name, companies ( name ) ),
+       locations ( name, companies ( name, has_maintenance_contract ) ),
        work_orders ( id )`
     )
     .eq('status', 'completed')
@@ -78,7 +81,13 @@ export default async function WorkOrdersPage({
 
   const missingWorkOrder = (completedVisits ?? []).filter((v: any) => {
     const wos = Array.isArray(v.work_orders) ? v.work_orders : []
-    return wos.length === 0
+    if (wos.length > 0) return false
+    const loc = Array.isArray(v.locations) ? v.locations[0] : v.locations
+    const company = Array.isArray(loc?.companies)
+      ? loc.companies[0]
+      : loc?.companies
+    if (company?.has_maintenance_contract) return false
+    return true
   })
 
   function visitLine(row: any) {
