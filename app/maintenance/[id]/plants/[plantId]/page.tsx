@@ -508,6 +508,12 @@ export default function MaintenancePlantDetailPage() {
         roomPhotoUrl = publicUrlData.publicUrl
       }
 
+      // Een plant die dood is of voor vervanging staat, is niet
+      // verpot — corrigeer dat hier zodat de DB consistent blijft
+      // en de verbruiks-aggregatie niets vals optelt.
+      const effectiveRepotted =
+        repotted && healthStatus !== 'dead' && !followupReplace
+
       const payload: Record<string, unknown> = {
         visit_id: visitId,
         plant_id: plantId,
@@ -518,7 +524,7 @@ export default function MaintenancePlantDetailPage() {
         action_cleaned: cleaned,
         action_rotated: rotated,
         action_polished: polished,
-        action_repotted: repotted,
+        action_repotted: effectiveRepotted,
         action_replaced: replaced,
         action_checked: checked,
         health_status: healthStatus,
@@ -587,8 +593,9 @@ export default function MaintenancePlantDetailPage() {
         notes: notes.trim() || null,
       }
       // Verpot + nieuwe maat gekozen? → potmaat van de plant bijwerken
-      // zodat de "next size up"-suggestie volgende keer klopt.
-      if (repotted && newPotSize) {
+      // zodat de "next size up"-suggestie volgende keer klopt. Niet
+      // doen als de plant intussen als dood/te-vervangen gemarkeerd is.
+      if (effectiveRepotted && newPotSize) {
         plantUpdatePayload.pot_size_code = newPotSize
       }
 
@@ -621,19 +628,31 @@ export default function MaintenancePlantDetailPage() {
 
       const { data: repottedVisitPlants } = await supabase
         .from('maintenance_visit_plants')
-        .select('plant_id, plants ( pot_size_code )')
+        .select(
+          `plant_id, health_status, followup_replace,
+           plants ( pot_size_code, status )`
+        )
         .eq('visit_id', visitId)
         .eq('action_repotted', true)
 
       // Per maat: hoeveel planten worden er deze beurt naar verpot?
+      // Sla planten over die dood zijn of voor vervanging staan —
+      // die werden niet écht verpot, ook al staat action_repotted nog
+      // ergens true (oude data of inconsistente UI-state).
       const sizeCounts = new Map<string, number>()
       let totalLiters = 0
       let plantCount = 0
       for (const row of repottedVisitPlants ?? []) {
+        if ((row as any).followup_replace) continue
+        if ((row as any).health_status === 'dead') continue
         const plantRel = (row as any).plants
-        const code = Array.isArray(plantRel)
-          ? plantRel[0]?.pot_size_code
-          : plantRel?.pot_size_code
+        const plant = Array.isArray(plantRel) ? plantRel[0] : plantRel
+        if (
+          plant?.status === 'dead' ||
+          plant?.status === 'replacement_needed'
+        )
+          continue
+        const code = plant?.pot_size_code
         const p = findPotSize(code)
         if (p) {
           sizeCounts.set(code, (sizeCounts.get(code) ?? 0) + 1)
