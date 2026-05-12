@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import SteraLogo from '@/components/stera-logo'
 import {
   ACTIVE_POT_SIZES,

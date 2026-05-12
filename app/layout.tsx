@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Instrument_Sans, Instrument_Serif } from 'next/font/google'
+import { Toaster } from 'sonner'
 import './globals.css'
 import AppNav from '@/components/app-nav'
 import AppNavFrame from '@/components/app-nav-frame'
@@ -59,6 +60,16 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-stera-cream text-stera-ink">
         <AppNavFrame>{children}</AppNavFrame>
         <AppNav />
+        <Toaster
+          position="top-center"
+          richColors
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: 'font-sans',
+            },
+          }}
+        />
       </body>
     </html>
   )
