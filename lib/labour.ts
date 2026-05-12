@@ -41,3 +41,49 @@ export function labourCostCents(billed: number | null): number | null {
   if (billed == null) return null
   return Math.round((billed / 60) * HOURLY_RATE_EUR_CENTS)
 }
+
+/**
+ * Geformatteerde "van X tot Y"-tekst voor op de werkbon.
+ * Zelfde dag → "Van 29 april 2026 om 14:00 tot 18:00".
+ * Andere dag → "Van 29 april 2026 om 22:00 tot 30 april 2026 om 06:00".
+ * Alleen start of eind → "Vanaf X om Y" / "Tot X om Y".
+ * Server-side: gerendered in Europe/Brussels, niet de Vercel-UTC.
+ */
+export function formatWorkRangeText(
+  start: string | null,
+  end: string | null
+): string | null {
+  if (!start && !end) return null
+
+  const dateFmt: Intl.DateTimeFormatOptions = {
+    timeZone: 'Europe/Brussels',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }
+  const timeFmt: Intl.DateTimeFormatOptions = {
+    timeZone: 'Europe/Brussels',
+    hour: '2-digit',
+    minute: '2-digit',
+  }
+
+  const dateOf = (v: string) =>
+    new Date(v).toLocaleDateString('nl-BE', dateFmt)
+  const timeOf = (v: string) =>
+    new Date(v).toLocaleTimeString('nl-BE', timeFmt)
+
+  if (start && end) {
+    const sDate = dateOf(start)
+    const eDate = dateOf(end)
+    const sTime = timeOf(start)
+    const eTime = timeOf(end)
+    if (sDate === eDate) {
+      return `Van ${sDate} om ${sTime} tot ${eTime}`
+    }
+    return `Van ${sDate} om ${sTime} tot ${eDate} om ${eTime}`
+  }
+  if (start) {
+    return `Vanaf ${dateOf(start)} om ${timeOf(start)}`
+  }
+  return `Tot ${dateOf(end!)} om ${timeOf(end!)}`
+}

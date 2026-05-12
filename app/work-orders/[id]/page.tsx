@@ -14,6 +14,7 @@ import {
   HOURLY_RATE_EUR_CENTS,
   billedMinutes,
   formatBilledDuration,
+  formatWorkRangeText,
   labourCostCents,
 } from '@/lib/labour'
 import { formatRoomLabel } from '@/lib/rooms'
@@ -47,6 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
 function formatDateTime(value: string | null) {
   if (!value) return null
   return new Date(value).toLocaleString('nl-BE', {
+    timeZone: 'Europe/Brussels',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -58,6 +60,7 @@ function formatDateTime(value: string | null) {
 function formatDateOnly(value: string | null) {
   if (!value) return null
   return new Date(value).toLocaleDateString('nl-BE', {
+    timeZone: 'Europe/Brussels',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -198,6 +201,7 @@ export default async function WorkOrderDetailPage({
   )
   const duration = formatBilledDuration(billed)
   const labourCost = labourCostCents(billed)
+  const workRange = formatWorkRangeText(visit.started_at, visit.ended_at)
 
   // Bouw de signing-URL voor deze omgeving (publieke link voor klant).
   const hdrs = await headers()
@@ -414,9 +418,9 @@ export default async function WorkOrderDetailPage({
             <section className="rounded border border-stera-line bg-white/60 p-4 text-sm">
               <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
               <p className="text-lg font-semibold">{duration}</p>
-              <p className="text-xs text-stera-ink-soft">
-                Afgerond op halfuur, pauzes uitgesloten
-              </p>
+              {workRange ? (
+                <p className="mt-1 text-xs text-stera-ink-soft">{workRange}</p>
+              ) : null}
               <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-stera-line pt-3 text-xs">
                 <dt className="text-stera-ink-soft">Uurtarief (excl. btw)</dt>
                 <dd className="text-right font-medium tabular-nums">
@@ -567,9 +571,14 @@ export default async function WorkOrderDetailPage({
 
           {!hasContract && consumables && consumables.length > 0 ? (
             <section>
-              <p className="stera-eyebrow text-stera-green mb-2">
-                Verbruiksgoederen
-              </p>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="stera-eyebrow text-stera-green">
+                  Verbruiksgoederen
+                </p>
+                <span className="text-xs text-stera-ink-soft">
+                  Prijzen excl. btw
+                </span>
+              </div>
               {(() => {
                 const rows = consumables.map((c: any) => {
                   const catalog = Array.isArray(c.consumable_catalog)

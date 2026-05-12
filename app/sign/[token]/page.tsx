@@ -11,6 +11,7 @@ import {
   HOURLY_RATE_EUR_CENTS,
   billedMinutes,
   formatBilledDuration,
+  formatWorkRangeText,
   labourCostCents,
 } from '@/lib/labour'
 import { formatRoomLabel } from '@/lib/rooms'
@@ -37,6 +38,7 @@ const ACTION_KEYS = [
 function formatDate(value: string | null) {
   if (!value) return ''
   return new Date(value).toLocaleDateString('nl-BE', {
+    timeZone: 'Europe/Brussels',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -46,6 +48,7 @@ function formatDate(value: string | null) {
 function formatDateTime(value: string | null) {
   if (!value) return null
   return new Date(value).toLocaleString('nl-BE', {
+    timeZone: 'Europe/Brussels',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -155,8 +158,7 @@ export default async function SignPage({
   }
 
   const hasContract = Boolean(company?.has_maintenance_contract)
-  const startedAt = formatDateTime(visit.started_at)
-  const endedAt = formatDateTime(visit.ended_at)
+  const workRange = formatWorkRangeText(visit.started_at, visit.ended_at)
   const billed = billedMinutes(
     visit.started_at,
     visit.ended_at,
@@ -230,15 +232,9 @@ export default async function SignPage({
         <section className="rounded border border-stera-line bg-white p-4 text-sm">
           <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
           <p className="text-lg font-semibold">{duration}</p>
-          {(startedAt || endedAt) && (
-            <p className="mt-1 text-xs text-stera-ink-soft">
-              {startedAt && endedAt
-                ? `Van ${startedAt} tot ${endedAt}`
-                : startedAt
-                  ? `Vanaf ${startedAt}`
-                  : `Tot ${endedAt}`}
-            </p>
-          )}
+          {workRange ? (
+            <p className="mt-1 text-xs text-stera-ink-soft">{workRange}</p>
+          ) : null}
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-stera-line pt-3 text-xs">
             <dt className="text-stera-ink-soft">Uurtarief (excl. btw)</dt>
             <dd className="text-right font-medium tabular-nums">
@@ -409,9 +405,14 @@ export default async function SignPage({
 
       {!hasContract && consumables.length > 0 ? (
         <section>
-          <p className="stera-eyebrow text-stera-green mb-2">
-            Verbruiksgoederen
-          </p>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <p className="stera-eyebrow text-stera-green">
+              Verbruiksgoederen
+            </p>
+            <span className="text-xs text-stera-ink-soft">
+              Prijzen excl. btw
+            </span>
+          </div>
           {(() => {
             const rows = consumables.map((c: any) => {
               const unitSize = c.unit_size ?? null
