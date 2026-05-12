@@ -134,6 +134,8 @@ export default function NewLocationPage() {
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                autoComplete="postal-code"
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
                 className="w-full rounded-lg border border-stera-line bg-white p-3"

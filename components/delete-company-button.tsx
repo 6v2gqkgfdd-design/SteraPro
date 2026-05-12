@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { ConfirmModal } from '@/components/confirm-modal'
 
 export default function DeleteCompanyButton({
   companyId,
@@ -14,14 +16,10 @@ export default function DeleteCompanyButton({
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
 
-  async function handleDelete() {
-    const confirmed = window.confirm(
-      'Ben je zeker dat je deze klant wilt verwijderen?'
-    )
-
-    if (!confirmed) return
-
+  async function doDelete() {
+    setOpen(false)
     setLoading(true)
 
     const { error } = await supabase
@@ -30,36 +28,49 @@ export default function DeleteCompanyButton({
       .eq('id', companyId)
 
     if (error) {
-      alert(error.message)
+      toast.error(error.message)
       setLoading(false)
       return
     }
 
+    toast.success('Klant verwijderd')
     router.push('/dashboard')
     router.refresh()
   }
 
-  if (variant === 'menu') {
-    return (
+  const trigger =
+    variant === 'menu' ? (
       <button
         type="button"
-        onClick={handleDelete}
+        onClick={() => setOpen(true)}
         disabled={loading}
         className="block w-full px-4 py-3 text-left text-sm text-red-700 transition hover:bg-red-50 disabled:opacity-50"
       >
         {loading ? 'Verwijderen...' : 'Klant verwijderen'}
       </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={loading}
+        className="stera-cta stera-cta-danger disabled:opacity-50"
+      >
+        {loading ? 'Verwijderen...' : 'Klant verwijderen'}
+      </button>
     )
-  }
 
   return (
-    <button
-      type="button"
-      onClick={handleDelete}
-      disabled={loading}
-      className="stera-cta stera-cta-danger disabled:opacity-50"
-    >
-      {loading ? 'Verwijderen...' : 'Klant verwijderen'}
-    </button>
+    <>
+      {trigger}
+      <ConfirmModal
+        open={open}
+        title="Klant verwijderen?"
+        description="Alle locaties, ruimtes, planten en historiek van deze klant worden permanent verwijderd. Niet ongedaan te maken."
+        confirmLabel="Klant verwijderen"
+        tone="danger"
+        onConfirm={doDelete}
+        onCancel={() => setOpen(false)}
+      />
+    </>
   )
 }

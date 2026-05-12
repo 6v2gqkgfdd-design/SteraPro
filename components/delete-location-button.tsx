@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { ConfirmModal } from '@/components/confirm-modal'
 
 export default function DeleteLocationButton({
   locationId,
@@ -16,14 +18,10 @@ export default function DeleteLocationButton({
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
 
-  async function handleDelete() {
-    const confirmed = window.confirm(
-      'Ben je zeker dat je deze locatie wilt verwijderen?'
-    )
-
-    if (!confirmed) return
-
+  async function doDelete() {
+    setOpen(false)
     setLoading(true)
 
     const { error } = await supabase
@@ -32,36 +30,49 @@ export default function DeleteLocationButton({
       .eq('id', locationId)
 
     if (error) {
-      alert(error.message)
+      toast.error(error.message)
       setLoading(false)
       return
     }
 
+    toast.success('Locatie verwijderd')
     router.push(`/companies/${companyId}`)
     router.refresh()
   }
 
-  if (variant === 'menu') {
-    return (
+  const trigger =
+    variant === 'menu' ? (
       <button
         type="button"
-        onClick={handleDelete}
+        onClick={() => setOpen(true)}
         disabled={loading}
         className="block w-full px-4 py-3 text-left text-sm text-red-700 transition hover:bg-red-50 disabled:opacity-50"
       >
         {loading ? 'Verwijderen...' : 'Locatie verwijderen'}
       </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={loading}
+        className="stera-cta stera-cta-danger disabled:opacity-50"
+      >
+        {loading ? 'Verwijderen...' : 'Locatie verwijderen'}
+      </button>
     )
-  }
 
   return (
-    <button
-      type="button"
-      onClick={handleDelete}
-      disabled={loading}
-      className="stera-cta stera-cta-danger disabled:opacity-50"
-    >
-      {loading ? 'Verwijderen...' : 'Locatie verwijderen'}
-    </button>
+    <>
+      {trigger}
+      <ConfirmModal
+        open={open}
+        title="Locatie verwijderen?"
+        description="Alle ruimtes, planten en historiek op deze locatie worden permanent verwijderd. Niet ongedaan te maken."
+        confirmLabel="Locatie verwijderen"
+        tone="danger"
+        onConfirm={doDelete}
+        onCancel={() => setOpen(false)}
+      />
+    </>
   )
 }

@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { ConfirmModal } from '@/components/confirm-modal'
 
 type Props = {
   visitId: string
@@ -28,6 +30,8 @@ export default function VisitManagement({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const isScheduled = status === 'scheduled'
@@ -207,9 +211,8 @@ export default function VisitManagement({
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm('Beurt markeren als geannuleerd?')) {
-                    handleCancel()
-                  }
+                  setMenuOpen(false)
+                  setCancelModalOpen(true)
                 }}
                 disabled={busy}
                 className={menuItemClass}
@@ -235,18 +238,13 @@ export default function VisitManagement({
               type="button"
               onClick={() => {
                 if (workOrderIsLocked) {
-                  alert(
+                  toast.error(
                     'Werkbon is ondertekend — verwijder eerst de werkbon via "Werkbon openen".'
                   )
                   return
                 }
-                if (
-                  window.confirm(
-                    'Zeker? Alles van deze beurt (planten, verbruik, werkbon) wordt verwijderd.'
-                  )
-                ) {
-                  handleDelete()
-                }
+                setMenuOpen(false)
+                setDeleteModalOpen(true)
               }}
               disabled={busy || workOrderIsLocked}
               className={dangerItemClass}
@@ -402,6 +400,32 @@ export default function VisitManagement({
           {error}
         </p>
       )}
+
+      <ConfirmModal
+        open={cancelModalOpen}
+        title="Beurt annuleren?"
+        description="De beurt wordt gemarkeerd als geannuleerd. Je kan ze later opnieuw activeren via het menu."
+        confirmLabel="Annuleren"
+        tone="danger"
+        onConfirm={async () => {
+          setCancelModalOpen(false)
+          await handleCancel()
+        }}
+        onCancel={() => setCancelModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={deleteModalOpen}
+        title="Beurt verwijderen?"
+        description="Alles van deze beurt — planten, verbruik, werkbon, foto's — wordt permanent verwijderd. Niet ongedaan te maken."
+        confirmLabel="Beurt verwijderen"
+        tone="danger"
+        onConfirm={async () => {
+          setDeleteModalOpen(false)
+          await handleDelete()
+        }}
+        onCancel={() => setDeleteModalOpen(false)}
+      />
     </div>
   )
 }

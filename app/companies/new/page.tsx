@@ -71,6 +71,8 @@ export default function NewCompanyPage() {
 
           <input
             type="email"
+            inputMode="email"
+            autoComplete="email"
             placeholder="E-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -78,7 +80,9 @@ export default function NewCompanyPage() {
           />
 
           <input
-            type="text"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             placeholder="Telefoon"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}

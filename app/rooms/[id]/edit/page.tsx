@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { ConfirmModal } from '@/components/confirm-modal'
 
 export default function EditRoomPage() {
   const params = useParams<{ id: string }>()
@@ -21,6 +23,7 @@ export default function EditRoomPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (!roomId) return
@@ -83,21 +86,20 @@ export default function EditRoomPage() {
 
   async function handleDelete() {
     if (!roomId) return
-    const confirmed = window.confirm(
-      'Ben je zeker dat je deze ruimte wilt verwijderen? Planten in deze ruimte verliezen hun ruimte-koppeling, maar blijven bestaan op de locatie.'
-    )
-    if (!confirmed) return
-
+    setConfirmOpen(false)
     setDeleting(true)
     setError('')
 
     const { error } = await supabase.from('rooms').delete().eq('id', roomId)
 
     if (error) {
+      toast.error(error.message)
       setError(error.message)
       setDeleting(false)
       return
     }
+
+    toast.success('Ruimte verwijderd')
 
     if (locationId) {
       router.push(`/locations/${locationId}`)
@@ -175,7 +177,7 @@ export default function EditRoomPage() {
 
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setConfirmOpen(true)}
                 disabled={deleting}
                 className="stera-cta stera-cta-danger disabled:opacity-50"
               >
@@ -187,6 +189,16 @@ export default function EditRoomPage() {
           </form>
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Ruimte verwijderen?"
+        description="Planten in deze ruimte verliezen hun ruimte-koppeling maar blijven bestaan op de locatie. Niet ongedaan te maken."
+        confirmLabel="Ruimte verwijderen"
+        tone="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </main>
   )
 }
