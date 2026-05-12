@@ -682,7 +682,7 @@ export default function MaintenancePlantDetailPage() {
                     Opnieuw scannen →
                   </Link>
                   <Link
-                    href={`/maintenance/${state.visitId}/plants`}
+                    href={`/maintenance/${state.visitId}/plants/select`}
                     className="stera-cta inline-flex items-center justify-center border border-stera-green px-6 py-4 text-sm text-stera-ink hover:bg-stera-green hover:text-white"
                   >
                     Plant kiezen
@@ -822,7 +822,7 @@ export default function MaintenancePlantDetailPage() {
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href={`/maintenance/${visitId}/plants`}
+              href={`/maintenance/${visitId}`}
               className="stera-cta stera-cta-ghost"
             >
               Terug

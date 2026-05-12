@@ -189,7 +189,12 @@ export default async function MaintenancePage({
                     <p className="text-stera-ink-soft">
                       {visit.scheduled_start
                         ? new Date(visit.scheduled_start).toLocaleString(
-                            'nl-BE'
+                            'nl-BE',
+                            {
+                              timeZone: 'Europe/Brussels',
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            }
                           )
                         : 'Geen datum'}
                     </p>

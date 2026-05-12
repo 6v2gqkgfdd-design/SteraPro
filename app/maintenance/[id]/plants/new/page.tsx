@@ -11,6 +11,13 @@ import {
   STANDARD_MAINTENANCE_HEALTH_STATUS,
 } from '@/lib/standard-maintenance'
 import { POT_SIZES, formatPotSize } from '@/lib/pot-sizes'
+import { formatRoomLabel } from '@/lib/rooms'
+
+type RoomOption = {
+  id: string
+  name: string | null
+  floor: string | null
+}
 
 function slugify(value: string) {
   return value
@@ -40,7 +47,7 @@ export default function MaintenanceNewPlantPage() {
   const [locationId, setLocationId] = useState('')
   const [locationName, setLocationName] = useState('')
   const [companyId, setCompanyId] = useState('')
-  const [rooms, setRooms] = useState<Array<{ id: string; name: string | null }>>([])
+  const [rooms, setRooms] = useState<RoomOption[]>([])
   const [roomId, setRoomId] = useState('')
 
   const [nickname, setNickname] = useState('')
@@ -90,6 +97,9 @@ export default function MaintenanceNewPlantPage() {
           locations (
             id,
             name
+          ),
+          maintenance_visit_rooms (
+            rooms ( id, name, floor )
           )
         `)
         .eq('id', visitId)
@@ -110,16 +120,35 @@ export default function MaintenanceNewPlantPage() {
       setCompanyId(data.company_id || '')
       setLocationName(resolvedLocationName)
 
-      if (data.location_id) {
-        const { data: roomList } = await supabase
+      // Ruimtes scopen tot wat in deze beurt gepland staat.
+      // Geen ruimtes gekoppeld? → fallback naar alle ruimtes van de locatie.
+      const visitRooms: RoomOption[] = Array.isArray(
+        data.maintenance_visit_rooms
+      )
+        ? (data.maintenance_visit_rooms as any[])
+            .map((mvr) => {
+              const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+              return r as RoomOption | null
+            })
+            .filter((r): r is RoomOption => Boolean(r))
+        : []
+
+      let roomList: RoomOption[] = []
+
+      if (visitRooms.length > 0) {
+        roomList = visitRooms
+      } else if (data.location_id) {
+        const { data: allRooms } = await supabase
           .from('rooms')
-          .select('id, name')
+          .select('id, name, floor')
           .eq('location_id', data.location_id)
-          .order('created_at', { ascending: true })
-        setRooms(roomList ?? [])
-        if (roomList && roomList.length > 0) {
-          setRoomId(roomList[0].id)
-        }
+          .order('name', { ascending: true })
+        roomList = (allRooms ?? []) as RoomOption[]
+      }
+
+      setRooms(roomList)
+      if (roomList.length > 0) {
+        setRoomId(roomList[0].id)
       }
     }
 
@@ -366,7 +395,7 @@ export default function MaintenanceNewPlantPage() {
               </option>
               {rooms.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.name || 'Ruimte'}
+                  {formatRoomLabel(r.name, r.floor)}
                 </option>
               ))}
             </select>
@@ -414,7 +443,7 @@ export default function MaintenanceNewPlantPage() {
                 type="button"
                 onClick={regenerateNickname}
                 disabled={nicknameLoading}
-                className="stera-cta stera-cta-ghost shrink-0"
+                className="shrink-0 rounded-lg border border-stera-line bg-white px-3 text-sm font-medium text-stera-ink transition hover:border-stera-green disabled:opacity-50"
                 title={
                   species
                     ? `Verzin bijnaam op basis van ${species}`

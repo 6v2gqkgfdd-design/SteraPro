@@ -272,7 +272,11 @@ export default async function MaintenanceDetailPage({
             </p>
             <p className="text-sm text-stera-ink-soft">
               {visit.scheduled_start
-                ? new Date(visit.scheduled_start).toLocaleString('nl-BE')
+                ? new Date(visit.scheduled_start).toLocaleString('nl-BE', {
+                    timeZone: 'Europe/Brussels',
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })
                 : 'Geen datum'}
             </p>
             {Array.isArray(visit.maintenance_visit_rooms) &&
