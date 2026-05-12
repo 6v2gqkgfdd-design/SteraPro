@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import SteraLogo from '@/components/stera-logo'
 
@@ -93,16 +92,6 @@ export default function LoginPage() {
               </p>
             )}
           </form>
-
-          <p className="mt-8 text-sm text-stera-ink-soft">
-            Nog geen account?{' '}
-            <Link
-              href="/signup"
-              className="font-semibold text-stera-ink underline underline-offset-4 hover:text-stera-green"
-            >
-              Account aanmaken
-            </Link>
-          </p>
         </div>
       </div>
 
