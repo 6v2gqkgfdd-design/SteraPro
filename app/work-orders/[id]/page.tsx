@@ -16,6 +16,7 @@ import {
   formatBilledDuration,
   labourCostCents,
 } from '@/lib/labour'
+import { formatRoomLabel } from '@/lib/rooms'
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Nog te versturen',
@@ -97,7 +98,8 @@ export default async function WorkOrderDetailPage({
          company_id,
          location_id,
          locations ( id, name, street, number, postal_code, city ),
-         companies ( id, name, contact_name, email, has_maintenance_contract )
+         companies ( id, name, contact_name, email, has_maintenance_contract ),
+         maintenance_visit_rooms ( rooms ( id, name, floor ) )
        )`
     )
     .eq('id', id)
@@ -179,6 +181,15 @@ export default async function WorkOrderDetailPage({
   // Voor de bestaande contract-banner en backwards-compat blijven we
   // ook 'replacements' beschikbaar houden (= dood, met specs).
   const replacements = groups.dead
+
+  const visitRoomLabels: string[] = Array.isArray(visit.maintenance_visit_rooms)
+    ? (visit.maintenance_visit_rooms as any[])
+        .map((mvr) => {
+          const r = Array.isArray(mvr.rooms) ? mvr.rooms[0] : mvr.rooms
+          return r ? formatRoomLabel(r.name, r.floor) : null
+        })
+        .filter((v): v is string => Boolean(v))
+    : []
 
   const billed = billedMinutes(
     visit.started_at,
@@ -379,6 +390,26 @@ export default async function WorkOrderDetailPage({
             </div>
           </section>
 
+          <section>
+            <p className="stera-eyebrow text-stera-green mb-2">
+              Behandelde ruimtes
+            </p>
+            {visitRoomLabels.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {visitRoomLabels.map((label) => (
+                  <span
+                    key={label}
+                    className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-stera-ink-soft">Volledige locatie</p>
+            )}
+          </section>
+
           {!hasContract && duration ? (
             <section className="rounded border border-stera-line bg-white/60 p-4 text-sm">
               <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
@@ -540,7 +571,6 @@ export default async function WorkOrderDetailPage({
                 Verbruiksgoederen
               </p>
               {(() => {
-                let grandTotal = 0
                 const rows = consumables.map((c: any) => {
                   const catalog = Array.isArray(c.consumable_catalog)
                     ? c.consumable_catalog[0]
@@ -553,39 +583,31 @@ export default async function WorkOrderDetailPage({
                     lineTotal = Math.round(
                       (Number(c.quantity) / unitSize) * unitPrice
                     )
-                    grandTotal += lineTotal
                   }
                   return { id: c.id, name, c, lineTotal }
                 })
                 return (
-                  <>
-                    <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white/60 text-sm">
-                      {rows.map((r) => (
-                        <li
-                          key={r.id}
-                          className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
-                        >
-                          <span className="font-medium flex-1 min-w-0">
-                            {r.name}
+                  <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white/60 text-sm">
+                    {rows.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
+                      >
+                        <span className="font-medium flex-1 min-w-0">
+                          {r.name}
+                        </span>
+                        <span className="text-stera-ink-soft">
+                          {r.c.quantity}
+                          {r.c.unit ? ` ${r.c.unit}` : ''}
+                        </span>
+                        {r.lineTotal != null ? (
+                          <span className="font-medium tabular-nums w-20 text-right">
+                            {formatEur(r.lineTotal)}
                           </span>
-                          <span className="text-stera-ink-soft">
-                            {r.c.quantity}
-                            {r.c.unit ? ` ${r.c.unit}` : ''}
-                          </span>
-                          {r.lineTotal != null ? (
-                            <span className="font-medium tabular-nums w-20 text-right">
-                              {formatEur(r.lineTotal)}
-                            </span>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                    {grandTotal > 0 ? (
-                      <p className="mt-2 text-right text-sm font-semibold">
-                        Totaal verbruik: {formatEur(grandTotal)}
-                      </p>
-                    ) : null}
-                  </>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
                 )
               })()}
             </section>

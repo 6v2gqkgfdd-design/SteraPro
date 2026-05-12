@@ -13,6 +13,7 @@ import {
   formatBilledDuration,
   labourCostCents,
 } from '@/lib/labour'
+import { formatRoomLabel } from '@/lib/rooms'
 import SignForm from './sign-form'
 
 const LIGHT_LABELS: Record<string, string> = {
@@ -112,10 +113,50 @@ export default async function SignPage({
   const location = wo?.location ?? {}
   const plants: any[] = Array.isArray(wo?.plants) ? wo.plants : []
   const consumables: any[] = Array.isArray(wo?.consumables) ? wo.consumables : []
+  const rooms: any[] = Array.isArray(wo?.rooms) ? wo.rooms : []
+  const roomLabels: string[] = rooms
+    .map((r) => formatRoomLabel(r?.name, r?.floor))
+    .filter(Boolean)
+
+  // Bucket planten zoals op de interne werkbon: gezond / ziek / verpot / dood.
+  const groups: {
+    healthy: any[]
+    sick: any[]
+    repotted: any[]
+    dead: any[]
+  } = { healthy: [], sick: [], repotted: [], dead: [] }
+
+  for (const vp of plants) {
+    const plantStatus = vp.status || ''
+    const healthStatus = vp.health_status || ''
+    const isDead =
+      vp.action_replaced ||
+      vp.followup_replace ||
+      plantStatus === 'dead' ||
+      plantStatus === 'replacement_needed' ||
+      healthStatus === 'dead'
+    if (isDead) {
+      groups.dead.push(vp)
+      continue
+    }
+    if (vp.action_repotted) {
+      groups.repotted.push(vp)
+      continue
+    }
+    const isSick =
+      healthStatus === 'needs_attention' ||
+      plantStatus === 'needs_attention' ||
+      plantStatus === 'maintenance_due'
+    if (isSick) {
+      groups.sick.push(vp)
+      continue
+    }
+    groups.healthy.push(vp)
+  }
 
   const hasContract = Boolean(company?.has_maintenance_contract)
-  const replacements = plants.filter((p) => p.followup_replace)
-  const treated = plants.filter((p) => !p.followup_replace)
+  const startedAt = formatDateTime(visit.started_at)
+  const endedAt = formatDateTime(visit.ended_at)
   const billed = billedMinutes(
     visit.started_at,
     visit.ended_at,
@@ -165,13 +206,39 @@ export default async function SignPage({
         </div>
       </section>
 
+      <section>
+        <p className="stera-eyebrow text-stera-green mb-2">
+          Behandelde ruimtes
+        </p>
+        {roomLabels.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {roomLabels.map((label) => (
+              <span
+                key={label}
+                className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-stera-ink-soft">Volledige locatie</p>
+        )}
+      </section>
+
       {!hasContract && duration ? (
         <section className="rounded border border-stera-line bg-white p-4 text-sm">
           <p className="stera-eyebrow text-stera-green mb-1">Werkduur</p>
           <p className="text-lg font-semibold">{duration}</p>
-          <p className="text-xs text-stera-ink-soft">
-            Afgerond op halfuur, pauzes uitgesloten
-          </p>
+          {(startedAt || endedAt) && (
+            <p className="mt-1 text-xs text-stera-ink-soft">
+              {startedAt && endedAt
+                ? `Van ${startedAt} tot ${endedAt}`
+                : startedAt
+                  ? `Vanaf ${startedAt}`
+                  : `Tot ${endedAt}`}
+            </p>
+          )}
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-stera-line pt-3 text-xs">
             <dt className="text-stera-ink-soft">Uurtarief (excl. btw)</dt>
             <dd className="text-right font-medium tabular-nums">
@@ -185,79 +252,108 @@ export default async function SignPage({
         </section>
       ) : null}
 
-      <section>
-        <p className="stera-eyebrow text-stera-green mb-2">
-          Behandelde planten
-        </p>
-        {treated.length === 0 ? (
+      {plants.length === 0 ? (
+        <section>
+          <p className="stera-eyebrow text-stera-green mb-2">
+            Behandelde planten
+          </p>
           <p className="text-sm text-stera-ink-soft">
             Geen planten geregistreerd.
           </p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {treated.map((vp: any) => {
-              const actions = ACTION_KEYS
-                .filter(([key]) => Boolean(vp[key]))
-                .map(([, label]) => label)
-              return (
-                <li
-                  key={vp.id}
-                  className="rounded border border-stera-line bg-white p-3"
-                >
-                  <div className="flex flex-wrap gap-3">
-                    {vp.photo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={vp.photo_url}
-                        alt={vp.nickname || 'Plant'}
-                        className="h-20 w-20 shrink-0 rounded object-cover"
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">
-                        {vp.nickname ||
-                          vp.species ||
-                          vp.reference_code ||
-                          'Plant'}
-                      </p>
-                      {vp.reference_code && vp.reference_code !== vp.nickname ? (
-                        <p className="text-xs font-mono text-stera-ink-soft">
-                          {vp.reference_code}
-                        </p>
-                      ) : null}
-                      {actions.length > 0 ? (
-                        <p className="mt-1 text-xs text-stera-ink-soft">
-                          {actions.join(' · ')}
-                        </p>
-                      ) : null}
-                      {vp.notes ? (
-                        <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
-                          {vp.notes}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
 
-      {replacements.length > 0 ? (
+      {(
+        [
+          {
+            key: 'healthy',
+            label: 'Gezond',
+            items: groups.healthy,
+            accent: 'text-stera-green',
+          },
+          {
+            key: 'sick',
+            label: 'Ziek',
+            items: groups.sick,
+            accent: 'text-orange-700',
+          },
+          {
+            key: 'repotted',
+            label: 'Verpot',
+            items: groups.repotted,
+            accent: 'text-stera-green',
+          },
+        ] as const
+      ).map((cat) =>
+        cat.items.length === 0 ? null : (
+          <section key={cat.key}>
+            <p className={`stera-eyebrow mb-2 ${cat.accent}`}>
+              {cat.label} ({cat.items.length})
+            </p>
+            <ul className="space-y-2 text-sm">
+              {cat.items.map((vp: any) => {
+                const actions = ACTION_KEYS
+                  .filter(([key]) => Boolean(vp[key]))
+                  .map(([, label]) => label)
+                return (
+                  <li
+                    key={vp.id}
+                    className="rounded border border-stera-line bg-white p-3"
+                  >
+                    <div className="flex flex-wrap gap-3">
+                      {vp.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={vp.photo_url}
+                          alt={vp.nickname || 'Plant'}
+                          className="h-20 w-20 shrink-0 rounded object-cover"
+                        />
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">
+                          {vp.nickname ||
+                            vp.species ||
+                            vp.reference_code ||
+                            'Plant'}
+                        </p>
+                        {vp.reference_code &&
+                        vp.reference_code !== vp.nickname ? (
+                          <p className="text-xs font-mono text-stera-ink-soft">
+                            {vp.reference_code}
+                          </p>
+                        ) : null}
+                        {actions.length > 0 ? (
+                          <p className="mt-1 text-xs text-stera-ink-soft">
+                            {actions.join(' · ')}
+                          </p>
+                        ) : null}
+                        {vp.notes ? (
+                          <p className="mt-1 whitespace-pre-wrap text-xs text-stera-ink-soft">
+                            {vp.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      )}
+
+      {groups.dead.length > 0 ? (
         <section>
-          <p className="stera-eyebrow text-stera-green mb-1">
-            Te vervangen planten
+          <p className="stera-eyebrow text-red-700 mb-1">
+            Dood ({groups.dead.length})
           </p>
           <p className="mb-3 text-sm text-stera-ink-soft">
-            {replacements.length === 1
-              ? '1 plant'
-              : `${replacements.length} planten`}{' '}
+            {groups.dead.length === 1 ? '1 plant' : `${groups.dead.length} planten`}{' '}
             kwamen niet door de inspectie. We sturen je een afzonderlijk
             voorstel voor de vervanging.
           </p>
           <ul className="space-y-3 text-sm">
-            {replacements.map((vp: any) => {
+            {groups.dead.map((vp: any) => {
               const currentPot = findPotSize(vp.pot_size_code)
               return (
                 <li
@@ -317,7 +413,6 @@ export default async function SignPage({
             Verbruiksgoederen
           </p>
           {(() => {
-            let grandTotal = 0
             const rows = consumables.map((c: any) => {
               const unitSize = c.unit_size ?? null
               const unitPrice = c.unit_price_cents ?? null
@@ -326,39 +421,31 @@ export default async function SignPage({
                 lineTotal = Math.round(
                   (Number(c.quantity) / unitSize) * unitPrice
                 )
-                grandTotal += lineTotal
               }
               return { id: c.id, c, lineTotal }
             })
             return (
-              <>
-                <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white text-sm">
-                  {rows.map((r) => (
-                    <li
-                      key={r.id}
-                      className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
-                    >
-                      <span className="font-medium flex-1 min-w-0">
-                        {r.c.name || 'Verbruik'}
+              <ul className="divide-y divide-stera-line rounded border border-stera-line bg-white text-sm">
+                {rows.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2"
+                  >
+                    <span className="font-medium flex-1 min-w-0">
+                      {r.c.name || 'Verbruik'}
+                    </span>
+                    <span className="text-stera-ink-soft">
+                      {r.c.quantity}
+                      {r.c.unit ? ` ${r.c.unit}` : ''}
+                    </span>
+                    {r.lineTotal != null ? (
+                      <span className="font-medium tabular-nums w-20 text-right">
+                        {formatEur(r.lineTotal)}
                       </span>
-                      <span className="text-stera-ink-soft">
-                        {r.c.quantity}
-                        {r.c.unit ? ` ${r.c.unit}` : ''}
-                      </span>
-                      {r.lineTotal != null ? (
-                        <span className="font-medium tabular-nums w-20 text-right">
-                          {formatEur(r.lineTotal)}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-                {grandTotal > 0 ? (
-                  <p className="mt-2 text-right text-sm font-semibold">
-                    Totaal verbruik: {formatEur(grandTotal)}
-                  </p>
-                ) : null}
-              </>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
             )
           })()}
         </section>
