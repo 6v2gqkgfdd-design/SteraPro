@@ -50,18 +50,53 @@ export default async function LocationDetailPage({
   const { data: plantsForCount } = roomIds.length
     ? await supabase
         .from('plants')
-        .select('id, room_id')
+        .select('id, room_id, status')
         .in('room_id', roomIds)
     : { data: [] }
 
-  const plantCountByRoom = new Map<string, number>()
-  for (const plant of plantsForCount ?? []) {
-    if (!plant.room_id) continue
-    plantCountByRoom.set(
-      plant.room_id,
-      (plantCountByRoom.get(plant.room_id) ?? 0) + 1
-    )
+  // Categorieën voor de pillen + per-ruimte teller.
+  //   gezond = status 'healthy'
+  //   ziek   = status 'needs_attention' of 'maintenance_due'
+  //   dood   = status 'dead' of 'replacement_needed'
+  // Dode planten tellen niet mee in "Totaal" — die worden geacht
+  // verwijderd te worden uit de werkelijke voorraad.
+  function plantCategory(
+    s: string | null | undefined
+  ): 'gezond' | 'ziek' | 'dood' {
+    if (s === 'dead' || s === 'replacement_needed') return 'dood'
+    if (s === 'needs_attention' || s === 'maintenance_due') return 'ziek'
+    return 'gezond'
   }
+
+  const plantCountByRoom = new Map<string, number>()
+  const deadCountByRoom = new Map<string, number>()
+  let countGezond = 0
+  let countZiek = 0
+  let countDood = 0
+
+  for (const plant of plantsForCount ?? []) {
+    const cat = plantCategory(plant.status as string | null)
+    if (cat === 'dood') {
+      countDood += 1
+      if (plant.room_id) {
+        deadCountByRoom.set(
+          plant.room_id,
+          (deadCountByRoom.get(plant.room_id) ?? 0) + 1
+        )
+      }
+      continue // dode planten niet meetellen in de "levende" tellers
+    }
+    if (cat === 'ziek') countZiek += 1
+    else countGezond += 1
+    if (plant.room_id) {
+      plantCountByRoom.set(
+        plant.room_id,
+        (plantCountByRoom.get(plant.room_id) ?? 0) + 1
+      )
+    }
+  }
+
+  const totalLiving = countGezond + countZiek
 
   const fullAddress = [
     [location.street, location.number].filter(Boolean).join(' '),
@@ -133,6 +168,34 @@ export default async function LocationDetailPage({
           </Link>
         </div>
 
+        {/* Plant-overzicht per categorie. Dode planten worden geacht
+            verwijderd te zijn, dus tellen niet mee in 'Totaal'. */}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full border border-stera-line bg-white px-3 py-1.5 font-medium">
+            Totaal{' '}
+            <span className="ml-1 font-semibold text-stera-ink">
+              {totalLiving}
+            </span>
+          </span>
+          <span className="rounded-full bg-stera-green/10 px-3 py-1.5 font-medium text-stera-green">
+            Gezond <span className="ml-1 font-semibold">{countGezond}</span>
+          </span>
+          {countZiek > 0 ? (
+            <span className="rounded-full bg-orange-100 px-3 py-1.5 font-medium text-orange-800">
+              Ziek <span className="ml-1 font-semibold">{countZiek}</span>
+            </span>
+          ) : (
+            <span className="rounded-full border border-stera-line bg-white px-3 py-1.5 font-medium text-stera-ink-soft">
+              Ziek <span className="ml-1 font-semibold">0</span>
+            </span>
+          )}
+          {countDood > 0 ? (
+            <span className="rounded-full bg-red-100 px-3 py-1.5 font-medium text-red-800">
+              Dood <span className="ml-1 font-semibold">{countDood}</span>
+            </span>
+          ) : null}
+        </div>
+
         {!rooms || rooms.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
             Nog geen ruimtes. Maak er één voor receptie, vergaderzaal, lokaal 3.04, ...
@@ -141,6 +204,7 @@ export default async function LocationDetailPage({
           <ul className="space-y-3">
             {(rooms as RoomRow[]).map((room) => {
               const plantCount = plantCountByRoom.get(room.id) ?? 0
+              const deadCount = deadCountByRoom.get(room.id) ?? 0
               return (
                 <li
                   key={room.id}
@@ -153,6 +217,11 @@ export default async function LocationDetailPage({
                       </p>
                       <p className="text-xs text-stera-ink-soft">
                         {plantCount} {plantCount === 1 ? 'plant' : 'planten'}
+                        {deadCount > 0 ? (
+                          <span className="ml-1 text-red-700">
+                            · {deadCount} dood
+                          </span>
+                        ) : null}
                       </p>
                     </div>
                     {room.notes && (

@@ -66,6 +66,33 @@ export default async function RoomDetailPage({
     .eq('room_id', id)
     .order('created_at', { ascending: false })
 
+  // Categoriseer voor het overzicht bovenaan. Dode planten worden
+  // geacht verwijderd te zijn en tellen niet mee in "Totaal", én
+  // verschijnen ook niet meer in de lijst hieronder.
+  function plantCategory(
+    s: string | null | undefined
+  ): 'gezond' | 'ziek' | 'dood' {
+    if (s === 'dead' || s === 'replacement_needed') return 'dood'
+    if (s === 'needs_attention' || s === 'maintenance_due') return 'ziek'
+    return 'gezond'
+  }
+  let countGezond = 0
+  let countZiek = 0
+  let countDood = 0
+  for (const p of plants ?? []) {
+    const c = plantCategory((p as any).status)
+    if (c === 'gezond') countGezond += 1
+    else if (c === 'ziek') countZiek += 1
+    else countDood += 1
+  }
+  const totalLiving = countGezond + countZiek
+
+  // Lijst zonder dode/te-vervangen planten — die zien we op de
+  // klantfiche onder "Gestorven planten".
+  const livingPlants = (plants ?? []).filter(
+    (p) => plantCategory((p as any).status) !== 'dood'
+  )
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-5">
@@ -109,7 +136,7 @@ export default async function RoomDetailPage({
         <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Planten
-            <span className="ml-2 opacity-70">{plants?.length ?? 0}</span>
+            <span className="ml-2 opacity-70">{totalLiving}</span>
           </span>
           <Link
             href={`/rooms/${room.id}/plants/new`}
@@ -119,13 +146,35 @@ export default async function RoomDetailPage({
           </Link>
         </div>
 
-        {!plants || plants.length === 0 ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full bg-stera-green/10 px-3 py-1.5 font-medium text-stera-green">
+            Gezond <span className="ml-1 font-semibold">{countGezond}</span>
+          </span>
+          {countZiek > 0 ? (
+            <span className="rounded-full bg-orange-100 px-3 py-1.5 font-medium text-orange-800">
+              Ziek <span className="ml-1 font-semibold">{countZiek}</span>
+            </span>
+          ) : (
+            <span className="rounded-full border border-stera-line bg-white px-3 py-1.5 font-medium text-stera-ink-soft">
+              Ziek <span className="ml-1 font-semibold">0</span>
+            </span>
+          )}
+          {countDood > 0 ? (
+            <span className="rounded-full bg-red-100 px-3 py-1.5 font-medium text-red-800">
+              Dood <span className="ml-1 font-semibold">{countDood}</span>
+            </span>
+          ) : null}
+        </div>
+
+        {livingPlants.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
-            Nog geen planten in deze ruimte.
+            {countDood > 0
+              ? 'Geen levende planten meer in deze ruimte — enkel te vervangen exemplaren.'
+              : 'Nog geen planten in deze ruimte.'}
           </div>
         ) : (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {plants.map((plant) => {
+            {livingPlants.map((plant) => {
               const overview = plant as PlantOverviewPlant
               const mood = getMood(overview)
               const photo = (plant as any).photo_url as string | null

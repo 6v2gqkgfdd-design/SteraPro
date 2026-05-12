@@ -23,8 +23,11 @@ import {
  */
 export async function GET(req: Request) {
   const url = new URL(req.url)
+  // 2000-01-01 = "alle items" volgens de Nieuwkoop docs.
+  // We filteren mainGroupCode niet via de URL (Playground accepteert
+  // dat soms niet) — we doen het client-side in filterReplacements.
   const sysmodified =
-    url.searchParams.get('sysmodified') || '2024-01-01'
+    url.searchParams.get('sysmodified') || '2000-01-01'
   const itemCode = url.searchParams.get('itemCode') || undefined
   const search = url.searchParams.get('search')
   const heightStr = url.searchParams.get('height')
@@ -35,7 +38,6 @@ export async function GET(req: Request) {
     const items: NieuwkoopItem[] = await getItems({
       sysmodified,
       itemCode,
-      mainGroupCode: '100',
     })
 
     const filtered = filterReplacements(items, {

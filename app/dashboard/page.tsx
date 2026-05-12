@@ -118,6 +118,7 @@ export default async function DashboardPage() {
   function formatDay(date: string | null) {
     if (!date) return ''
     return new Date(date).toLocaleDateString('nl-BE', {
+      timeZone: 'Europe/Brussels',
       weekday: 'short',
       day: 'numeric',
       month: 'short',
@@ -127,6 +128,7 @@ export default async function DashboardPage() {
   function formatTime(date: string | null) {
     if (!date) return ''
     return new Date(date).toLocaleTimeString('nl-BE', {
+      timeZone: 'Europe/Brussels',
       hour: '2-digit',
       minute: '2-digit',
     })
@@ -186,7 +188,15 @@ export default async function DashboardPage() {
     (todaysVisits ?? []).filter((v) => locationAddress(v)).length
 
   const greeting = (() => {
-    const hour = now.getHours()
+    // Brussels uur, niet de Vercel-UTC.
+    const brusselsHour = Number(
+      now.toLocaleString('en-GB', {
+        timeZone: 'Europe/Brussels',
+        hour: '2-digit',
+        hour12: false,
+      })
+    )
+    const hour = Number.isFinite(brusselsHour) ? brusselsHour : 12
     if (hour < 6) return 'Goeienacht'
     if (hour < 12) return 'Goeiemorgen'
     if (hour < 18) return 'Goeiemiddag'
@@ -194,6 +204,7 @@ export default async function DashboardPage() {
   })()
 
   const todayLabel = now.toLocaleDateString('nl-BE', {
+    timeZone: 'Europe/Brussels',
     weekday: 'long',
     day: 'numeric',
     month: 'long',
