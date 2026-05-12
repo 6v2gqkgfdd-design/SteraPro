@@ -479,7 +479,13 @@ export default async function MaintenanceDetailPage({
         </div>
 
         <div className="stera-card">
-          <VisitConsumables visitId={visit.id} />
+          <VisitConsumables
+            visitId={visit.id}
+            locked={
+              workOrderRow?.status === 'signed' ||
+              workOrderRow?.status === 'invoiced'
+            }
+          />
         </div>
       </div>
     </main>

@@ -48,6 +48,8 @@ export default function EditMaintenancePage() {
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Werkbon getekend of gefactureerd? Dan staat alles vast.
+  const [workOrderLocked, setWorkOrderLocked] = useState(false)
 
   useEffect(() => {
     if (!visitId) return
@@ -95,6 +97,18 @@ export default function EditMaintenancePage() {
         .filter((id: string | null): id is string => Boolean(id))
       setSelectedRoomIds(existingRoomIds)
       setOriginalRoomIds(existingRoomIds)
+
+      // Werkbon-status: signed of invoiced → form is bevroren
+      const { data: wo } = await supabase
+        .from('work_orders')
+        .select('status')
+        .eq('visit_id', visitId)
+        .maybeSingle()
+      if (!cancelled) {
+        setWorkOrderLocked(
+          wo?.status === 'signed' || wo?.status === 'invoiced'
+        )
+      }
 
       // Load all rooms for this location for the picker
       if (data.location_id) {

@@ -2,12 +2,13 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
-type Status = 'draft' | 'sent' | 'signed' | 'archived'
+type Status = 'draft' | 'sent' | 'signed' | 'invoiced' | 'archived'
 
 const STATUS_LABEL: Record<Status, string> = {
   draft: 'Nog te versturen',
   sent: 'Wachten op tekenen',
   signed: 'Goedgekeurd',
+  invoiced: 'Gefactureerd',
   archived: 'Gearchiveerd',
 }
 
@@ -15,10 +16,11 @@ const STATUS_TONE: Record<Status, string> = {
   draft: 'bg-amber-50 text-amber-700',
   sent: 'bg-blue-50 text-blue-700',
   signed: 'bg-stera-green/10 text-stera-green',
+  invoiced: 'bg-blue-50 text-blue-800',
   archived: 'bg-stera-cream-deep text-stera-ink-soft',
 }
 
-const TAB_ORDER: Status[] = ['draft', 'sent', 'signed', 'archived']
+const TAB_ORDER: Status[] = ['draft', 'sent', 'signed', 'invoiced', 'archived']
 
 function formatDate(value: string | null) {
   if (!value) return ''
@@ -109,12 +111,13 @@ export default async function WorkOrdersPage({
   }
 
   const groups: Record<Status, any[]> = {
-    draft: [], sent: [], signed: [], archived: [],
+    draft: [], sent: [], signed: [], invoiced: [], archived: [],
   }
   for (const row of rows ?? []) {
     if (row.status === 'draft') groups.draft.push(row)
     else if (row.status === 'sent') groups.sent.push(row)
     else if (row.status === 'signed') groups.signed.push(row)
+    else if (row.status === 'invoiced') groups.invoiced.push(row)
     else if (row.status === 'archived') groups.archived.push(row)
   }
 
@@ -206,6 +209,7 @@ export default async function WorkOrdersPage({
             {activeTab === 'draft' && 'Geen openstaande werkbonnen.'}
             {activeTab === 'sent' && 'Geen werkbonnen wachtend op de klant.'}
             {activeTab === 'signed' && 'Nog geen ondertekende werkbonnen.'}
+            {activeTab === 'invoiced' && 'Nog geen gefactureerde werkbonnen.'}
             {activeTab === 'archived' && 'Nog geen gearchiveerde werkbonnen.'}
           </div>
         ) : (

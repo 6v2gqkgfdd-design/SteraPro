@@ -199,6 +199,8 @@ export default function MaintenancePlantDetailPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  // Werkbon getekend of gefactureerd? Dan staat alles vast.
+  const [workOrderLocked, setWorkOrderLocked] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -212,7 +214,8 @@ export default function MaintenancePlantDetailPage() {
       setState({ kind: 'loading' })
 
       try {
-        const [visitResult, plantResult, existingResult] = await Promise.all([
+        const [visitResult, plantResult, existingResult, workOrderResult] =
+          await Promise.all([
           supabase
             .from('maintenance_visits')
             .select(
@@ -253,6 +256,12 @@ export default function MaintenancePlantDetailPage() {
             .eq('visit_id', visitId)
             .eq('plant_id', plantId)
             .maybeSingle(),
+
+          supabase
+            .from('work_orders')
+            .select('status')
+            .eq('visit_id', visitId)
+            .maybeSingle(),
         ])
 
         if (cancelled) return
@@ -261,6 +270,11 @@ export default function MaintenancePlantDetailPage() {
         const { data: plant, error: plantError } = plantResult
         const { data: existingVisitPlant, error: visitPlantError } =
           existingResult
+        const { data: workOrder } = workOrderResult
+        setWorkOrderLocked(
+          workOrder?.status === 'signed' ||
+            workOrder?.status === 'invoiced'
+        )
 
         if (visitError) {
           setState({
@@ -456,6 +470,12 @@ export default function MaintenancePlantDetailPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!visitId || !plantId) return
+    if (workOrderLocked) {
+      setSaveError(
+        'Werkbon staat vast — geen wijzigingen meer mogelijk op deze beurt.'
+      )
+      return
+    }
 
     setSaving(true)
     setSaveError('')
@@ -883,7 +903,24 @@ export default function MaintenancePlantDetailPage() {
             </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="stera-card space-y-6">
+        {workOrderLocked ? (
+          <div className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-4 text-sm">
+            <p className="font-semibold text-stera-green">
+              Werkbon staat vast
+            </p>
+            <p className="mt-1 text-stera-ink-soft">
+              De klant heeft de werkbon goedgekeurd of de beurt is al
+              gefactureerd — wijzigingen aan deze plant zijn niet meer
+              mogelijk.
+            </p>
+          </div>
+        ) : null}
+
+        <form
+          onSubmit={handleSubmit}
+          className="stera-card space-y-6 [&:has(fieldset[disabled])]:opacity-70"
+        >
+          <fieldset disabled={workOrderLocked} className="space-y-6 contents">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input
@@ -1084,6 +1121,7 @@ export default function MaintenancePlantDetailPage() {
               {saveError}
             </div>
           )}
+          </fieldset>
         </form>
       </div>
     </main>

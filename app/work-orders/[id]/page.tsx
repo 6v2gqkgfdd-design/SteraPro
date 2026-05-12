@@ -6,6 +6,7 @@ import {
   markAsSent,
   reopenWorkOrder,
   markAsSignedManually,
+  markAsInvoiced,
 } from './actions'
 import CopyLinkButton from './copy-link-button'
 import DeleteWorkOrderButton from './delete-work-order-button'
@@ -24,6 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
   draft: 'Nog te versturen',
   sent: 'Wachten op goedkeuring',
   signed: 'Goedgekeurd',
+  invoiced: 'Gefactureerd',
   cancelled: 'Geannuleerd',
   archived: 'Gearchiveerd',
 }
@@ -341,7 +343,7 @@ export default async function WorkOrderDetailPage({
           </div>
         ) : null}
 
-        {workOrder.status === 'signed' ? (
+        {workOrder.status === 'signed' || workOrder.status === 'invoiced' ? (
           <div className="stera-card border-stera-green/40 bg-stera-green/5">
             <p className="stera-eyebrow mb-2 text-stera-green">Goedgekeurd</p>
             <p className="text-sm text-stera-ink">
@@ -363,6 +365,66 @@ export default async function WorkOrderDetailPage({
                 className="mt-4 max-h-32 rounded border border-stera-line bg-white p-2"
               />
             ) : null}
+            <p className="mt-3 rounded border border-stera-green/30 bg-white p-2 text-xs text-stera-ink-soft">
+              Deze werkbon staat vast en kan niet meer gewijzigd worden.
+            </p>
+          </div>
+        ) : null}
+
+        {workOrder.status === 'signed' ? (
+          <div className="stera-card border-stera-green/40">
+            <p className="stera-eyebrow mb-2">Factuur</p>
+            <p className="text-sm text-stera-ink-soft">
+              Klaar om te factureren. Markeer hier zodra je de factuur hebt
+              opgemaakt — datum en optionele referentie worden bewaard.
+            </p>
+            <form action={markAsInvoiced} className="mt-4 space-y-3">
+              <input type="hidden" name="id" value={workOrder.id} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="block text-xs text-stera-ink-soft mb-1">
+                    Factuurdatum
+                  </span>
+                  <input
+                    type="date"
+                    name="invoiced_at"
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                    required
+                    className="w-full rounded-lg border border-stera-line bg-white p-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="block text-xs text-stera-ink-soft mb-1">
+                    Factuurnummer (optioneel)
+                  </span>
+                  <input
+                    type="text"
+                    name="invoice_reference"
+                    placeholder="bv. F2026-0042"
+                    className="w-full rounded-lg border border-stera-line bg-white p-2"
+                  />
+                </label>
+              </div>
+              <button type="submit" className="stera-cta stera-cta-primary">
+                Markeer als gefactureerd →
+              </button>
+            </form>
+          </div>
+        ) : null}
+
+        {workOrder.status === 'invoiced' ? (
+          <div className="stera-card border-blue-200 bg-blue-50/40">
+            <p className="stera-eyebrow mb-2 text-blue-800">Gefactureerd</p>
+            <p className="text-sm text-stera-ink">
+              Factuur opgemaakt
+              {workOrder.invoiced_at ? (
+                <> op <strong>{formatDateOnly(workOrder.invoiced_at)}</strong></>
+              ) : null}
+              {workOrder.invoice_reference ? (
+                <> — referentie <strong>{workOrder.invoice_reference}</strong></>
+              ) : null}
+              .
+            </p>
           </div>
         ) : null}
 

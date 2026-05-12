@@ -47,7 +47,13 @@ function cleanNotes(value: string | null): string | null {
   return cleaned || null
 }
 
-export default function VisitConsumables({ visitId }: { visitId: string }) {
+export default function VisitConsumables({
+  visitId,
+  locked = false,
+}: {
+  visitId: string
+  locked?: boolean
+}) {
   const supabase = createClient()
 
   const [catalog, setCatalog] = useState<CatalogItem[]>([])
@@ -178,6 +184,10 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
+    if (locked) {
+      setError('Werkbon staat vast — geen wijzigingen meer mogelijk.')
+      return
+    }
     setSubmitting(true)
     setError('')
 
@@ -227,6 +237,10 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
   }
 
   async function handleDelete(itemId: string) {
+    if (locked) {
+      setError('Werkbon staat vast — geen wijzigingen meer mogelijk.')
+      return
+    }
     const confirmed = window.confirm('Verbruiksgoed verwijderen?')
     if (!confirmed) return
 
@@ -304,13 +318,15 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
                         {formatEur(total)}
                       </span>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item.id)}
-                      className="text-sm text-red-600 underline"
-                    >
-                      Verwijderen
-                    </button>
+                    {!locked ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        className="text-sm text-red-600 underline"
+                      >
+                        Verwijderen
+                      </button>
+                    ) : null}
                   </div>
                 </li>
               )
@@ -331,6 +347,12 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
         </>
       )}
 
+      {locked ? (
+        <div className="rounded-lg border border-stera-green/40 bg-stera-green/5 p-3 text-sm text-stera-green">
+          Werkbon staat vast — geen wijzigingen meer mogelijk aan deze
+          verbruikslijst.
+        </div>
+      ) : (
       <form
         onSubmit={handleAdd}
         className="space-y-3 rounded-lg border bg-gray-50 p-4"
@@ -435,6 +457,7 @@ export default function VisitConsumables({ visitId }: { visitId: string }) {
           <p className="text-sm text-red-600">{error}</p>
         )}
       </form>
+      )}
     </div>
   )
 }

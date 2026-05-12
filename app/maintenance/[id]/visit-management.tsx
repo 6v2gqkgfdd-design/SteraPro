@@ -34,7 +34,8 @@ export default function VisitManagement({
   const isCancelled = status === 'cancelled'
   const isCompleted = status === 'completed'
   const hasWorkOrder = workOrder !== null
-  const workOrderIsSigned = workOrder?.status === 'signed'
+  const workOrderIsLocked =
+    workOrder?.status === 'signed' || workOrder?.status === 'invoiced'
 
   useEffect(() => {
     if (variant !== 'menu' || !menuOpen) return
@@ -128,7 +129,7 @@ export default function VisitManagement({
     setError('')
 
     try {
-      if (workOrderIsSigned) {
+      if (workOrderIsLocked) {
         throw new Error(
           'Werkbon is al ondertekend door de klant — verwijderen niet toegestaan.'
         )
@@ -233,7 +234,7 @@ export default function VisitManagement({
             <button
               type="button"
               onClick={() => {
-                if (workOrderIsSigned) {
+                if (workOrderIsLocked) {
                   alert(
                     'Werkbon is ondertekend — verwijder eerst de werkbon via "Werkbon openen".'
                   )
@@ -247,7 +248,7 @@ export default function VisitManagement({
                   handleDelete()
                 }
               }}
-              disabled={busy || workOrderIsSigned}
+              disabled={busy || workOrderIsLocked}
               className={dangerItemClass}
             >
               Verwijderen
@@ -349,9 +350,9 @@ export default function VisitManagement({
               setError('')
               setConfirmDelete(true)
             }}
-            disabled={busy || workOrderIsSigned}
+            disabled={busy || workOrderIsLocked}
             title={
-              workOrderIsSigned
+              workOrderIsLocked
                 ? 'Werkbon is ondertekend — verwijder eerst de werkbon via "Werkbon openen"'
                 : undefined
             }
@@ -390,7 +391,7 @@ export default function VisitManagement({
           <span className="font-medium text-stera-ink">
             {workOrder!.status}
           </span>
-          {workOrderIsSigned
+          {workOrderIsLocked
             ? ' — beurt kan niet meer verwijderd worden.'
             : ''}
         </p>

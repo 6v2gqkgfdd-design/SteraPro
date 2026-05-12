@@ -75,6 +75,35 @@ export async function deleteWorkOrder(formData: FormData) {
   }
 }
 
+export async function markAsInvoiced(formData: FormData) {
+  const id = String(formData.get('id') || '')
+  const dateStr = String(formData.get('invoiced_at') || '').trim()
+  const reference = String(formData.get('invoice_reference') || '').trim()
+  if (!id) return
+
+  const supabase = await createClient()
+
+  // Datum komt uit een <input type="date"> (YYYY-MM-DD) — interpreteer
+  // als lokale datum, niet als UTC.
+  const invoicedAt = dateStr
+    ? new Date(`${dateStr}T12:00:00`).toISOString()
+    : new Date().toISOString()
+
+  const { error } = await supabase
+    .from('work_orders')
+    .update({
+      status: 'invoiced',
+      invoiced_at: invoicedAt,
+      invoice_reference: reference || null,
+    })
+    .eq('id', id)
+
+  if (error) console.error('[work_orders] mark invoiced failed', error)
+
+  revalidatePath('/work-orders')
+  revalidatePath(`/work-orders/${id}`)
+}
+
 export async function markAsSignedManually(formData: FormData) {
   const id = String(formData.get('id') || '')
   const name = String(formData.get('name') || '').trim()
