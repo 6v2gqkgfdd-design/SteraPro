@@ -224,56 +224,98 @@ export default function MaintenanceActions({ visit }: { visit: any }) {
     }
   }
 
+  function formatTs(ts: string | null): string {
+    if (!ts) return ''
+    return new Date(ts).toLocaleTimeString('nl-BE', {
+      timeZone: 'Europe/Brussels',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const statusLabel: Record<string, string> = {
+    scheduled: 'Gepland',
+    in_progress: 'Bezig',
+    paused: 'Pauze',
+    completed: 'Afgewerkt',
+    cancelled: 'Geannuleerd',
+  }
+
+  const statusTone: Record<string, string> = {
+    scheduled: 'bg-stera-cream-deep text-stera-ink',
+    in_progress: 'bg-stera-green/15 text-stera-green',
+    paused: 'bg-amber-100 text-amber-800',
+    completed: 'bg-stera-green text-white',
+    cancelled: 'bg-red-100 text-red-800',
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
+            statusTone[visit.status] ?? 'bg-stera-cream-deep text-stera-ink'
+          }`}
+        >
+          {statusLabel[visit.status] ?? visit.status}
+        </span>
+        {visit.started_at ? (
+          <span className="text-xs text-stera-ink-soft">
+            Start {formatTs(visit.started_at)}
+            {visit.ended_at ? ` · Einde ${formatTs(visit.ended_at)}` : null}
+            {visit.pause_total_minutes
+              ? ` · ${visit.pause_total_minutes} min pauze`
+              : null}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={startVisit}
           disabled={loading || visit.status !== 'scheduled'}
-          className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50"
+          className="stera-cta stera-cta-primary disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Start onderhoud
+          Start onderhoud →
         </button>
 
-        <button
-          onClick={startPause}
-          disabled={loading || visit.status !== 'in_progress'}
-          className="rounded-lg border px-4 py-2 disabled:opacity-50"
-        >
-          Start pauze
-        </button>
+        {visit.status === 'in_progress' ? (
+          <button
+            onClick={startPause}
+            disabled={loading}
+            className="stera-cta stera-cta-ghost disabled:opacity-40"
+          >
+            Pauze
+          </button>
+        ) : null}
 
-        <button
-          onClick={stopPause}
-          disabled={loading || visit.status !== 'paused'}
-          className="rounded-lg border px-4 py-2 disabled:opacity-50"
-        >
-          Stop pauze
-        </button>
+        {visit.status === 'paused' ? (
+          <button
+            onClick={stopPause}
+            disabled={loading}
+            className="stera-cta stera-cta-secondary disabled:opacity-40"
+          >
+            Hervatten →
+          </button>
+        ) : null}
 
         <button
           onClick={endVisit}
-          disabled={loading || (visit.status !== 'in_progress' && visit.status !== 'paused')}
-          className="rounded-lg border px-4 py-2 disabled:opacity-50"
+          disabled={
+            loading ||
+            (visit.status !== 'in_progress' && visit.status !== 'paused')
+          }
+          className="stera-cta stera-cta-secondary disabled:cursor-not-allowed disabled:opacity-40"
         >
           Einde onderhoud
         </button>
       </div>
 
-      <div className="text-sm text-gray-600">
-        <p>Status: {visit.status}</p>
-        <p>
-          Startuur:{' '}
-          {visit.started_at ? new Date(visit.started_at).toLocaleString() : 'Nog niet gestart'}
+      {error && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
         </p>
-        <p>
-          Einduur:{' '}
-          {visit.ended_at ? new Date(visit.ended_at).toLocaleString() : 'Nog niet beëindigd'}
-        </p>
-        <p>Pauze totaal: {visit.pause_total_minutes ?? 0} minuten</p>
-      </div>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      )}
     </div>
   )
 }

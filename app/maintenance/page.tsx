@@ -86,7 +86,7 @@ export default async function MaintenancePage({
   const completedCount = completedVisits?.length ?? 0
 
   return (
-    <main className="bg-stera-cream px-5 pt-3 pb-6 sm:p-6">
+    <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-6 sm:pt-6">
       <div className="mx-auto max-w-5xl space-y-5">
         <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap items-center justify-between gap-3 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <div className="flex flex-wrap gap-2">
@@ -212,8 +212,27 @@ export default async function MaintenancePage({
           })}
 
           {!visits?.length && (
-            <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
-              {activeTab === 'planned' ? 'Niks gepland.' : 'Niks afgewerkt.'}
+            <div className="stera-empty space-y-3">
+              <p className="stera-empty-title">
+                {activeTab === 'planned'
+                  ? 'Geen geplande afspraken'
+                  : 'Nog niets afgewerkt'}
+              </p>
+              <p className="text-sm">
+                {activeTab === 'planned'
+                  ? 'Plan een nieuwe onderhoudsbeurt bij een klant.'
+                  : 'Zodra een afspraak afgewerkt is, verschijnt ze hier.'}
+              </p>
+              {activeTab === 'planned' ? (
+                <div>
+                  <Link
+                    href="/maintenance/new"
+                    className="stera-cta stera-cta-primary"
+                  >
+                    + Nieuwe afspraak
+                  </Link>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

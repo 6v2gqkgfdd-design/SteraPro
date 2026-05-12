@@ -9,6 +9,7 @@ import {
 } from '@/components/plant-overview'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
 import { formatRoomLabel } from '@/lib/rooms'
+import { Breadcrumbs } from '@/components/breadcrumbs'
 
 export default async function RoomDetailPage({
   params,
@@ -94,28 +95,27 @@ export default async function RoomDetailPage({
   )
 
   return (
-    <main className="bg-stera-cream p-6">
+    <main className="stera-page-pb bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div className="space-y-1">
-          <p className="text-xs text-stera-ink-soft">
-            {company?.name ? (
-              <Link
-                href={`/companies/${locationData?.company_id}`}
-                className="hover:text-stera-green"
-              >
-                {company.name}
-              </Link>
-            ) : null}
-            {company?.name && locationData?.name ? ' · ' : ''}
-            {locationData?.name ? (
-              <Link
-                href={`/locations/${locationData.id}`}
-                className="hover:text-stera-green"
-              >
-                {locationData.name}
-              </Link>
-            ) : null}
-          </p>
+        <div className="space-y-2">
+          <Breadcrumbs
+            items={[
+              { label: 'Klanten', href: '/companies' },
+              company?.name && locationData?.company_id
+                ? {
+                    label: company.name,
+                    href: `/companies/${locationData.company_id}`,
+                  }
+                : null,
+              locationData?.name && locationData?.id
+                ? {
+                    label: locationData.name,
+                    href: `/locations/${locationData.id}`,
+                  }
+                : null,
+              { label: formatRoomLabel(room.name, room.floor) },
+            ].filter((c): c is { label: string; href?: string } => Boolean(c))}
+          />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">

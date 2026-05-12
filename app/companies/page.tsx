@@ -22,7 +22,7 @@ export default async function CompaniesPage() {
   const count = companies?.length ?? 0
 
   return (
-    <main className="bg-stera-cream px-5 pt-3 pb-6 sm:p-6">
+    <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-6 sm:pt-6">
       <div className="mx-auto max-w-4xl space-y-5">
         <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap items-center justify-between gap-3 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
@@ -36,8 +36,20 @@ export default async function CompaniesPage() {
         {error ? (
           <p className="text-red-600">Fout bij ophalen: {error.message}</p>
         ) : !companies || companies.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
-            Nog geen klanten.
+          <div className="stera-empty space-y-3">
+            <p className="stera-empty-title">Nog geen klanten</p>
+            <p className="text-sm">
+              Voeg je eerste klant toe om locaties, ruimtes en planten te
+              beginnen beheren.
+            </p>
+            <div>
+              <Link
+                href="/companies/new"
+                className="stera-cta stera-cta-primary"
+              >
+                + Eerste klant toevoegen
+              </Link>
+            </div>
           </div>
         ) : (
           <ul className="space-y-3">

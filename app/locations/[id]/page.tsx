@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import DeleteLocationButton from '@/components/delete-location-button'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
 import { formatRoomLabel } from '@/lib/rooms'
+import { Breadcrumbs } from '@/components/breadcrumbs'
 
 type RoomRow = {
   id: string
@@ -109,19 +110,21 @@ export default async function LocationDetailPage({
     .join(', ')
 
   return (
-    <main className="bg-stera-cream p-6">
+    <main className="stera-page-pb bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div className="space-y-1">
-          <p className="text-xs text-stera-ink-soft">
-            {location.companies?.id ? (
-              <Link
-                href={`/companies/${location.companies.id}`}
-                className="hover:text-stera-green"
-              >
-                ← {location.companies.name || 'Klant'}
-              </Link>
-            ) : null}
-          </p>
+        <div className="space-y-2">
+          <Breadcrumbs
+            items={[
+              { label: 'Klanten', href: '/companies' },
+              location.companies?.id
+                ? {
+                    label: location.companies.name || 'Klant',
+                    href: `/companies/${location.companies.id}`,
+                  }
+                : null,
+              { label: location.name },
+            ].filter((c): c is { label: string; href?: string } => Boolean(c))}
+          />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">

@@ -131,7 +131,7 @@ export default async function WorkOrdersPage({
   const active = groups[activeTab]
 
   return (
-    <main className="bg-stera-cream px-5 pt-3 pb-6 sm:px-8 sm:pt-6">
+    <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-8 sm:pt-6">
       <div className="mx-auto max-w-4xl space-y-5">
         <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap gap-2 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           {TAB_ORDER.map((s) => (
@@ -212,12 +212,26 @@ export default async function WorkOrdersPage({
             Fout bij ophalen: {error.message}
           </div>
         ) : active.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
-            {activeTab === 'draft' && 'Geen openstaande werkbonnen.'}
-            {activeTab === 'sent' && 'Geen werkbonnen wachtend op de klant.'}
-            {activeTab === 'signed' && 'Nog geen ondertekende werkbonnen.'}
-            {activeTab === 'invoiced' && 'Nog geen gefactureerde werkbonnen.'}
-            {activeTab === 'archived' && 'Nog geen gearchiveerde werkbonnen.'}
+          <div className="stera-empty">
+            <p className="stera-empty-title">
+              {activeTab === 'draft' && 'Geen openstaande werkbonnen'}
+              {activeTab === 'sent' && 'Geen werkbonnen onderweg'}
+              {activeTab === 'signed' && 'Nog geen ondertekende werkbonnen'}
+              {activeTab === 'invoiced' && 'Nog geen gefactureerde werkbonnen'}
+              {activeTab === 'archived' && 'Nog geen gearchiveerde werkbonnen'}
+            </p>
+            <p className="text-sm">
+              {activeTab === 'draft' &&
+                'Werkbonnen verschijnen hier zodra je een onderhoud beëindigt.'}
+              {activeTab === 'sent' &&
+                'Werkbonnen die je naar een klant stuurde, wachten hier op handtekening.'}
+              {activeTab === 'signed' &&
+                'Goedgekeurde werkbonnen komen hier te staan tot je ze factureert.'}
+              {activeTab === 'invoiced' &&
+                'Gefactureerde werkbonnen archiveer je hier voor je administratie.'}
+              {activeTab === 'archived' &&
+                'Werkbonnen van contract-klanten worden automatisch gearchiveerd.'}
+            </p>
           </div>
         ) : (
           <ul className="space-y-3">

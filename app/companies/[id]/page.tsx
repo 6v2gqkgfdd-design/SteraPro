@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteCompanyButton from '@/components/delete-company-button'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
+import { Breadcrumbs } from '@/components/breadcrumbs'
 
 export default async function CompanyDetailPage({
   params,
@@ -48,14 +49,15 @@ export default async function CompanyDetailPage({
     .order('updated_at', { ascending: false })
 
   return (
-    <main className="bg-stera-cream p-6">
+    <main className="stera-page-pb bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div className="space-y-1">
-          <p className="text-xs text-stera-ink-soft">
-            <Link href="/companies" className="hover:text-stera-green">
-              ← Klanten
-            </Link>
-          </p>
+        <div className="space-y-2">
+          <Breadcrumbs
+            items={[
+              { label: 'Klanten', href: '/companies' },
+              { label: company.name },
+            ]}
+          />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -109,8 +111,20 @@ export default async function CompanyDetailPage({
             Fout bij ophalen locaties: {locationsError.message}
           </p>
         ) : !locations || locations.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-stera-line p-6 text-center text-sm text-stera-ink-soft">
-            Nog geen locaties.
+          <div className="stera-empty space-y-3">
+            <p className="stera-empty-title">Nog geen locaties</p>
+            <p className="text-sm">
+              Voeg een locatie toe — bijvoorbeeld een kantoorgebouw of
+              winkelpand — om ruimtes en planten te beheren.
+            </p>
+            <div>
+              <Link
+                href={`/companies/${company.id}/locations/new`}
+                className="stera-cta stera-cta-primary"
+              >
+                + Eerste locatie toevoegen
+              </Link>
+            </div>
           </div>
         ) : (
           <ul className="space-y-3">

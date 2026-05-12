@@ -183,9 +183,6 @@ export default async function DashboardPage() {
   }
 
   const routeUrl = buildRouteUrl(todaysVisits ?? [])
-  const skippedAddressCount =
-    (todaysVisits ?? []).length -
-    (todaysVisits ?? []).filter((v) => locationAddress(v)).length
 
   const greeting = (() => {
     // Brussels uur, niet de Vercel-UTC.
@@ -238,7 +235,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="bg-stera-cream px-5 pt-3 pb-4 sm:px-8 sm:pt-10 sm:pb-10">
+    <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-8 sm:pt-10">
       <div className="mx-auto max-w-4xl space-y-3 sm:space-y-6">
         {/* Hero — compact, met logo */}
         <div className="flex items-center justify-between gap-3">

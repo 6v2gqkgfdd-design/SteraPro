@@ -62,17 +62,17 @@ export default function AppNav() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-stera-line bg-stera-cream/95 backdrop-blur md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <ul className="mx-auto flex max-w-md items-stretch justify-around px-2 py-1">
+        <ul className="mx-auto flex max-w-md items-stretch justify-around px-2 py-1.5">
           {TABS.map((tab) => {
             const active = tab.matches(pathname)
             return (
               <li key={tab.href} className="flex-1">
                 <Link
                   href={tab.href}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 transition ${
+                  className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2.5 transition ${
                     active
                       ? 'text-stera-green'
-                      : 'text-stera-ink/65 hover:text-stera-ink'
+                      : 'text-stera-ink/70 hover:text-stera-ink'
                   }`}
                   aria-current={active ? 'page' : undefined}
                 >

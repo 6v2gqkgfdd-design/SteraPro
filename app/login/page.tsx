@@ -42,11 +42,9 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12 sm:py-20">
         <div className="w-full max-w-md">
           <p className="stera-eyebrow text-stera-green mb-4">Plantbeheer</p>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-            Inloggen
-          </h1>
+          <h1 className="stera-display mb-3 text-4xl sm:text-5xl">Inloggen</h1>
           <p className="text-sm text-stera-ink-soft mb-10 leading-relaxed">
-            Welkom terug bij StéraPro. Beheer je planten, locaties en onderhoud.
+            Welkom terug bij Stera Pro. Beheer je planten, locaties en onderhoud.
           </p>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -81,13 +79,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="stera-cta w-full bg-stera-green px-4 py-4 text-sm text-white transition-colors hover:bg-stera-green-deep disabled:opacity-60"
+              className="stera-cta stera-cta-primary w-full disabled:opacity-60"
             >
               {loading ? 'Bezig…' : 'Inloggen →'}
             </button>
 
             {error && (
-              <p className="border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
               </p>
             )}
