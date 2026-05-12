@@ -7,6 +7,7 @@ import {
   reopenWorkOrder,
   markAsSignedManually,
   markAsInvoiced,
+  undoInvoiced,
 } from './actions'
 import CopyLinkButton from './copy-link-button'
 import DeleteWorkOrderButton from './delete-work-order-button'
@@ -425,6 +426,20 @@ export default async function WorkOrderDetailPage({
               ) : null}
               .
             </p>
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-stera-ink-soft hover:text-stera-ink">
+                Per ongeluk gemarkeerd?
+              </summary>
+              <form action={undoInvoiced} className="mt-2">
+                <input type="hidden" name="id" value={workOrder.id} />
+                <button
+                  type="submit"
+                  className="stera-cta stera-cta-ghost text-xs"
+                >
+                  Terugzetten naar goedgekeurd
+                </button>
+              </form>
+            </details>
           </div>
         ) : null}
 

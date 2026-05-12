@@ -75,6 +75,27 @@ export async function deleteWorkOrder(formData: FormData) {
   }
 }
 
+export async function undoInvoiced(formData: FormData) {
+  const id = String(formData.get('id') || '')
+  if (!id) return
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('work_orders')
+    .update({
+      status: 'signed',
+      invoiced_at: null,
+      invoice_reference: null,
+    })
+    .eq('id', id)
+    .eq('status', 'invoiced')
+
+  if (error) console.error('[work_orders] undo invoiced failed', error)
+
+  revalidatePath('/work-orders')
+  revalidatePath(`/work-orders/${id}`)
+}
+
 export async function markAsInvoiced(formData: FormData) {
   const id = String(formData.get('id') || '')
   const dateStr = String(formData.get('invoiced_at') || '').trim()
