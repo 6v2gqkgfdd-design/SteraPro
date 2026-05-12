@@ -64,6 +64,23 @@ export default async function WorkOrdersPage({
     )
     .order('created_at', { ascending: false })
 
+  // Afgewerkte beurten waarvoor nog GEEN werkbon bestaat —
+  // melding bovenaan om Jelle te herinneren.
+  const { data: completedVisits } = await supabase
+    .from('maintenance_visits')
+    .select(
+      `id, title, scheduled_start, ended_at,
+       locations ( name, companies ( name ) ),
+       work_orders ( id )`
+    )
+    .eq('status', 'completed')
+    .order('ended_at', { ascending: false })
+
+  const missingWorkOrder = (completedVisits ?? []).filter((v: any) => {
+    const wos = Array.isArray(v.work_orders) ? v.work_orders : []
+    return wos.length === 0
+  })
+
   function visitLine(row: any) {
     const v = row.maintenance_visits
     const visit = Array.isArray(v) ? v[0] : v
@@ -113,6 +130,63 @@ export default async function WorkOrdersPage({
             </Link>
           ))}
         </div>
+
+        {missingWorkOrder.length > 0 ? (
+          <details className="stera-card border-amber-200 bg-amber-50/60 open:bg-amber-50">
+            <summary className="cursor-pointer list-none">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-amber-900">
+                  {missingWorkOrder.length}{' '}
+                  afgewerkt onderhoud
+                  {missingWorkOrder.length === 1 ? '' : 'en'}{' '}
+                  zonder werkbon
+                </p>
+                <span className="text-xs text-amber-800 underline-offset-4 group-open:no-underline">
+                  Bekijken ↓
+                </span>
+              </div>
+            </summary>
+            <ul className="mt-3 space-y-2 border-t border-amber-200 pt-3">
+              {missingWorkOrder.map((v: any) => {
+                const loc = Array.isArray(v.locations)
+                  ? v.locations[0]
+                  : v.locations
+                const company = Array.isArray(loc?.companies)
+                  ? loc.companies[0]
+                  : loc?.companies
+                const subtitle = [company?.name, loc?.name]
+                  .filter(Boolean)
+                  .join(' · ')
+                return (
+                  <li key={v.id}>
+                    <Link
+                      href={`/maintenance/${v.id}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm hover:border-amber-400"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-stera-ink">
+                          {v.title || 'Onderhoud'}
+                        </span>
+                        {subtitle ? (
+                          <span className="ml-2 text-stera-ink-soft">
+                            · {subtitle}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 text-xs text-stera-ink-soft">
+                        {formatDate(v.ended_at || v.scheduled_start)}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-3 text-xs text-amber-800">
+              Klik op een beurt → daar kan je via &ldquo;Werkbon aanmaken&rdquo;
+              de werkbon genereren.
+            </p>
+          </details>
+        ) : null}
 
         {error ? (
           <div className="stera-card text-sm text-red-600">
