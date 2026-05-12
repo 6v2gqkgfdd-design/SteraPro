@@ -10,6 +10,12 @@ import {
 import CopyLinkButton from './copy-link-button'
 import DeleteWorkOrderButton from './delete-work-order-button'
 import { formatEur, formatPotSize, findPotSize, nextPotSize } from '@/lib/pot-sizes'
+import {
+  HOURLY_RATE_EUR_CENTS,
+  billedMinutes,
+  formatBilledDuration,
+  labourCostCents,
+} from '@/lib/labour'
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Nog te versturen',
@@ -57,18 +63,6 @@ function formatDateOnly(value: string | null) {
   })
 }
 
-function formatDuration(start: string | null, end: string | null, pauseMin: number | null) {
-  if (!start || !end) return null
-  const sm = new Date(start).getTime()
-  const em = new Date(end).getTime()
-  if (!Number.isFinite(sm) || !Number.isFinite(em)) return null
-  const total = Math.max(0, Math.round((em - sm) / 60000))
-  const work = Math.max(0, total - (pauseMin ?? 0))
-  const billed = Math.ceil(work / 30) * 30
-  const h = Math.floor(billed / 60)
-  const m = billed % 60
-  return h > 0 ? `${h}u${m === 0 ? '00' : m.toString().padStart(2, '0')}` : `${m}min`
-}
 
 export default async function WorkOrderDetailPage({
   params,
@@ -185,11 +179,13 @@ export default async function WorkOrderDetailPage({
   // ook 'replacements' beschikbaar houden (= dood, met specs).
   const replacements = groups.dead
 
-  const duration = formatDuration(
+  const billed = billedMinutes(
     visit.started_at,
     visit.ended_at,
     visit.pause_total_minutes
   )
+  const duration = formatBilledDuration(billed)
+  const labourCost = labourCostCents(billed)
 
   // Bouw de signing-URL voor deze omgeving (publieke link voor klant).
   const hdrs = await headers()
@@ -389,6 +385,16 @@ export default async function WorkOrderDetailPage({
               <p className="text-xs text-stera-ink-soft">
                 Afgerond op halfuur, pauzes uitgesloten
               </p>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-stera-line pt-3 text-xs">
+                <dt className="text-stera-ink-soft">Uurtarief (excl. btw)</dt>
+                <dd className="text-right font-medium tabular-nums">
+                  {formatEur(HOURLY_RATE_EUR_CENTS)} / u
+                </dd>
+                <dt className="text-stera-ink-soft">Totaal werkuren</dt>
+                <dd className="text-right font-semibold tabular-nums">
+                  {labourCost != null ? formatEur(labourCost) : '—'}
+                </dd>
+              </dl>
             </section>
           ) : null}
 
