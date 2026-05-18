@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 type Tab = {
   href: string
   label: string
-  icon: 'home' | 'maintenance' | 'workorders' | 'companies'
+  icon: 'home' | 'maintenance' | 'workorders' | 'companies' | 'catalog'
   matches: (path: string) => boolean
 }
 
@@ -42,6 +42,12 @@ const TABS: Tab[] = [
       p.startsWith('/locations/') ||
       p.startsWith('/rooms/') ||
       p.startsWith('/plants/'),
+  },
+  {
+    href: '/catalog',
+    label: 'Catalogus',
+    icon: 'catalog',
+    matches: (p) => p.startsWith('/catalog'),
   },
 ]
 
@@ -164,6 +170,13 @@ function NavIcon({ name }: { name: Tab['icon'] }) {
           <path d="M3 21V7l7-4 7 4v14" />
           <path d="M14 21V11h7v10" />
           <path d="M7 9h0M7 13h0M7 17h0" />
+        </svg>
+      )
+    case 'catalog':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.96a1 1 0 0 1 1.8.86 6 6 0 0 1 1 4.18c-.06 1.1-.23 2.21-.84 3.16C19.65 12.62 18.5 15 16 16c-2 .8-4.5 1-7 1" />
+          <path d="M2 21c0-3 1.85-5.36 5.08-6" />
         </svg>
       )
   }
