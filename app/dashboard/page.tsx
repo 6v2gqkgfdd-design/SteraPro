@@ -328,25 +328,79 @@ export default async function DashboardPage() {
               {flaggedCount}
             </p>
           </Link>
-          <div
-            className={`rounded-xl border p-2.5 ${
-              reportCount > 0
-                ? 'border-amber-200 bg-amber-50'
-                : 'border-stera-line bg-white'
-            }`}
-          >
-            <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
-              Meldingen
-            </p>
-            <p
-              className={`text-xl font-semibold ${
-                reportCount > 0 ? 'text-amber-800' : 'text-stera-ink'
-              }`}
+          {reportCount > 0 ? (
+            <a
+              href="#meldingen"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 transition hover:border-amber-400"
             >
-              {reportCount}
-            </p>
-          </div>
+              <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
+                Meldingen
+              </p>
+              <p className="text-xl font-semibold text-amber-800">
+                {reportCount}
+              </p>
+            </a>
+          ) : (
+            <div className="rounded-xl border border-stera-line bg-white p-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
+                Meldingen
+              </p>
+              <p className="text-xl font-semibold text-stera-ink">
+                {reportCount}
+              </p>
+            </div>
+          )}
         </div>
+
+        {/* Openstaande klantmeldingen — klik door naar de plant */}
+        {openReports && openReports.length > 0 ? (
+          <section
+            id="meldingen"
+            className="scroll-mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:p-4"
+          >
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
+              {openReports.length === 1
+                ? '1 openstaande klantmelding'
+                : `${openReports.length} openstaande klantmeldingen`}
+            </p>
+            <ul className="space-y-1.5">
+              {openReports.map((report: any) => {
+                const plant = Array.isArray(report.plants)
+                  ? report.plants[0]
+                  : report.plants
+                const plantName =
+                  plant?.nickname ||
+                  plant?.species ||
+                  plant?.reference_code ||
+                  'Plant'
+                const label = REPORT_LABELS[report.issue_type] || 'Melding'
+                return (
+                  <li key={report.id}>
+                    <Link
+                      href={`/plants/${report.plant_id}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-white px-3 py-2 text-sm hover:bg-amber-100"
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium text-stera-ink">
+                          {plantName}
+                        </span>
+                        <span className="text-stera-ink-soft">
+                          {' · '}
+                          {label}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-stera-ink-soft">
+                        {report.reporter_name
+                          ? `door ${report.reporter_name}`
+                          : formatDay(report.created_at)}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
 
         {/* Snelle acties */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
