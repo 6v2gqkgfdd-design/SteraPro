@@ -121,7 +121,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <img
             src="/stera-logo.png"
             alt="Stera"
-            className="h-9 sm:h-11 w-auto select-none"
+            className="h-9 sm:h-11 lg:h-14 w-auto select-none"
           />
         </Link>
       </header>
@@ -200,7 +200,9 @@ export default async function PublicPlantPage({
 
   return (
     <Shell>
-      <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5">
+      {/* Op desktop (lg) wordt alles een maat groter — breder kader,
+          grotere tekst, foto en plantje. Mobiel blijft ongewijzigd. */}
+      <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5 lg:max-w-2xl lg:space-y-7">
         {(() => {
           const mood = getMood(overviewPlant)
           const ringClass =
@@ -213,9 +215,9 @@ export default async function PublicPlantPage({
                   : 'ring-red-500'
           const title = plantTitle(plant)
           return (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 lg:gap-5">
               <div
-                className={`w-11 shrink-0 rounded-full bg-white ring-2 ring-offset-2 ring-offset-stera-cream sm:w-14 ${ringClass}`}
+                className={`w-11 shrink-0 rounded-full bg-white ring-2 ring-offset-2 ring-offset-stera-cream sm:w-14 lg:w-24 ${ringClass}`}
               >
                 <AnimatedPlant
                   mood={mood}
@@ -223,20 +225,20 @@ export default async function PublicPlantPage({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
+                <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-5xl">
                   {title}
                 </h1>
                 {plant.species && plant.species !== title ? (
-                  <p className="mt-0.5 text-sm text-stera-ink-soft">
+                  <p className="mt-0.5 text-sm text-stera-ink-soft lg:mt-1 lg:text-lg">
                     {plant.species}
                   </p>
                 ) : null}
-                <p className="mt-1 text-xs text-stera-ink-soft">
+                <p className="mt-1 text-xs text-stera-ink-soft lg:mt-2 lg:text-base">
                   {moodMessage(mood, title)}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2 lg:mt-3">
                   <div
-                    className={`inline-flex items-center border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColor(overviewPlant)}`}
+                    className={`inline-flex items-center border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider lg:px-3.5 lg:py-1 lg:text-xs ${statusColor(overviewPlant)}`}
                   >
                     {statusLabel(overviewPlant)}
                   </div>
@@ -251,42 +253,42 @@ export default async function PublicPlantPage({
           <img
             src={displayPhoto}
             alt={plantTitle(plant)}
-            className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:mx-auto sm:block sm:aspect-auto sm:h-auto sm:w-auto sm:max-h-[460px] sm:max-w-full"
+            className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:mx-auto sm:block sm:aspect-auto sm:h-auto sm:w-auto sm:max-h-[460px] sm:max-w-full lg:max-h-[620px]"
           />
         ) : (
-          <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3]">
+          <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3] lg:text-base">
             Geen foto beschikbaar
           </div>
         )}
 
-        <div className="rounded-xl border border-stera-line bg-white p-3">
-          <p className="stera-eyebrow text-stera-green text-[10px]">
+        <div className="rounded-xl border border-stera-line bg-white p-3 lg:p-5">
+          <p className="stera-eyebrow text-stera-green text-[10px] lg:text-xs">
             Laatste onderhoud
           </p>
           {lastDate ? (
             <>
-              <p className="mt-0.5 text-sm font-medium text-stera-ink">
+              <p className="mt-0.5 text-sm font-medium text-stera-ink lg:mt-1 lg:text-lg">
                 {lastDate}
               </p>
               {actions.length > 0 ? (
-                <p className="mt-0.5 line-clamp-1 text-xs text-stera-ink-soft">
+                <p className="mt-0.5 line-clamp-1 text-xs text-stera-ink-soft lg:mt-1 lg:text-sm">
                   {actions.join(' · ')}
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="mt-0.5 text-sm text-stera-ink-soft">
+            <p className="mt-0.5 text-sm text-stera-ink-soft lg:mt-1 lg:text-base">
               Nog geen onderhoud geregistreerd.
             </p>
           )}
         </div>
 
         {plant.care_tips && plant.care_tips.trim() ? (
-          <div className="rounded-xl border border-stera-line bg-white p-3">
-            <p className="stera-eyebrow text-stera-green text-[10px]">
+          <div className="rounded-xl border border-stera-line bg-white p-3 lg:p-5">
+            <p className="stera-eyebrow text-stera-green text-[10px] lg:text-xs">
               Verzorgingstips
             </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stera-ink">
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stera-ink lg:mt-2 lg:text-base">
               {plant.care_tips}
             </p>
           </div>
@@ -294,7 +296,7 @@ export default async function PublicPlantPage({
 
         <Link
           href={`/p/${slug}/report`}
-          className="block rounded-xl border border-stera-line bg-white px-4 py-3 text-center text-sm font-medium text-stera-green transition hover:border-stera-green"
+          className="block rounded-xl border border-stera-line bg-white px-4 py-3 text-center text-sm font-medium text-stera-green transition hover:border-stera-green lg:py-4 lg:text-base"
         >
           Iets opgevallen? Meld het hier →
         </Link>
