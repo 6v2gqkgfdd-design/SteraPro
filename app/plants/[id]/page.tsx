@@ -56,6 +56,7 @@ export default async function PlantDetailPage({
     { data: location },
     { data: room },
     { data: reports },
+    { data: latestPhotoRow },
   ] = await Promise.all([
     supabase
       .from('plant_maintenance_logs')
@@ -100,6 +101,15 @@ export default async function PlantDetailPage({
       .eq('plant_id', typedPlant.id)
       .order('created_at', { ascending: false })
       .limit(20),
+    // Laatste onderhoudsfoto: meest recente visit-plant rij mét een foto.
+    supabase
+      .from('maintenance_visit_plants')
+      .select('photo_url')
+      .eq('plant_id', typedPlant.id)
+      .not('photo_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   // Bouw een PlantOverviewLog uit de meest recente visit_plant rij.
@@ -136,6 +146,12 @@ export default async function PlantDetailPage({
 
   const reportRows = (reports ?? []) as PlantReportRow[]
 
+  // Toon bij voorkeur de laatste onderhoudsfoto; val terug op de
+  // oorspronkelijke plantfoto als er nog geen onderhoudsfoto is.
+  const maintenancePhotoUrl =
+    (latestPhotoRow as { photo_url?: string | null } | null)?.photo_url ?? null
+  const displayPhotoUrl = maintenancePhotoUrl ?? typedPlant.photo_url
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
@@ -164,6 +180,7 @@ export default async function PlantDetailPage({
           location={(location ?? null) as PlantOverviewLocation}
           room={(room ?? null) as PlantOverviewRoom}
           latestLog={(latestLog ?? null) as PlantOverviewLog}
+          photoUrl={displayPhotoUrl}
           headerMenu={
             <RowMenu>
               <RowMenuItem href={`/plants/${typedPlant.id}/maintenance/new`}>

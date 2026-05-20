@@ -134,6 +134,7 @@ export default function PlantOverview({
   latestLog,
   actions,
   headerMenu,
+  photoUrl,
 }: {
   plant: PlantOverviewPlant
   location: PlantOverviewLocation
@@ -142,9 +143,15 @@ export default function PlantOverview({
   actions?: React.ReactNode
   /** Optioneel menu rechts bovenaan (bv. 3-dot RowMenu). */
   headerMenu?: React.ReactNode
+  /**
+   * Foto die getoond wordt. Standaard de laatste onderhoudsfoto
+   * (doorgegeven door de pagina); valt terug op plant.photo_url.
+   */
+  photoUrl?: string | null
 }) {
   const title = plantTitle(plant)
   const mood = getMood(plant)
+  const displayPhoto = photoUrl !== undefined ? photoUrl : plant.photo_url
   const performedTasks = latestLog
     ? TASK_LABELS.filter(({ key }) => latestLog[key])
     : []
@@ -195,10 +202,10 @@ export default function PlantOverview({
         </div>
       </div>
 
-      {plant.photo_url && (
+      {displayPhoto && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={plant.photo_url}
+          src={displayPhoto}
           alt={title}
           className="mt-4 w-full max-h-[420px] object-cover border border-stera-line"
         />

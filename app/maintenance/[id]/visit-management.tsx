@@ -141,12 +141,22 @@ export default function VisitManagement({
 
       // Cascade-delete via FK ruimt visit_plants, consumables, pause_logs,
       // visit_logs en work_orders mee op.
-      const { error: delError } = await supabase
+      const { data: deleted, error: delError } = await supabase
         .from('maintenance_visits')
         .delete()
         .eq('id', visitId)
+        .select('id')
 
       if (delError) throw new Error(delError.message)
+
+      // Een delete die 0 rijen raakt maar geen error geeft = RLS blokkeert
+      // de delete. Niet stil doorgaan, maar de gebruiker waarschuwen.
+      if (!deleted || deleted.length === 0) {
+        throw new Error(
+          'Beurt niet verwijderd — een Supabase-policy (RLS) blokkeert de delete. ' +
+            'Voer de SQL-migration uit die de DELETE-policy toevoegt.'
+        )
+      }
 
       router.push('/maintenance')
       router.refresh()

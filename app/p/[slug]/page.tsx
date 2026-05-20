@@ -19,6 +19,7 @@ type PublicPlant = {
   species: string | null
   status: string | null
   photo_url: string | null
+  care_tips: string | null
   is_dead: boolean | null
   is_dying: boolean | null
   needs_replacement: boolean | null
@@ -63,7 +64,7 @@ async function lookupPlant(slug: string): Promise<PublicPlant | null> {
     const { data, error } = await supabase
       .from('plants')
       .select(
-        'id, qr_slug, nickname, plant_code, reference_code, species, status, photo_url, is_dead, is_dying, needs_replacement'
+        'id, qr_slug, nickname, plant_code, reference_code, species, status, photo_url, care_tips, is_dead, is_dying, needs_replacement'
       )
       .eq('qr_slug', slug)
       .maybeSingle()
@@ -104,6 +105,24 @@ async function lookupLatestVisit(plantId: string): Promise<LatestVisit | null> {
       .map(([, label]) => label)
 
     return { performed_at: performedAt, actions }
+  } catch {
+    return null
+  }
+}
+
+async function lookupLatestPhoto(plantId: string): Promise<string | null> {
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('maintenance_visit_plants')
+      .select('photo_url')
+      .eq('plant_id', plantId)
+      .not('photo_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    return (data as { photo_url?: string | null } | null)?.photo_url ?? null
   } catch {
     return null
   }
@@ -199,8 +218,15 @@ export default async function PublicPlantPage({
     return <NotFoundView slug={slug} />
   }
 
-  const latestVisit = await lookupLatestVisit(plant.id)
+  const [latestVisit, maintenancePhoto] = await Promise.all([
+    lookupLatestVisit(plant.id),
+    lookupLatestPhoto(plant.id),
+  ])
   const lastDate = formatDate(latestVisit?.performed_at ?? null)
+
+  // Toon bij voorkeur de laatste onderhoudsfoto; val terug op de
+  // oorspronkelijke plantfoto als er nog geen onderhoudsfoto is.
+  const displayPhoto = maintenancePhoto ?? plant.photo_url
 
   // Hergebruik dezelfde statusLabel/statusColor/mood-logica als de
   // interne plant-detail pagina zodat de header er identiek uitziet.
@@ -259,10 +285,10 @@ export default async function PublicPlantPage({
           )
         })()}
 
-        {plant.photo_url ? (
+        {displayPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={plant.photo_url}
+            src={displayPhoto}
             alt={plantTitle(plant)}
             className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:aspect-[4/3]"
           />
@@ -293,6 +319,17 @@ export default async function PublicPlantPage({
             </p>
           )}
         </div>
+
+        {plant.care_tips && plant.care_tips.trim() ? (
+          <div className="rounded-xl border border-stera-line bg-white p-3">
+            <p className="stera-eyebrow text-stera-green text-[10px]">
+              Verzorgingstips
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stera-ink">
+              {plant.care_tips}
+            </p>
+          </div>
+        ) : null}
 
         <Link
           href={`/p/${slug}/report`}
