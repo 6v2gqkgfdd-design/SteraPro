@@ -13,6 +13,7 @@ export type PlantReportRow = {
   status: 'new' | 'seen' | 'handled'
   created_at: string | null
   handled_at: string | null
+  photo_url: string | null
 }
 
 const ISSUE_LABELS: Record<string, string> = {
@@ -95,6 +96,23 @@ export default function PlantReportList({
                 <p className="mt-3 whitespace-pre-wrap text-sm text-stera-ink-soft">
                   {r.message}
                 </p>
+              ) : null}
+
+              {r.photo_url ? (
+                <a
+                  href={r.photo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-block"
+                  title="Klik om de foto op volledige grootte te openen"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={r.photo_url}
+                    alt="Foto meegestuurd door de klant"
+                    className="max-h-80 w-auto max-w-full rounded-lg border border-stera-line object-contain"
+                  />
+                </a>
               ) : null}
 
               <div className="mt-4 flex flex-wrap gap-2">

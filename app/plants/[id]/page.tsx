@@ -96,7 +96,7 @@ export default async function PlantDetailPage({
     supabase
       .from('plant_reports')
       .select(
-        'id, plant_id, issue_type, message, reporter_name, reporter_email, status, created_at, handled_at'
+        'id, plant_id, issue_type, message, reporter_name, reporter_email, status, created_at, handled_at, photo_url'
       )
       .eq('plant_id', typedPlant.id)
       .order('created_at', { ascending: false })
@@ -175,6 +175,10 @@ export default async function PlantDetailPage({
           </p>
         ) : null}
 
+        {reportRows.length > 0 ? (
+          <PlantReportList reports={reportRows} />
+        ) : null}
+
         <PlantOverview
           plant={typedPlant}
           location={(location ?? null) as PlantOverviewLocation}
@@ -220,10 +224,6 @@ export default async function PlantDetailPage({
             ) : null
           }
         />
-
-        {reportRows.length > 0 ? (
-          <PlantReportList reports={reportRows} />
-        ) : null}
       </div>
     </main>
   )

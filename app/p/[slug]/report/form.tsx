@@ -105,12 +105,12 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
   if (success) {
     return (
       <div className="space-y-4 text-center">
-        <div className="rounded-2xl border border-stera-green/40 bg-stera-cream-deep/40 p-5">
-          <p className="text-2xl">✓</p>
-          <p className="mt-2 font-semibold text-stera-ink">
+        <div className="rounded-2xl border border-stera-green/40 bg-stera-cream-deep/40 p-5 lg:p-8">
+          <p className="text-2xl lg:text-4xl">✓</p>
+          <p className="mt-2 font-semibold text-stera-ink lg:text-lg">
             Bedankt voor je melding
           </p>
-          <p className="mt-1 text-sm text-stera-ink-soft">
+          <p className="mt-1 text-sm text-stera-ink-soft lg:text-base">
             Stera heeft je melding ontvangen en kijkt er bij het volgende
             bezoek naar, of plant indien nodig een tussentijdse interventie in.
           </p>
@@ -126,10 +126,10 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-5">
       {/* Issue-chips */}
       <div>
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-stera-ink-soft">
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-stera-ink-soft lg:text-sm">
           Wat is er aan de hand?
         </p>
         <div className="flex flex-wrap gap-1.5">
@@ -142,8 +142,8 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
                 onClick={() => setIssueType(opt.value)}
                 className={
                   selected
-                    ? 'rounded-full bg-stera-green px-3 py-1.5 text-xs font-semibold text-white'
-                    : 'rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs font-medium text-stera-ink hover:border-stera-green'
+                    ? 'rounded-full bg-stera-green px-3 py-1.5 text-xs lg:px-4 lg:py-2 lg:text-sm font-semibold text-white'
+                    : 'rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs lg:px-4 lg:py-2 lg:text-sm font-medium text-stera-ink hover:border-stera-green'
                 }
               >
                 {opt.label}
@@ -152,7 +152,7 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
           })}
         </div>
         {issueType ? (
-          <p className="mt-1 text-[11px] text-stera-ink-soft">
+          <p className="mt-1 text-[11px] text-stera-ink-soft lg:text-sm">
             {ISSUE_HELPER[issueType]}
           </p>
         ) : null}
@@ -162,19 +162,19 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
       <div>
         <label
           htmlFor="report_photo"
-          className="flex h-14 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-stera-line bg-white px-4 transition hover:border-stera-green"
+          className="flex h-14 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-stera-line bg-white px-4 transition hover:border-stera-green lg:h-20 lg:gap-4 lg:px-6"
         >
           {photoPreview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={photoPreview}
               alt=""
-              className="h-10 w-10 rounded object-cover"
+              className="h-10 w-10 rounded object-cover lg:h-16 lg:w-16"
             />
           ) : (
-            <span className="text-xl">📷</span>
+            <span className="text-xl lg:text-3xl">📷</span>
           )}
-          <span className="flex-1 text-sm text-stera-ink">
+          <span className="flex-1 text-sm text-stera-ink lg:text-base">
             {photoFile ? photoFile.name : 'Foto toevoegen (optioneel)'}
           </span>
           {photoFile ? (
@@ -205,7 +205,7 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         rows={2}
-        className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm"
+        className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm lg:px-4 lg:py-3 lg:text-base"
         placeholder={
           issueType === 'other'
             ? 'Beschrijf kort wat er aan de hand is...'
@@ -219,14 +219,14 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm"
+          className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm lg:px-4 lg:py-3 lg:text-base"
           placeholder="Je naam"
         />
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm"
+          className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm lg:px-4 lg:py-3 lg:text-base"
           placeholder="E-mail"
         />
       </div>

@@ -13,9 +13,7 @@ type PublicPlantLite = {
 
 function plantTitle(p: PublicPlantLite | null): string {
   if (!p) return 'Plant'
-  return (
-    p.nickname || p.species || p.reference_code || 'Plant'
-  )
+  return p.nickname || p.species || p.reference_code || 'Plant'
 }
 
 async function lookupPlant(slug: string): Promise<PublicPlantLite | null> {
@@ -62,10 +60,10 @@ export default async function PlantReportPage({
 
   return (
     <main className="flex min-h-screen flex-col bg-stera-cream text-stera-ink">
-      <header className="flex items-center justify-between border-b border-stera-line px-5 py-3">
+      <header className="flex items-center justify-between border-b border-stera-line px-5 py-3 lg:px-10 lg:py-5">
         <Link
           href={`/p/${slug}`}
-          className="text-sm text-stera-green underline-offset-4 hover:underline"
+          className="text-sm text-stera-green underline-offset-4 hover:underline lg:text-base"
         >
           ← Terug
         </Link>
@@ -73,17 +71,17 @@ export default async function PlantReportPage({
         <img
           src="/stera-logo.png"
           alt="Stera"
-          className="h-8 w-auto select-none"
+          className="h-8 w-auto select-none lg:h-12"
         />
       </header>
 
-      <div className="flex-1 px-5 py-4">
-        <div className="mx-auto w-full max-w-md">
-          <div className="mb-3">
-            <h1 className="text-xl font-bold tracking-tight">
+      <div className="flex-1 px-5 py-4 lg:px-10 lg:py-10">
+        <div className="mx-auto w-full max-w-md lg:max-w-2xl">
+          <div className="mb-3 lg:mb-6">
+            <h1 className="text-xl font-bold tracking-tight lg:text-4xl">
               Probleem melden
             </h1>
-            <p className="text-xs text-stera-ink-soft">
+            <p className="text-xs text-stera-ink-soft lg:text-base">
               Plant: {plantTitle(plant)}
             </p>
           </div>
@@ -91,7 +89,7 @@ export default async function PlantReportPage({
           {plant ? (
             <PlantReportPageForm slug={slug} />
           ) : (
-            <p className="text-sm text-stera-ink-soft">
+            <p className="text-sm text-stera-ink-soft lg:text-base">
               Deze plant is niet (meer) gekoppeld. Scan de QR-code opnieuw.
             </p>
           )}
