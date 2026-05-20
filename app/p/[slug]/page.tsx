@@ -251,7 +251,7 @@ export default async function PublicPlantPage({
           <img
             src={displayPhoto}
             alt={plantTitle(plant)}
-            className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:aspect-auto sm:max-h-[460px] sm:object-contain"
+            className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:mx-auto sm:block sm:aspect-auto sm:h-auto sm:w-auto sm:max-h-[460px] sm:max-w-full"
           />
         ) : (
           <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3]">
