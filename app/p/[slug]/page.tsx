@@ -10,6 +10,17 @@ import {
   type PlantOverviewPlant,
 } from '@/components/plant-overview'
 
+type LatestVisit = {
+  performed_at: string | null
+  action_watered: boolean | null
+  action_pruned: boolean | null
+  action_fed: boolean | null
+  action_cleaned: boolean | null
+  action_rotated: boolean | null
+  action_repotted: boolean | null
+  action_replaced: boolean | null
+}
+
 type PublicPlant = {
   id: string
   qr_slug: string | null
@@ -23,11 +34,8 @@ type PublicPlant = {
   is_dead: boolean | null
   is_dying: boolean | null
   needs_replacement: boolean | null
-}
-
-type LatestVisit = {
-  performed_at: string | null
-  actions: string[]
+  latest_visit: LatestVisit | null
+  maintenance_photo_url: string | null
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -51,7 +59,11 @@ function plantTitle(plant: PublicPlant): string {
   )
 }
 
-async function lookupPlant(slug: string): Promise<PublicPlant | null> {
+// Haalt één plant op via de publieke RPC get_public_plant. Die functie
+// draait met verhoogde rechten (SECURITY DEFINER) zodat de klantweergave
+// ook werkt voor bezoekers die niet ingelogd zijn — zonder de plants-
+// tabel zelf open te zetten voor anonieme toegang.
+async function getPublicPlant(slug: string): Promise<PublicPlant | null> {
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -61,13 +73,9 @@ async function lookupPlant(slug: string): Promise<PublicPlant | null> {
 
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('plants')
-      .select(
-        'id, qr_slug, nickname, plant_code, reference_code, species, status, photo_url, care_tips, is_dead, is_dying, needs_replacement'
-      )
-      .eq('qr_slug', slug)
-      .maybeSingle()
+    const { data, error } = await supabase.rpc('get_public_plant', {
+      _slug: slug,
+    })
 
     if (error || !data) return null
     return data as PublicPlant
@@ -76,56 +84,11 @@ async function lookupPlant(slug: string): Promise<PublicPlant | null> {
   }
 }
 
-async function lookupLatestVisit(plantId: string): Promise<LatestVisit | null> {
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('maintenance_visit_plants')
-      .select(
-        `action_watered, action_pruned, action_fed, action_cleaned,
-         action_rotated, action_polished, action_repotted, action_replaced,
-         maintenance_visits ( ended_at, scheduled_start )`
-      )
-      .eq('plant_id', plantId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (!data) return null
-
-    const row = data as any
-    const visit = Array.isArray(row.maintenance_visits)
-      ? row.maintenance_visits[0]
-      : row.maintenance_visits
-
-    const performedAt = visit?.ended_at || visit?.scheduled_start || null
-
-    const actions = Object.entries(ACTION_LABELS)
-      .filter(([key]) => Boolean(row[key]))
-      .map(([, label]) => label)
-
-    return { performed_at: performedAt, actions }
-  } catch {
-    return null
-  }
-}
-
-async function lookupLatestPhoto(plantId: string): Promise<string | null> {
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('maintenance_visit_plants')
-      .select('photo_url')
-      .eq('plant_id', plantId)
-      .not('photo_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    return (data as { photo_url?: string | null } | null)?.photo_url ?? null
-  } catch {
-    return null
-  }
+function visitActions(visit: LatestVisit | null): string[] {
+  if (!visit) return []
+  return Object.entries(ACTION_LABELS)
+    .filter(([key]) => Boolean((visit as Record<string, unknown>)[key]))
+    .map(([, label]) => label)
 }
 
 export async function generateMetadata({
@@ -134,7 +97,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const plant = await lookupPlant(slug)
+  const plant = await getPublicPlant(slug)
 
   if (!plant) {
     return {
@@ -212,21 +175,19 @@ export default async function PublicPlantPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const plant = await lookupPlant(slug)
+  const plant = await getPublicPlant(slug)
 
   if (!plant) {
     return <NotFoundView slug={slug} />
   }
 
-  const [latestVisit, maintenancePhoto] = await Promise.all([
-    lookupLatestVisit(plant.id),
-    lookupLatestPhoto(plant.id),
-  ])
+  const latestVisit = plant.latest_visit
   const lastDate = formatDate(latestVisit?.performed_at ?? null)
+  const actions = visitActions(latestVisit)
 
   // Toon bij voorkeur de laatste onderhoudsfoto; val terug op de
   // oorspronkelijke plantfoto als er nog geen onderhoudsfoto is.
-  const displayPhoto = maintenancePhoto ?? plant.photo_url
+  const displayPhoto = plant.maintenance_photo_url ?? plant.photo_url
 
   // Hergebruik dezelfde statusLabel/statusColor/mood-logica als de
   // interne plant-detail pagina zodat de header er identiek uitziet.
@@ -307,9 +268,9 @@ export default async function PublicPlantPage({
               <p className="mt-0.5 text-sm font-medium text-stera-ink">
                 {lastDate}
               </p>
-              {latestVisit?.actions && latestVisit.actions.length > 0 ? (
+              {actions.length > 0 ? (
                 <p className="mt-0.5 line-clamp-1 text-xs text-stera-ink-soft">
-                  {latestVisit.actions.join(' · ')}
+                  {actions.join(' · ')}
                 </p>
               ) : null}
             </>

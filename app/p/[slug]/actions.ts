@@ -59,14 +59,14 @@ export async function submitPlantReport(
 
   const supabase = await createClient()
 
-  // 1) Plant ophalen via slug
-  const { data: plant, error: plantError } = await supabase
-    .from('plants')
-    .select('id, nickname, species, reference_code, qr_slug, location_id')
-    .eq('qr_slug', input.slug)
-    .maybeSingle()
+  // 1) Plant ophalen via de publieke RPC — werkt ook zonder login,
+  //    zodat een klant een melding kan insturen.
+  const { data: plant, error: plantError } = await supabase.rpc(
+    'get_public_plant',
+    { _slug: input.slug }
+  )
 
-  if (plantError || !plant) {
+  if (plantError || !plant || typeof plant.id !== 'string') {
     return {
       ok: false,
       error: 'Plant niet gevonden. Mogelijk is de QR-code intussen aangepast.',

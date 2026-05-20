@@ -27,11 +27,11 @@ async function lookupPlant(slug: string): Promise<PublicPlantLite | null> {
   }
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('plants')
-      .select('id, qr_slug, nickname, species, reference_code')
-      .eq('qr_slug', slug)
-      .maybeSingle()
+    // Via de publieke RPC, zodat de melding-pagina ook werkt voor
+    // bezoekers die niet ingelogd zijn.
+    const { data, error } = await supabase.rpc('get_public_plant', {
+      _slug: slug,
+    })
     if (error || !data) return null
     return data as PublicPlantLite
   } catch {

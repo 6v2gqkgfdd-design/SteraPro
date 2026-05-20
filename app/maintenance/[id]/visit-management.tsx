@@ -167,12 +167,46 @@ export default function VisitManagement({
     }
   }
 
+  // Confirm-modals — in BEIDE varianten renderen. Anders deed de
+  // verwijder-knop in het 3-puntjes-menu niets: de modal stond enkel
+  // in de card-variant, dus 'Verwijderen' zette wel een vlag maar er
+  // verscheen geen bevestiging en handleDelete werd nooit aangeroepen.
+  const confirmModals = (
+    <>
+      <ConfirmModal
+        open={cancelModalOpen}
+        title="Beurt annuleren?"
+        description="De beurt wordt gemarkeerd als geannuleerd. Je kan ze later opnieuw activeren via het menu."
+        confirmLabel="Annuleren"
+        tone="danger"
+        onConfirm={async () => {
+          setCancelModalOpen(false)
+          await handleCancel()
+        }}
+        onCancel={() => setCancelModalOpen(false)}
+      />
+      <ConfirmModal
+        open={deleteModalOpen}
+        title="Beurt verwijderen?"
+        description="Alles van deze beurt — planten, verbruik, werkbon, foto's — wordt permanent verwijderd. Niet ongedaan te maken."
+        confirmLabel="Beurt verwijderen"
+        tone="danger"
+        onConfirm={async () => {
+          setDeleteModalOpen(false)
+          await handleDelete()
+        }}
+        onCancel={() => setDeleteModalOpen(false)}
+      />
+    </>
+  )
+
   if (variant === 'menu') {
     const menuItemClass =
       'block w-full px-4 py-3 text-left text-sm transition hover:bg-stera-cream-deep disabled:opacity-50'
     const dangerItemClass =
       'block w-full px-4 py-3 text-left text-sm text-red-700 transition hover:bg-red-50 disabled:opacity-50'
     return (
+      <>
       <div ref={menuRef} className="relative">
         <button
           type="button"
@@ -270,6 +304,8 @@ export default function VisitManagement({
           </div>
         ) : null}
       </div>
+      {confirmModals}
+      </>
     )
   }
 
@@ -411,31 +447,7 @@ export default function VisitManagement({
         </p>
       )}
 
-      <ConfirmModal
-        open={cancelModalOpen}
-        title="Beurt annuleren?"
-        description="De beurt wordt gemarkeerd als geannuleerd. Je kan ze later opnieuw activeren via het menu."
-        confirmLabel="Annuleren"
-        tone="danger"
-        onConfirm={async () => {
-          setCancelModalOpen(false)
-          await handleCancel()
-        }}
-        onCancel={() => setCancelModalOpen(false)}
-      />
-
-      <ConfirmModal
-        open={deleteModalOpen}
-        title="Beurt verwijderen?"
-        description="Alles van deze beurt — planten, verbruik, werkbon, foto's — wordt permanent verwijderd. Niet ongedaan te maken."
-        confirmLabel="Beurt verwijderen"
-        tone="danger"
-        onConfirm={async () => {
-          setDeleteModalOpen(false)
-          await handleDelete()
-        }}
-        onCancel={() => setDeleteModalOpen(false)}
-      />
+      {confirmModals}
     </div>
   )
 }
