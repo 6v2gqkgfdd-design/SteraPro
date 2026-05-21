@@ -1,43 +1,61 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Toolbar bovenaan de print-/PDF-weergave van een werkbon.
  * Wordt niet meegeprint (klasse `wo-toolbar`, verborgen via @media print).
  *
- * Bij het openen van de pagina wordt de afdruk-/PDF-dialoog automatisch
- * geopend zodra alle afbeeldingen geladen zijn, zodat de plantfoto's
- * mee in de PDF komen.
+ * Belangrijk: we openen het afdruk-/PDF-venster pas zodra alle
+ * afbeeldingen volledig geladen zijn. Anders loopt het afdrukvoorbeeld
+ * van de browser vast op nog ladende foto's.
  */
+function waitForImages(timeoutMs = 9000): Promise<void> {
+  if (typeof document === 'undefined') return Promise.resolve()
+
+  const images = Array.from(document.images)
+  const allLoaded = Promise.all(
+    images.map((img) => {
+      if (img.complete) return Promise.resolve()
+      return new Promise<void>((resolve) => {
+        img.addEventListener('load', () => resolve(), { once: true })
+        img.addEventListener('error', () => resolve(), { once: true })
+      })
+    })
+  ).then(() => undefined)
+
+  // Veiligheidstimer: nooit eindeloos wachten op een trage foto.
+  const fallback = new Promise<void>((resolve) =>
+    setTimeout(resolve, timeoutMs)
+  )
+
+  return Promise.race([allLoaded, fallback])
+}
+
 export default function WorkOrderPrintToolbar({
   workOrderId,
 }: {
   workOrderId: string
 }) {
-  const printed = useRef(false)
+  const started = useRef(false)
+  const [busy, setBusy] = useState(true)
+
+  async function openPrintDialog() {
+    setBusy(true)
+    await waitForImages()
+    // Korte buffer zodat de lay-out zeker volledig gerenderd is.
+    await new Promise((r) => setTimeout(r, 200))
+    setBusy(false)
+    window.print()
+  }
 
   useEffect(() => {
-    if (printed.current) return
-    printed.current = true
-
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const fire = () => {
-      // Korte buffer zodat de lay-out volledig gerenderd is.
-      timer = setTimeout(() => window.print(), 400)
-    }
-
-    if (document.readyState === 'complete') {
-      fire()
-    } else {
-      window.addEventListener('load', fire, { once: true })
-    }
-
-    return () => {
-      if (timer) clearTimeout(timer)
-      window.removeEventListener('load', fire)
-    }
+    // Eénmalig automatisch het afdrukvenster openen bij het laden.
+    if (started.current) return
+    started.current = true
+    void openPrintDialog()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -50,10 +68,11 @@ export default function WorkOrderPrintToolbar({
       </Link>
       <button
         type="button"
-        onClick={() => window.print()}
-        className="stera-cta stera-cta-primary"
+        onClick={openPrintDialog}
+        disabled={busy}
+        className="stera-cta stera-cta-primary disabled:opacity-50"
       >
-        Download als PDF
+        {busy ? 'Even klaarzetten…' : 'Download als PDF'}
       </button>
     </div>
   )

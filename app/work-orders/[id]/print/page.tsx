@@ -39,7 +39,11 @@ const PRINT_CSS = `
 .wo-avoid-break { break-inside: avoid; }
 @media print {
   .wo-toolbar { display: none !important; }
-  .wo-print-root { background: #ffffff !important; padding: 0 !important; }
+  .wo-print-root {
+    background: #ffffff !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
   .wo-paper {
     max-width: none !important;
     margin: 0 !important;
@@ -71,6 +75,15 @@ function formatDateTime(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// Verklein remote foto's via de Next.js image-optimizer. Full-res
+// telefoonfoto's laten anders het PDF-/afdrukvoorbeeld van de browser
+// vastlopen; een geoptimaliseerde 384px-versie houdt de print licht.
+function thumb(url: string | null | undefined): string | null {
+  if (!url) return null
+  if (url.startsWith('data:')) return url
+  return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`
 }
 
 export default async function WorkOrderPrintPage({
@@ -359,7 +372,7 @@ export default async function WorkOrderPrintPage({
                   const plant = Array.isArray(vp.plants)
                     ? vp.plants[0]
                     : vp.plants
-                  const photoUrl = vp.photo_url || plant?.photo_url || null
+                  const photoSrc = thumb(vp.photo_url || plant?.photo_url)
                   const actions = Object.entries(ACTION_LABELS)
                     .filter(([key]) => Boolean(vp[key]))
                     .map(([, label]) => label)
@@ -368,10 +381,10 @@ export default async function WorkOrderPrintPage({
                       key={vp.id}
                       className="wo-avoid-break flex flex-wrap gap-3 rounded-lg border border-stera-line bg-white p-3"
                     >
-                      {photoUrl ? (
+                      {photoSrc ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={photoUrl}
+                          src={photoSrc}
                           alt={plant?.nickname || 'Plant'}
                           className="h-16 w-16 shrink-0 rounded object-cover"
                         />
@@ -424,17 +437,17 @@ export default async function WorkOrderPrintPage({
                 const plant = Array.isArray(vp.plants)
                   ? vp.plants[0]
                   : vp.plants
-                const photoUrl = vp.photo_url || plant?.photo_url || null
+                const photoSrc = thumb(vp.photo_url || plant?.photo_url)
                 const currentPot = findPotSize(plant?.pot_size_code)
                 return (
                   <li
                     key={vp.id}
                     className="wo-avoid-break flex flex-wrap gap-3 rounded-lg border border-red-200 bg-red-50/50 p-3"
                   >
-                    {photoUrl ? (
+                    {photoSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={photoUrl}
+                        src={photoSrc}
                         alt={`Huidige plant: ${plant?.nickname || ''}`}
                         className="h-16 w-16 shrink-0 rounded object-cover"
                       />
