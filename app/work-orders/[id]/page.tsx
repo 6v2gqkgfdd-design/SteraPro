@@ -238,6 +238,11 @@ export default async function WorkOrderDetailPage({
             {[company?.name, location?.name].filter(Boolean).join(' · ')}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {workOrder.reference_number ? (
+              <span className="rounded-full border border-stera-green/30 bg-stera-green/10 px-3 py-1 font-mono text-xs font-semibold tracking-wider text-stera-green">
+                {workOrder.reference_number}
+              </span>
+            ) : null}
             <span className="rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-ink">
               {STATUS_LABEL[workOrder.status]}
             </span>
@@ -246,6 +251,15 @@ export default async function WorkOrderDetailPage({
                 Onderhoudscontract
               </span>
             ) : null}
+          </div>
+          <div className="mt-4">
+            <Link
+              href={`/work-orders/${workOrder.id}/print`}
+              target="_blank"
+              className="stera-cta stera-cta-secondary inline-flex"
+            >
+              Download als PDF
+            </Link>
           </div>
         </div>
 
@@ -446,9 +460,16 @@ export default async function WorkOrderDetailPage({
         {/* Voorvertoning werkbon */}
         <article className="stera-card space-y-6">
           <header className="border-b border-stera-line pb-4">
-            <p className="stera-eyebrow text-stera-green mb-2">
-              Voorbeeld werkbon
-            </p>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <p className="stera-eyebrow text-stera-green">
+                Voorbeeld werkbon
+              </p>
+              {workOrder.reference_number ? (
+                <p className="font-mono text-sm font-semibold text-stera-ink">
+                  {workOrder.reference_number}
+                </p>
+              ) : null}
+            </div>
             <h2 className="text-2xl font-bold">{visit.title}</h2>
             {visit.ended_at ? (
               <p className="text-sm text-stera-ink-soft">

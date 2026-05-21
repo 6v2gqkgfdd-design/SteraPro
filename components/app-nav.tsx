@@ -56,7 +56,12 @@ const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/']
 export default function AppNav() {
   const pathname = usePathname() || ''
 
-  if (HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) {
+  // Print-/PDF-weergaven (bv. /work-orders/[id]/print) krijgen een
+  // volledig schoon scherm zonder navigatie.
+  if (
+    pathname.endsWith('/print') ||
+    HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))
+  ) {
     return null
   }
 

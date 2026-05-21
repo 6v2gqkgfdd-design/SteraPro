@@ -55,7 +55,7 @@ export default async function WorkOrdersPage({
   const { data: rows, error } = await supabase
     .from('work_orders')
     .select(
-      `id, status, sent_at, signed_at, signed_name, created_at,
+      `id, status, sent_at, signed_at, signed_name, created_at, reference_number,
        maintenance_visits (
          id,
          title,
@@ -245,6 +245,11 @@ export default async function WorkOrdersPage({
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
+                        {row.reference_number ? (
+                          <p className="font-mono text-xs font-semibold tracking-wide text-stera-green">
+                            {row.reference_number}
+                          </p>
+                        ) : null}
                         <p className="font-semibold text-stera-ink">
                           {meta.title}
                         </p>

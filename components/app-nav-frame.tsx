@@ -18,9 +18,9 @@ export default function AppNavFrame({
   children: React.ReactNode
 }) {
   const pathname = usePathname() || ''
-  const hidden = HIDDEN_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(p)
-  )
+  const hidden =
+    pathname.endsWith('/print') ||
+    HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))
 
   if (hidden) {
     return <>{children}</>
