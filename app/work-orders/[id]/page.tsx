@@ -231,18 +231,16 @@ export default async function WorkOrderDetailPage({
       <div className="mx-auto max-w-3xl space-y-6">
         <div>
           <p className="stera-eyebrow mb-2">Werkbon</p>
-          <h1 className="stera-display text-3xl sm:text-4xl">
-            {visit.title || 'Onderhoudsbeurt'}
+          <h1 className="text-3xl font-bold tracking-tight text-stera-ink sm:text-4xl">
+            {workOrder.reference_number || visit.title || 'Werkbon'}
           </h1>
+          {visit.title ? (
+            <p className="mt-1 text-sm text-stera-ink-soft">{visit.title}</p>
+          ) : null}
           <p className="mt-2 text-sm text-stera-ink-soft">
             {[company?.name, location?.name].filter(Boolean).join(' · ')}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {workOrder.reference_number ? (
-              <span className="rounded-full border border-stera-green/30 bg-stera-green/10 px-3 py-1 font-mono text-xs font-semibold tracking-wider text-stera-green">
-                {workOrder.reference_number}
-              </span>
-            ) : null}
             <span className="rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-ink">
               {STATUS_LABEL[workOrder.status]}
             </span>
@@ -460,19 +458,17 @@ export default async function WorkOrderDetailPage({
         {/* Voorvertoning werkbon */}
         <article className="stera-card space-y-6">
           <header className="border-b border-stera-line pb-4">
-            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-              <p className="stera-eyebrow text-stera-green">
-                Voorbeeld werkbon
-              </p>
-              {workOrder.reference_number ? (
-                <p className="font-mono text-sm font-semibold text-stera-ink">
-                  {workOrder.reference_number}
-                </p>
-              ) : null}
-            </div>
-            <h2 className="text-2xl font-bold">{visit.title}</h2>
+            <p className="stera-eyebrow mb-2 text-stera-green">
+              Voorbeeld werkbon
+            </p>
+            <h2 className="text-2xl font-bold">
+              {workOrder.reference_number || visit.title || 'Werkbon'}
+            </h2>
+            {visit.title ? (
+              <p className="mt-1 text-sm text-stera-ink-soft">{visit.title}</p>
+            ) : null}
             {visit.ended_at ? (
-              <p className="text-sm text-stera-ink-soft">
+              <p className="mt-1 text-sm text-stera-ink-soft">
                 Beëindigd op {formatDateOnly(visit.ended_at)}
               </p>
             ) : null}

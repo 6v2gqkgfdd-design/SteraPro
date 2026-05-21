@@ -245,13 +245,8 @@ export default async function WorkOrdersPage({
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        {row.reference_number ? (
-                          <p className="font-mono text-xs font-semibold tracking-wide text-stera-green">
-                            {row.reference_number}
-                          </p>
-                        ) : null}
                         <p className="font-semibold text-stera-ink">
-                          {meta.title}
+                          {row.reference_number || meta.title}
                         </p>
                         {meta.subtitle ? (
                           <p className="mt-1 text-sm text-stera-ink-soft">

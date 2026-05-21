@@ -248,9 +248,6 @@ export default async function WorkOrderPrintPage({
           </div>
           <div className="text-right">
             <p className="stera-eyebrow text-stera-green">Werkbon</p>
-            <p className="mt-1 font-mono text-xl font-bold text-stera-ink">
-              {workOrder.reference_number || '—'}
-            </p>
             <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-stera-ink-soft">
               {STATUS_LABEL[workOrder.status] || workOrder.status}
             </p>
@@ -261,8 +258,11 @@ export default async function WorkOrderPrintPage({
         </header>
 
         <h1 className="mt-5 text-2xl font-bold tracking-tight">
-          {visit.title || 'Onderhoudsbeurt'}
+          {workOrder.reference_number || visit.title || 'Werkbon'}
         </h1>
+        {visit.title ? (
+          <p className="mt-1 text-sm text-stera-ink-soft">{visit.title}</p>
+        ) : null}
 
         {/* Klant + Locatie */}
         <section className="mt-5 grid gap-5 text-sm sm:grid-cols-2">
