@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { formatEur, findPotSize } from '@/lib/pot-sizes'
@@ -84,6 +85,30 @@ function thumb(url: string | null | undefined): string | null {
   if (!url) return null
   if (url.startsWith('data:')) return url
   return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`
+}
+
+// Zet de paginatitel gelijk aan het werkbonnummer. De browser gebruikt
+// die titel als standaard bestandsnaam bij 'Opslaan als PDF'.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('work_orders')
+      .select('reference_number')
+      .eq('id', id)
+      .maybeSingle()
+    if (data?.reference_number) {
+      return { title: { absolute: data.reference_number } }
+    }
+  } catch {
+    // Stil falen — val terug op een generieke titel.
+  }
+  return { title: { absolute: 'Werkbon' } }
 }
 
 export default async function WorkOrderPrintPage({
