@@ -11,6 +11,7 @@ import {
   labourCostCents,
 } from '@/lib/labour'
 import { formatRoomLabel } from '@/lib/rooms'
+import { woImage } from '@/lib/wo-image'
 import WorkOrderPrintToolbar from './print-toolbar'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -76,15 +77,6 @@ function formatDateTime(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-// Verklein remote foto's via de Next.js image-optimizer. Full-res
-// telefoonfoto's laten anders het PDF-/afdrukvoorbeeld van de browser
-// vastlopen; een geoptimaliseerde 384px-versie houdt de print licht.
-function thumb(url: string | null | undefined): string | null {
-  if (!url) return null
-  if (url.startsWith('data:')) return url
-  return `/_next/image?url=${encodeURIComponent(url)}&w=384&q=75`
 }
 
 // Zet de paginatitel gelijk aan het werkbonnummer. De browser gebruikt
@@ -397,7 +389,7 @@ export default async function WorkOrderPrintPage({
                   const plant = Array.isArray(vp.plants)
                     ? vp.plants[0]
                     : vp.plants
-                  const photoSrc = thumb(vp.photo_url || plant?.photo_url)
+                  const photoSrc = woImage(vp.photo_url || plant?.photo_url)
                   const actions = Object.entries(ACTION_LABELS)
                     .filter(([key]) => Boolean(vp[key]))
                     .map(([, label]) => label)
@@ -462,7 +454,7 @@ export default async function WorkOrderPrintPage({
                 const plant = Array.isArray(vp.plants)
                   ? vp.plants[0]
                   : vp.plants
-                const photoSrc = thumb(vp.photo_url || plant?.photo_url)
+                const photoSrc = woImage(vp.photo_url || plant?.photo_url)
                 const currentPot = findPotSize(plant?.pot_size_code)
                 return (
                   <li

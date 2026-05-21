@@ -21,6 +21,7 @@ import {
   labourCostCents,
 } from '@/lib/labour'
 import { formatRoomLabel } from '@/lib/rooms'
+import { woImage } from '@/lib/wo-image'
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Nog te versturen',
@@ -565,7 +566,7 @@ export default async function WorkOrderDetailPage({
                     const plant = Array.isArray(vp.plants)
                       ? vp.plants[0]
                       : vp.plants
-                    const photoUrl = vp.photo_url || plant?.photo_url || null
+                    const photoUrl = woImage(vp.photo_url || plant?.photo_url)
                     const actions = Object.entries(ACTION_LABELS)
                       .filter(([key]) => Boolean(vp[key]))
                       .map(([, label]) => label)
@@ -629,7 +630,7 @@ export default async function WorkOrderDetailPage({
               <ul className="space-y-3 text-sm">
                 {replacements.map((vp: any) => {
                   const plant = Array.isArray(vp.plants) ? vp.plants[0] : vp.plants
-                  const photoUrl = vp.photo_url || plant?.photo_url || null
+                  const photoUrl = woImage(vp.photo_url || plant?.photo_url)
                   const currentPot = findPotSize(plant?.pot_size_code)
                   return (
                     <li
