@@ -46,7 +46,10 @@ export async function GET(req: Request) {
     if (diagnose) {
       const probe = await probeNieuwkoop()
       return NextResponse.json({
-        probe: { baseUrl: probe.baseUrl, attempts: probe.attempts },
+        probe: {
+          configuredBaseUrl: probe.configuredBaseUrl,
+          attempts: probe.attempts,
+        },
         diagnose:
           probe.items.length > 0 ? buildDiagnosis(probe.items) : null,
       })

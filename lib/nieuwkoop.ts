@@ -192,7 +192,8 @@ export function filterReplacements(
 // ─────────────────────────────────────────────────────────────────
 
 export type NieuwkoopProbeAttempt = {
-  label: string
+  environment: string
+  baseUrl: string
   path: string
   ok: boolean
   status: number | null
@@ -214,29 +215,36 @@ async function fetchWithTimeout(
   }
 }
 
+const NIEUWKOOP_ENVIRONMENTS = [
+  {
+    name: 'Playground',
+    baseUrl: 'https://customerapi_playground.nieuwkoop-europe.com',
+  },
+  {
+    name: 'Dev',
+    baseUrl: 'https://customerapi_dev.nieuwkoop-europe.com',
+  },
+  {
+    name: 'Live',
+    baseUrl: 'https://customerapi.nieuwkoop-europe.com',
+  },
+]
+
 /**
- * Verbindingstest voor de Nieuwkoop API. Probeert enkele varianten van
- * de /items-oproep parallel en rapporteert per variant of ze lukt. Zo
- * zien we meteen of het probleem bij de volledige catalogus zit (te
- * zwaar), bij de gekozen omgeving of bij de authenticatie.
+ * Verbindingstest voor de Nieuwkoop API. Probeert dezelfde /items-
+ * oproep op alle drie de omgevingen (Playground, Dev, Live) met de
+ * huidige login, telkens met twee datums. Zo zien we meteen welke
+ * omgeving bruikbare data teruggeeft.
  *
- * `items` bevat de resultaten van de eerste geslaagde poging.
+ * `items` bevat de resultaten van de eerste geslaagde poging mét data.
  */
 export async function probeNieuwkoop(): Promise<{
-  baseUrl: string
+  configuredBaseUrl: string
   attempts: NieuwkoopProbeAttempt[]
   items: NieuwkoopItem[]
 }> {
-  const baseUrl = getBaseUrl()
-  const variants: Array<{ label: string; path: string }> = [
-    { label: 'Zonder parameters', path: '/items' },
-    { label: 'Sinds 2024-01-01', path: '/items?sysmodified=2024-01-01' },
-    { label: 'Sinds 2023-01-01', path: '/items?sysmodified=2023-01-01' },
-    { label: 'Sinds 2022-01-01', path: '/items?sysmodified=2022-01-01' },
-    { label: 'Sinds 2020-01-01', path: '/items?sysmodified=2020-01-01' },
-    { label: 'Sinds 2015-01-01', path: '/items?sysmodified=2015-01-01' },
-    { label: 'Sinds 2010-01-01', path: '/items?sysmodified=2010-01-01' },
-  ]
+  const configuredBaseUrl = getBaseUrl()
+  const dates = ['2024-01-01', '2026-01-01']
 
   let auth: string | null = null
   let authError: string | null = null
@@ -247,15 +255,35 @@ export async function probeNieuwkoop(): Promise<{
       e instanceof Error ? e.message : 'Authenticatie-config ontbreekt.'
   }
 
-  async function runOne(variant: {
-    label: string
+  const jobs: Array<{
+    environment: string
+    baseUrl: string
+    path: string
+  }> = []
+  for (const env of NIEUWKOOP_ENVIRONMENTS) {
+    for (const date of dates) {
+      jobs.push({
+        environment: env.name,
+        baseUrl: env.baseUrl,
+        path: `/items?sysmodified=${date}`,
+      })
+    }
+  }
+
+  async function runOne(job: {
+    environment: string
+    baseUrl: string
     path: string
   }): Promise<{ attempt: NieuwkoopProbeAttempt; items: NieuwkoopItem[] }> {
+    const base = {
+      environment: job.environment,
+      baseUrl: job.baseUrl,
+      path: job.path,
+    }
     if (!auth) {
       return {
         attempt: {
-          label: variant.label,
-          path: variant.path,
+          ...base,
           ok: false,
           status: null,
           itemCount: null,
@@ -266,7 +294,7 @@ export async function probeNieuwkoop(): Promise<{
     }
     try {
       const res = await fetchWithTimeout(
-        `${baseUrl}${variant.path}`,
+        `${job.baseUrl}${job.path}`,
         {
           headers: { Authorization: auth, Accept: 'application/json' },
           cache: 'no-store',
@@ -277,8 +305,7 @@ export async function probeNieuwkoop(): Promise<{
         const text = await res.text().catch(() => '')
         return {
           attempt: {
-            label: variant.label,
-            path: variant.path,
+            ...base,
             ok: false,
             status: res.status,
             itemCount: null,
@@ -291,8 +318,7 @@ export async function probeNieuwkoop(): Promise<{
       const list = Array.isArray(data) ? (data as NieuwkoopItem[]) : []
       return {
         attempt: {
-          label: variant.label,
-          path: variant.path,
+          ...base,
           ok: true,
           status: res.status,
           itemCount: list.length,
@@ -309,8 +335,7 @@ export async function probeNieuwkoop(): Promise<{
           : 'Netwerkfout'
       return {
         attempt: {
-          label: variant.label,
-          path: variant.path,
+          ...base,
           ok: false,
           status: null,
           itemCount: null,
@@ -321,8 +346,12 @@ export async function probeNieuwkoop(): Promise<{
     }
   }
 
-  const results = await Promise.all(variants.map(runOne))
+  const results = await Promise.all(jobs.map(runOne))
   const attempts = results.map((r) => r.attempt)
   const firstOk = results.find((r) => r.items.length > 0)
-  return { baseUrl, attempts, items: firstOk ? firstOk.items : [] }
+  return {
+    configuredBaseUrl,
+    attempts,
+    items: firstOk ? firstOk.items : [],
+  }
 }
