@@ -75,27 +75,43 @@ export default async function QuotesPage() {
     redirect('/login')
   }
 
-  // Te-vervangen planten uit de onderhoudsbeurten — gegroepeerd per beurt.
-  const { data: flaggedRows } = await supabase
-    .from('maintenance_visit_plants')
-    .select(
+  // Drie onafhankelijke queries — parallel ophalen scheelt laadtijd.
+  // Een plant telt als "te vervangen" wanneer ze expliciet aangevinkt
+  // is (followup_replace) óf als ze als dood geregistreerd staat.
+  const [
+    { data: flaggedRows },
+    { data: quotedVisitRows },
+    { data: quotes },
+  ] = await Promise.all([
+    supabase
+      .from('maintenance_visit_plants')
+      .select(
+        `
+        id, visit_id,
+        maintenance_visits (
+          id, title, scheduled_start, ended_at, status,
+          companies ( name ),
+          locations ( name )
+        )
       `
-      id, visit_id,
-      maintenance_visits (
-        id, title, scheduled_start, ended_at, status,
+      )
+      .or('followup_replace.eq.true,health_status.eq.dead'),
+    supabase
+      .from('quotes')
+      .select('source_visit_id')
+      .not('source_visit_id', 'is', null),
+    supabase
+      .from('quotes')
+      .select(
+        `
+        id, reference_number, status, customer_name, subtotal_cents,
+        created_at, valid_until,
         companies ( name ),
         locations ( name )
+      `
       )
-    `
-    )
-    .eq('followup_replace', true)
-
-  // Beurten waarvoor al een offerte bestaat — die tonen we niet meer
-  // als voorstel.
-  const { data: quotedVisitRows } = await supabase
-    .from('quotes')
-    .select('source_visit_id')
-    .not('source_visit_id', 'is', null)
+      .order('created_at', { ascending: false }),
+  ])
 
   const quotedVisitIds = new Set(
     (quotedVisitRows ?? [])
@@ -138,19 +154,6 @@ export default async function QuotesPage() {
   const proposals = Array.from(proposalMap.values()).sort((a, b) =>
     (b.date || '').localeCompare(a.date || '')
   )
-
-  // Bestaande offertes.
-  const { data: quotes } = await supabase
-    .from('quotes')
-    .select(
-      `
-      id, reference_number, status, customer_name, subtotal_cents,
-      created_at, valid_until,
-      companies ( name ),
-      locations ( name )
-    `
-    )
-    .order('created_at', { ascending: false })
 
   return (
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-8 sm:pt-6">

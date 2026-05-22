@@ -46,38 +46,43 @@ export default async function MaintenancePage({
 
   const supabase = await createClient()
 
-  const { data: plannedVisits, error: plannedError } = await supabase
-    .from('maintenance_visits')
-    .select(`
-      id,
-      title,
-      status,
-      scheduled_start,
-      companies ( name ),
-      locations ( name, street, number, city ),
-      maintenance_visit_rooms (
-        rooms ( id, name, floor )
-      )
-    `)
-    .in('status', ['scheduled', 'in_progress', 'paused'])
-    .order('scheduled_start', { ascending: true })
-
-  const { data: completedVisits, error: completedError } = await supabase
-    .from('maintenance_visits')
-    .select(`
-      id,
-      title,
-      status,
-      scheduled_start,
-      ended_at,
-      companies ( name ),
-      locations ( name, street, number, city ),
-      maintenance_visit_rooms (
-        rooms ( id, name, floor )
-      )
-    `)
-    .in('status', ['completed', 'cancelled'])
-    .order('scheduled_start', { ascending: false })
+  // Twee onafhankelijke queries parallel ophalen scheelt laadtijd.
+  const [
+    { data: plannedVisits, error: plannedError },
+    { data: completedVisits, error: completedError },
+  ] = await Promise.all([
+    supabase
+      .from('maintenance_visits')
+      .select(`
+        id,
+        title,
+        status,
+        scheduled_start,
+        companies ( name ),
+        locations ( name, street, number, city ),
+        maintenance_visit_rooms (
+          rooms ( id, name, floor )
+        )
+      `)
+      .in('status', ['scheduled', 'in_progress', 'paused'])
+      .order('scheduled_start', { ascending: true }),
+    supabase
+      .from('maintenance_visits')
+      .select(`
+        id,
+        title,
+        status,
+        scheduled_start,
+        ended_at,
+        companies ( name ),
+        locations ( name, street, number, city ),
+        maintenance_visit_rooms (
+          rooms ( id, name, floor )
+        )
+      `)
+      .in('status', ['completed', 'cancelled'])
+      .order('scheduled_start', { ascending: false }),
+  ])
 
   const visits = activeTab === 'completed' ? completedVisits : plannedVisits
   const error = activeTab === 'completed' ? completedError : plannedError

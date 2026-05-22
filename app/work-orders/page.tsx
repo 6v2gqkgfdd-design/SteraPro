@@ -52,34 +52,36 @@ export default async function WorkOrdersPage({
     redirect('/login')
   }
 
-  const { data: rows, error } = await supabase
-    .from('work_orders')
-    .select(
-      `id, status, sent_at, signed_at, signed_name, created_at, reference_number,
-       maintenance_visits (
-         id,
-         title,
-         scheduled_start,
-         ended_at,
-         locations ( name, companies ( name ) )
-       )`
-    )
-    .order('created_at', { ascending: false })
-
-  // Afgewerkte beurten waarvoor nog GEEN werkbon bestaat —
-  // melding bovenaan om Jelle te herinneren. Contract-klanten
-  // krijgen automatisch een 'archived' werkbon bij het beëindigen
-  // van de beurt, dus die filteren we hier uit: voor hen is geen
-  // actie nodig.
-  const { data: completedVisits } = await supabase
-    .from('maintenance_visits')
-    .select(
-      `id, title, scheduled_start, ended_at,
-       locations ( name, companies ( name, has_maintenance_contract ) ),
-       work_orders ( id )`
-    )
-    .eq('status', 'completed')
-    .order('ended_at', { ascending: false })
+  // Afgewerkte beurten waarvoor nog GEEN werkbon bestaat — melding
+  // bovenaan om Jelle te herinneren. Contract-klanten krijgen
+  // automatisch een 'archived' werkbon bij het beëindigen van de
+  // beurt, dus die filteren we hier uit: voor hen is geen actie nodig.
+  // Beide queries zijn onafhankelijk → parallel ophalen.
+  const [{ data: rows, error }, { data: completedVisits }] =
+    await Promise.all([
+      supabase
+        .from('work_orders')
+        .select(
+          `id, status, sent_at, signed_at, signed_name, created_at, reference_number,
+           maintenance_visits (
+             id,
+             title,
+             scheduled_start,
+             ended_at,
+             locations ( name, companies ( name ) )
+           )`
+        )
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('maintenance_visits')
+        .select(
+          `id, title, scheduled_start, ended_at,
+           locations ( name, companies ( name, has_maintenance_contract ) ),
+           work_orders ( id )`
+        )
+        .eq('status', 'completed')
+        .order('ended_at', { ascending: false }),
+    ])
 
   const missingWorkOrder = (completedVisits ?? []).filter((v: any) => {
     // Supabase geeft work_orders soms als array, soms als object

@@ -45,12 +45,21 @@ async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 }
 
 async function fileToJpeg(file: File): Promise<File> {
-  if (file.type === 'image/jpeg') return file
+  // Telefoonfoto's zijn vaak 3-12 MB groot. We verkleinen elke foto naar
+  // een lange zijde van max 1600px en encoderen als JPEG — ook foto's die
+  // al JPEG zijn. Dat scheelt enorm in upload- én laadtijd door de app.
+  const MAX_EDGE = 1600
+  const QUALITY = 0.82
 
   const image = await loadImageFromFile(file)
-  const width = image.naturalWidth || image.width
-  const height = image.naturalHeight || image.height
-  if (!width || !height) throw new Error('Afbeelding zonder afmetingen.')
+  const naturalW = image.naturalWidth || image.width
+  const naturalH = image.naturalHeight || image.height
+  if (!naturalW || !naturalH) throw new Error('Afbeelding zonder afmetingen.')
+
+  // Alleen verkleinen, nooit oprekken.
+  const scale = Math.min(1, MAX_EDGE / Math.max(naturalW, naturalH))
+  const width = Math.round(naturalW * scale)
+  const height = Math.round(naturalH * scale)
 
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -60,7 +69,7 @@ async function fileToJpeg(file: File): Promise<File> {
   ctx.drawImage(image, 0, 0, width, height)
 
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/jpeg', 0.9)
+    canvas.toBlob(resolve, 'image/jpeg', QUALITY)
   })
   if (!blob) throw new Error('Conversie naar JPEG mislukt.')
 

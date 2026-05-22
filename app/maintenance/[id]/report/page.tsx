@@ -94,10 +94,16 @@ export default async function MaintenanceReportPage({
     redirect('/login')
   }
 
-  const { data: visit, error: visitError } = await supabase
-    .from('maintenance_visits')
-    .select(
-      `
+  // Drie onafhankelijke queries parallel ophalen scheelt laadtijd.
+  const [
+    { data: visit, error: visitError },
+    { data: visitPlants },
+    { data: consumables },
+  ] = await Promise.all([
+    supabase
+      .from('maintenance_visits')
+      .select(
+        `
       *,
       locations (
         id,
@@ -113,18 +119,13 @@ export default async function MaintenanceReportPage({
         email
       )
       `
-    )
-    .eq('id', id)
-    .maybeSingle()
-
-  if (visitError || !visit) {
-    notFound()
-  }
-
-  const { data: visitPlants } = await supabase
-    .from('maintenance_visit_plants')
-    .select(
-      `
+      )
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('maintenance_visit_plants')
+      .select(
+        `
       *,
       plants (
         id,
@@ -135,14 +136,13 @@ export default async function MaintenanceReportPage({
         photo_url
       )
       `
-    )
-    .eq('visit_id', id)
-    .order('created_at', { ascending: true })
-
-  const { data: consumables } = await supabase
-    .from('maintenance_visit_consumables')
-    .select(
-      `
+      )
+      .eq('visit_id', id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('maintenance_visit_consumables')
+      .select(
+        `
       id,
       catalog_item_id,
       custom_name,
@@ -154,9 +154,14 @@ export default async function MaintenanceReportPage({
         name
       )
       `
-    )
-    .eq('visit_id', id)
-    .order('created_at', { ascending: true })
+      )
+      .eq('visit_id', id)
+      .order('created_at', { ascending: true }),
+  ])
+
+  if (visitError || !visit) {
+    notFound()
+  }
 
   const company = (visit as { companies?: { name?: string; contact_name?: string; email?: string } }).companies
   const location = (visit as { locations?: { name?: string; floor?: string; room?: string } }).locations

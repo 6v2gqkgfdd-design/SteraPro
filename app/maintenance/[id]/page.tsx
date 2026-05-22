@@ -40,45 +40,50 @@ export default async function MaintenanceDetailPage({
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: visit, error } = await supabase
-    .from('maintenance_visits')
-    .select(`
-      *,
-      companies ( id, name ),
-      locations (
-        id,
-        name,
-        street,
-        number,
-        city
-      ),
-      maintenance_visit_rooms (
-        rooms ( id, name, floor )
-      )
-    `)
-    .eq('id', id)
-    .single()
-
-  // Werkbon voor deze beurt (voor de actie-knoppen).
-  const { data: workOrderRow } = await supabase
-    .from('work_orders')
-    .select('id, status')
-    .eq('visit_id', id)
-    .maybeSingle()
-
-  const { data: visitPlants } = await supabase
-    .from('maintenance_visit_plants')
-    .select(`
-      *,
-      plants (
-        id,
-        nickname,
-        species,
-        reference_code
-      )
-    `)
-    .eq('visit_id', id)
-    .order('created_at', { ascending: true })
+  // Drie onafhankelijke queries parallel ophalen scheelt laadtijd.
+  const [
+    { data: visit, error },
+    { data: workOrderRow },
+    { data: visitPlants },
+  ] = await Promise.all([
+    supabase
+      .from('maintenance_visits')
+      .select(`
+        *,
+        companies ( id, name ),
+        locations (
+          id,
+          name,
+          street,
+          number,
+          city
+        ),
+        maintenance_visit_rooms (
+          rooms ( id, name, floor )
+        )
+      `)
+      .eq('id', id)
+      .single(),
+    // Werkbon voor deze beurt (voor de actie-knoppen).
+    supabase
+      .from('work_orders')
+      .select('id, status')
+      .eq('visit_id', id)
+      .maybeSingle(),
+    supabase
+      .from('maintenance_visit_plants')
+      .select(`
+        *,
+        plants (
+          id,
+          nickname,
+          species,
+          reference_code
+        )
+      `)
+      .eq('visit_id', id)
+      .order('created_at', { ascending: true }),
+  ])
 
   if (error || !visit) {
     return (

@@ -74,31 +74,36 @@ export default async function QuoteDetailPage({
     redirect('/login')
   }
 
-  const { data: quote, error } = await supabase
-    .from('quotes')
-    .select(
-      `
+  // Beide queries zijn onafhankelijk → parallel ophalen.
+  const [
+    { data: quote, error },
+    { data: lines },
+  ] = await Promise.all([
+    supabase
+      .from('quotes')
+      .select(
+        `
       id, reference_number, status, intro_note, valid_until, created_at,
       customer_name, customer_email, subtotal_cents,
       companies ( name ),
       locations ( name )
     `
-    )
-    .eq('id', id)
-    .maybeSingle()
+      )
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('quote_lines')
+      .select(
+        `id, line_type, name, description, spec, image_url,
+       unit_price_cents, quantity, line_total_cents, position`
+      )
+      .eq('quote_id', id)
+      .order('position', { ascending: true }),
+  ])
 
   if (error || !quote) {
     notFound()
   }
-
-  const { data: lines } = await supabase
-    .from('quote_lines')
-    .select(
-      `id, line_type, name, description, spec, image_url,
-       unit_price_cents, quantity, line_total_cents, position`
-    )
-    .eq('quote_id', id)
-    .order('position', { ascending: true })
 
   const status = (quote.status as QuoteStatus) || 'draft'
   const company = one(quote.companies) as { name?: string } | null
