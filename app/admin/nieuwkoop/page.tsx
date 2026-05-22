@@ -20,6 +20,25 @@ export default function NieuwkoopTestPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ApiResponse | null>(null)
 
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnose, setDiagnose] = useState('')
+
+  async function handleDiagnose() {
+    setDiagnosing(true)
+    setDiagnose('')
+    try {
+      const res = await fetch('/api/nieuwkoop/items?diagnose=1')
+      const data = await res.json()
+      setDiagnose(JSON.stringify(data.diagnose ?? data, null, 2))
+    } catch (err) {
+      setDiagnose(
+        'Fout: ' + (err instanceof Error ? err.message : 'onbekend')
+      )
+    } finally {
+      setDiagnosing(false)
+    }
+  }
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -133,6 +152,34 @@ export default function NieuwkoopTestPage() {
             {loading ? 'Zoeken…' : 'Zoeken'}
           </button>
         </form>
+
+        <div className="stera-card space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-stera-green">
+              Diagnose hydrocultuur
+            </p>
+            <p className="mt-1 text-sm text-stera-ink-soft">
+              Scant de volledige catalogus en toont hoe Nieuwkoop alles
+              labelt: alle tag-categorieën, alle productgroepen, en welke
+              items het woord &ldquo;hydro&rdquo; vermelden. Voer dit uit
+              en kopieer het resultaat hieronder, dan stel ik het
+              hydrocultuur-filter scherp.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiagnose}
+            disabled={diagnosing}
+            className="stera-cta stera-cta-secondary disabled:opacity-50"
+          >
+            {diagnosing ? 'Bezig met scannen…' : 'Diagnose uitvoeren'}
+          </button>
+          {diagnose ? (
+            <pre className="max-h-[28rem] overflow-auto rounded-lg border border-stera-line bg-white p-3 text-[11px] leading-relaxed text-stera-ink">
+              {diagnose}
+            </pre>
+          ) : null}
+        </div>
 
         {result?.error ? (
           <div className="stera-card border-red-200 bg-red-50 text-sm text-red-700">

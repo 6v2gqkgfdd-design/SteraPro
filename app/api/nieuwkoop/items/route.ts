@@ -33,8 +33,16 @@ export async function GET(req: Request) {
   const heightStr = url.searchParams.get('height')
   const potDiameterStr = url.searchParams.get('potDiameter')
   const lightRaw = url.searchParams.get('light')
+  const diagnose = url.searchParams.get('diagnose')
 
   try {
+    // Diagnose-modus: scan de volledige catalogus om te zien hoe
+    // Nieuwkoop hydrocultuur labelt (tags / productgroepen / tekst).
+    if (diagnose) {
+      const allItems = await getItems({ sysmodified: '2000-01-01' })
+      return NextResponse.json({ diagnose: buildDiagnosis(allItems) })
+    }
+
     const items: NieuwkoopItem[] = await getItems({
       sysmodified,
       itemCode,
@@ -58,5 +66,67 @@ export async function GET(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Onbekende fout'
     return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+/**
+ * Bouwt een overzicht van hoe Nieuwkoop zijn catalogus labelt, zodat
+ * we kunnen vaststellen waar "hydrocultuur" zit:
+ *  - tagCodes: alle voorkomende tag-categorieën met voorbeeldwaarden
+ *  - groups: alle productgroepen met aantallen
+ *  - hydroSamples: items die ergens het woord "hydro" vermelden
+ */
+function buildDiagnosis(items: NieuwkoopItem[]) {
+  // 1. Distinct tag-codes met hun voorkomende waarden.
+  const tagMap = new Map<string, Set<string>>()
+  for (const it of items) {
+    for (const tag of it.Tags ?? []) {
+      if (!tag?.Code) continue
+      if (!tagMap.has(tag.Code)) tagMap.set(tag.Code, new Set())
+      const set = tagMap.get(tag.Code)!
+      for (const v of tag.Values ?? []) {
+        const label = v?.Description_NL || v?.Description_EN
+        if (label) set.add(label)
+      }
+    }
+  }
+  const tagCodes = [...tagMap.entries()]
+    .map(([code, values]) => ({ code, values: [...values].slice(0, 30) }))
+    .sort((a, b) => a.code.localeCompare(b.code))
+
+  // 2. Distinct productgroepen met aantallen.
+  const groupMap = new Map<string, number>()
+  for (const it of items) {
+    const key =
+      it.GroupDescription_NL ||
+      it.ProductGroupCode ||
+      it.MainGroupCode ||
+      '(geen groep)'
+    groupMap.set(key, (groupMap.get(key) ?? 0) + 1)
+  }
+  const groups = [...groupMap.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+
+  // 3. Items die ergens "hydro" vermelden (in eender welk veld).
+  const hydroItems = items.filter((it) =>
+    JSON.stringify(it).toLowerCase().includes('hydro')
+  )
+  const hydroSamples = hydroItems.slice(0, 10).map((it) => ({
+    Itemcode: it.Itemcode,
+    Description: it.Description,
+    ItemVariety_NL: it.ItemVariety_NL,
+    MainGroupCode: it.MainGroupCode,
+    ProductGroupCode: it.ProductGroupCode,
+    GroupDescription_NL: it.GroupDescription_NL,
+    Tags: it.Tags,
+  }))
+
+  return {
+    totalItems: items.length,
+    hydroMentionCount: hydroItems.length,
+    hydroSamples,
+    tagCodes,
+    groups,
   }
 }
