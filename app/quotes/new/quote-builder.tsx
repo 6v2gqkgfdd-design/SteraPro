@@ -10,6 +10,28 @@ export type LocationOption = {
   label: string
 }
 
+export type ReplacementSlot = {
+  visitPlantId: string
+  oldPlantName: string
+  oldPlantSpecies: string | null
+  light: 'high' | 'medium' | 'low' | null
+  heightCm: number | null
+  potDiameterCm: number | null
+  isHanging: boolean
+  careLevel: 'easy' | 'hard' | null
+  needsOuterPot: boolean
+  notes: string | null
+}
+
+export type VisitPrefill = {
+  visitId: string
+  companyId: string | null
+  locationId: string | null
+  customerName: string
+  customerEmail: string
+  slots: ReplacementSlot[]
+}
+
 type CatalogItem = {
   itemcode: string
   description: string | null
@@ -18,6 +40,7 @@ type CatalogItem = {
   suggested_sale_price: number | null
   product_group_code: string
   height: number | null
+  diameter: number | null
   diameter_culture_pot: number | null
   pot_size: string | null
   location_icon_nl: string | null
@@ -25,6 +48,8 @@ type CatalogItem = {
 
 type Line = {
   key: string
+  slotId: string | null
+  slotRole: 'plant' | 'outer_pot' | null
   lineType: 'plant' | 'outer_pot' | 'custom'
   supplier: 'nieuwkoop' | 'stera' | null
   itemcode: string | null
@@ -35,7 +60,12 @@ type Line = {
   supplierUnitPriceCents: number | null
   unitPriceEuro: string
   quantity: number
+  cultivePotCm: number | null
 }
+
+type PickerTarget =
+  | { kind: 'extra'; group: '100' | '300' }
+  | { kind: 'slot'; slotId: string; role: 'plant' | 'outer_pot' }
 
 let keyCounter = 0
 function nextKey() {
@@ -65,6 +95,9 @@ function buildSpec(item: CatalogItem): string {
   } else if (item.pot_size) {
     parts.push(`maat ${item.pot_size}`)
   }
+  if (item.location_icon_nl) {
+    parts.push(item.location_icon_nl)
+  }
   return parts.join(' · ')
 }
 
@@ -74,21 +107,54 @@ const LINE_TYPE_LABEL: Record<Line['lineType'], string> = {
   custom: 'Vrije regel',
 }
 
+const LIGHT_LABEL: Record<'high' | 'medium' | 'low', string> = {
+  high: 'Zon',
+  medium: 'Half-schaduw',
+  low: 'Schaduw',
+}
+
+// Het onderhoud bewaart licht als high/medium/low; de catalogus gebruikt
+// zon/half-schaduw/schaduw (kolom location_icon_nl).
+const LIGHT_TO_CATALOG: Record<'high' | 'medium' | 'low', string> = {
+  high: 'zon',
+  medium: 'half-schaduw',
+  low: 'schaduw',
+}
+
+const CARE_LABEL: Record<'easy' | 'hard', string> = {
+  easy: 'Makkelijk in onderhoud',
+  hard: 'Mag moeilijker',
+}
+
 export default function QuoteBuilder({
   locations,
+  visitPrefill,
 }: {
   locations: LocationOption[]
+  visitPrefill?: VisitPrefill | null
 }) {
-  const [locationId, setLocationId] = useState('')
-  const [customerName, setCustomerName] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
+  const slots = visitPrefill?.slots ?? []
+
+  const [locationId, setLocationId] = useState(
+    visitPrefill?.locationId ?? ''
+  )
+  const [customerName, setCustomerName] = useState(
+    visitPrefill?.customerName ?? ''
+  )
+  const [customerEmail, setCustomerEmail] = useState(
+    visitPrefill?.customerEmail ?? ''
+  )
   const [introNote, setIntroNote] = useState('')
   const [validUntil, setValidUntil] = useState('')
   const [lines, setLines] = useState<Line[]>([])
 
   // Catalogus-kiezer
-  const [pickerGroup, setPickerGroup] = useState<'100' | '300' | null>(null)
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
+  const [pickerGroup, setPickerGroup] = useState<'100' | '300'>('100')
   const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerLight, setPickerLight] = useState('')
+  const [pickerPotMin, setPickerPotMin] = useState('')
+  const [pickerPotMax, setPickerPotMax] = useState('')
   const [pickerResults, setPickerResults] = useState<CatalogItem[]>([])
   const [pickerLoading, setPickerLoading] = useState(false)
   const [pickerError, setPickerError] = useState('')
@@ -101,27 +167,28 @@ export default function QuoteBuilder({
     referenceNumber: string | null
   } | null>(null)
 
+  const extraLines = lines.filter((l) => l.slotId === null)
   const subtotalCents = lines.reduce(
     (sum, l) => sum + euroToCents(l.unitPriceEuro) * Math.max(1, l.quantity),
     0
   )
 
-  function openPicker(group: '100' | '300') {
-    setPickerGroup(group)
-    setPickerQuery('')
-    setPickerResults([])
-    setPickerError('')
-    setPickerTouched(false)
-  }
-
-  async function runSearch() {
-    if (!pickerGroup) return
+  async function performSearch(opts: {
+    group: '100' | '300'
+    q: string
+    light: string
+    potMin: string
+    potMax: string
+  }) {
     setPickerLoading(true)
     setPickerError('')
     setPickerTouched(true)
     try {
-      const params = new URLSearchParams({ group: pickerGroup })
-      if (pickerQuery.trim()) params.set('q', pickerQuery.trim())
+      const params = new URLSearchParams({ group: opts.group })
+      if (opts.q.trim()) params.set('q', opts.q.trim())
+      if (opts.light) params.set('light', opts.light)
+      if (opts.potMin) params.set('potMin', opts.potMin)
+      if (opts.potMax) params.set('potMax', opts.potMax)
       const res = await fetch(`/api/catalog/search?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) {
@@ -130,38 +197,122 @@ export default function QuoteBuilder({
       setPickerResults(Array.isArray(data.items) ? data.items : [])
     } catch (err) {
       setPickerResults([])
-      setPickerError(
-        err instanceof Error ? err.message : 'Zoeken mislukt.'
-      )
+      setPickerError(err instanceof Error ? err.message : 'Zoeken mislukt.')
     } finally {
       setPickerLoading(false)
     }
   }
 
-  function addCatalogLine(item: CatalogItem) {
-    const isPot = pickerGroup === '300'
+  function runSearch() {
+    performSearch({
+      group: pickerGroup,
+      q: pickerQuery,
+      light: pickerGroup === '100' ? pickerLight : '',
+      potMin: pickerPotMin,
+      potMax: pickerPotMax,
+    })
+  }
+
+  function openPickerExtra(group: '100' | '300') {
+    setPickerGroup(group)
+    setPickerQuery('')
+    setPickerLight('')
+    setPickerPotMin('')
+    setPickerPotMax('')
+    setPickerResults([])
+    setPickerError('')
+    setPickerTouched(false)
+    setPickerTarget({ kind: 'extra', group })
+    performSearch({ group, q: '', light: '', potMin: '', potMax: '' })
+  }
+
+  function openPickerSlot(slotId: string, role: 'plant' | 'outer_pot') {
+    const slot = slots.find((s) => s.visitPlantId === slotId)
+    if (!slot) return
+    setPickerQuery('')
+    setPickerError('')
+    setPickerResults([])
+    setPickerTouched(false)
+
+    if (role === 'plant') {
+      const light = slot.light ? LIGHT_TO_CATALOG[slot.light] : ''
+      const p = slot.potDiameterCm
+      const potMin = p ? String(Math.max(1, p - 2)) : ''
+      const potMax = p ? String(p + 2) : ''
+      setPickerGroup('100')
+      setPickerLight(light)
+      setPickerPotMin(potMin)
+      setPickerPotMax(potMax)
+      setPickerTarget({ kind: 'slot', slotId, role })
+      performSearch({ group: '100', q: '', light, potMin, potMax })
+    } else {
+      // Buitenpot afstemmen op de cultuurpot van de gekozen plant.
+      const plantLine = lines.find(
+        (l) => l.slotId === slotId && l.slotRole === 'plant'
+      )
+      const cp = plantLine?.cultivePotCm ?? slot.potDiameterCm ?? null
+      const potMin = cp ? String(Math.max(1, cp - 1)) : ''
+      const potMax = cp ? String(cp + 3) : ''
+      setPickerGroup('300')
+      setPickerLight('')
+      setPickerPotMin(potMin)
+      setPickerPotMax(potMax)
+      setPickerTarget({ kind: 'slot', slotId, role })
+      performSearch({ group: '300', q: '', light: '', potMin, potMax })
+    }
+  }
+
+  function chooseItem(item: CatalogItem) {
+    if (!pickerTarget) return
+    const isPot = item.product_group_code === '300'
     const sale = item.suggested_sale_price ?? 0
     const cost = item.cost_price ?? null
-    setLines((prev) => [
-      ...prev,
-      {
-        key: nextKey(),
-        lineType: isPot ? 'outer_pot' : 'plant',
-        supplier: 'nieuwkoop',
-        itemcode: item.itemcode,
-        name: item.description || item.itemcode,
-        description: null,
-        spec: buildSpec(item) || null,
-        imageUrl: item.item_picture_name
-          ? `/api/nieuwkoop/image/${encodeURIComponent(item.itemcode)}`
-          : null,
-        supplierUnitPriceCents:
-          cost != null ? Math.round(cost * 100) : null,
-        unitPriceEuro: sale > 0 ? String(sale.toFixed(2)) : '',
-        quantity: 1,
-      },
-    ])
-    setPickerGroup(null)
+    const cultive =
+      item.diameter_culture_pot && item.diameter_culture_pot > 0
+        ? Math.round(item.diameter_culture_pot)
+        : null
+    const base = {
+      lineType: (isPot ? 'outer_pot' : 'plant') as Line['lineType'],
+      supplier: 'nieuwkoop' as const,
+      itemcode: item.itemcode,
+      name: item.description || item.itemcode,
+      description: null,
+      spec: buildSpec(item) || null,
+      imageUrl: item.item_picture_name
+        ? `/api/nieuwkoop/image/${encodeURIComponent(item.itemcode)}`
+        : null,
+      supplierUnitPriceCents: cost != null ? Math.round(cost * 100) : null,
+      unitPriceEuro: sale > 0 ? sale.toFixed(2) : '',
+      quantity: 1,
+      cultivePotCm: cultive,
+    }
+
+    if (pickerTarget.kind === 'extra') {
+      setLines((prev) => [
+        ...prev,
+        { key: nextKey(), slotId: null, slotRole: null, ...base },
+      ])
+    } else {
+      const { slotId, role } = pickerTarget
+      setLines((prev) => {
+        const idx = prev.findIndex(
+          (l) => l.slotId === slotId && l.slotRole === role
+        )
+        const line: Line = {
+          key: idx >= 0 ? prev[idx].key : nextKey(),
+          slotId,
+          slotRole: role,
+          ...base,
+        }
+        if (idx >= 0) {
+          const copy = [...prev]
+          copy[idx] = line
+          return copy
+        }
+        return [...prev, line]
+      })
+    }
+    setPickerTarget(null)
   }
 
   function addCustomLine() {
@@ -169,6 +320,8 @@ export default function QuoteBuilder({
       ...prev,
       {
         key: nextKey(),
+        slotId: null,
+        slotRole: null,
         lineType: 'custom',
         supplier: null,
         itemcode: null,
@@ -179,6 +332,7 @@ export default function QuoteBuilder({
         supplierUnitPriceCents: null,
         unitPriceEuro: '',
         quantity: 1,
+        cultivePotCm: null,
       },
     ])
   }
@@ -207,12 +361,12 @@ export default function QuoteBuilder({
     const selected = locations.find((l) => l.id === locationId) || null
     const result = await createQuote({
       locationId: selected?.id ?? null,
-      companyId: selected?.companyId ?? null,
+      companyId: selected?.companyId ?? visitPrefill?.companyId ?? null,
       customerName,
       customerEmail,
       introNote,
       validUntil: validUntil || null,
-      sourceVisitId: null,
+      sourceVisitId: visitPrefill?.visitId ?? null,
       lines: lines.map((l) => ({
         lineType: l.lineType,
         supplier: l.supplier,
@@ -251,22 +405,44 @@ export default function QuoteBuilder({
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
-          <Link href="/quotes/new" className="stera-cta stera-cta-secondary">
-            Nog een offerte
+          <Link
+            href={`/quotes/${success.quoteId}`}
+            className="stera-cta stera-cta-primary"
+          >
+            Offerte bekijken
           </Link>
-          <Link href="/dashboard" className="stera-cta stera-cta-ghost">
-            Naar dashboard
+          <Link href="/quotes" className="stera-cta stera-cta-ghost">
+            Naar offertes
           </Link>
         </div>
       </div>
     )
   }
 
+  const pickerSlot =
+    pickerTarget?.kind === 'slot'
+      ? slots.find((s) => s.visitPlantId === pickerTarget.slotId) ?? null
+      : null
+  const pickerTitle =
+    pickerTarget?.kind === 'slot'
+      ? pickerTarget.role === 'plant'
+        ? `Hydrocultuur-plant kiezen voor ${pickerSlot?.oldPlantName ?? ''}`
+        : 'Buitenpot kiezen'
+      : pickerGroup === '300'
+        ? 'Buitenpot kiezen'
+        : 'Hydrocultuur-plant kiezen'
+
   return (
     <div className="space-y-5">
       {/* Klantgegevens */}
       <section className="stera-card space-y-3">
         <p className="stera-eyebrow text-stera-green">Klant</p>
+        {visitPrefill ? (
+          <p className="rounded-lg bg-stera-cream-deep/50 p-2.5 text-xs text-stera-ink-soft">
+            Klantgegevens zijn ingevuld vanuit de onderhoudsbeurt. Pas ze
+            gerust aan.
+          </p>
+        ) : null}
         <label className="block text-sm">
           <span className="mb-1 block text-xs text-stera-ink-soft">
             Locatie
@@ -335,134 +511,179 @@ export default function QuoteBuilder({
         </label>
       </section>
 
-      {/* Regels */}
-      <section className="stera-card space-y-3">
-        <p className="stera-eyebrow text-stera-green">Offerteregels</p>
+      {/* Vervangingen — per te vervangen plant uit het onderhoud */}
+      {slots.length > 0 ? (
+        <section className="stera-card space-y-3">
+          <div>
+            <p className="stera-eyebrow text-stera-green">
+              Te vervangen planten
+            </p>
+            <p className="text-sm text-stera-ink-soft">
+              Kies per plant een nieuwe hydrocultuur-plant en een passende
+              buitenpot.
+            </p>
+          </div>
 
-        {lines.length === 0 ? (
-          <p className="text-sm text-stera-ink-soft">
-            Nog geen regels. Voeg een plant, een buitenpot of een vrije
-            regel toe.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {lines.map((l) => {
-              const lineTotal =
-                euroToCents(l.unitPriceEuro) * Math.max(1, l.quantity)
+          <ul className="space-y-4">
+            {slots.map((slot) => {
+              const plantLine =
+                lines.find(
+                  (l) =>
+                    l.slotId === slot.visitPlantId && l.slotRole === 'plant'
+                ) ?? null
+              const potLine =
+                lines.find(
+                  (l) =>
+                    l.slotId === slot.visitPlantId &&
+                    l.slotRole === 'outer_pot'
+                ) ?? null
+
+              const chips: string[] = []
+              if (slot.light) chips.push(LIGHT_LABEL[slot.light])
+              if (slot.potDiameterCm)
+                chips.push(`Ø ${slot.potDiameterCm} cm binnenpot`)
+              if (slot.heightCm) chips.push(`H ${slot.heightCm} cm`)
+              if (slot.isHanging) chips.push('Hangplant')
+              if (slot.careLevel) chips.push(CARE_LABEL[slot.careLevel])
+
               return (
                 <li
-                  key={l.key}
-                  className="rounded-xl border border-stera-line bg-white p-3"
+                  key={slot.visitPlantId}
+                  className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-3"
                 >
-                  <div className="flex flex-wrap gap-3">
-                    {l.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={l.imageUrl}
-                        alt={l.name}
-                        className="h-16 w-16 shrink-0 rounded object-cover"
+                  <p className="text-sm font-semibold text-stera-ink">
+                    Vervanging voor {slot.oldPlantName}
+                  </p>
+                  {slot.oldPlantSpecies ? (
+                    <p className="text-xs text-stera-ink-soft">
+                      was: {slot.oldPlantSpecies}
+                    </p>
+                  ) : null}
+                  {chips.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {chips.map((c) => (
+                        <span
+                          key={c}
+                          className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-stera-ink-soft"
+                        >
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {slot.notes ? (
+                    <p className="mt-2 whitespace-pre-wrap text-xs text-stera-ink-soft">
+                      {slot.notes}
+                    </p>
+                  ) : null}
+
+                  {/* Nieuwe plant */}
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                      Nieuwe plant
+                    </p>
+                    {plantLine ? (
+                      <LineItem
+                        line={plantLine}
+                        onUpdate={(patch) =>
+                          updateLine(plantLine.key, patch)
+                        }
+                        onRemove={() => removeLine(plantLine.key)}
+                        onReplace={() =>
+                          openPickerSlot(slot.visitPlantId, 'plant')
+                        }
                       />
                     ) : (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
-                        {LINE_TYPE_LABEL[l.lineType]}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openPickerSlot(slot.visitPlantId, 'plant')
+                        }
+                        className="stera-cta stera-cta-secondary"
+                      >
+                        + Kies hydrocultuur-plant
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Buitenpot */}
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                      Buitenpot
+                    </p>
+                    {potLine ? (
+                      <LineItem
+                        line={potLine}
+                        onUpdate={(patch) => updateLine(potLine.key, patch)}
+                        onRemove={() => removeLine(potLine.key)}
+                        onReplace={() =>
+                          openPickerSlot(slot.visitPlantId, 'outer_pot')
+                        }
+                      />
+                    ) : (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openPickerSlot(slot.visitPlantId, 'outer_pot')
+                          }
+                          className="stera-cta stera-cta-secondary"
+                        >
+                          + Kies passende buitenpot
+                        </button>
+                        {!plantLine ? (
+                          <p className="mt-1 text-[11px] text-stera-ink-soft">
+                            Kies eerst een plant voor de beste
+                            potmaat-match.
+                          </p>
+                        ) : null}
                       </div>
                     )}
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <span className="inline-block rounded-full bg-stera-cream-deep px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
-                        {LINE_TYPE_LABEL[l.lineType]}
-                      </span>
-                      {l.lineType === 'custom' ? (
-                        <input
-                          type="text"
-                          value={l.name}
-                          onChange={(e) =>
-                            updateLine(l.key, { name: e.target.value })
-                          }
-                          placeholder="Omschrijving"
-                          className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
-                        />
-                      ) : (
-                        <p className="text-sm font-medium text-stera-ink">
-                          {l.name}
-                        </p>
-                      )}
-                      {l.spec ? (
-                        <p className="text-xs text-stera-ink-soft">
-                          {l.spec}
-                        </p>
-                      ) : null}
-                      {l.itemcode ? (
-                        <p className="font-mono text-[11px] text-stera-ink-soft">
-                          {l.itemcode}
-                        </p>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeLine(l.key)}
-                      className="text-xs text-stera-ink-soft hover:text-red-600"
-                    >
-                      verwijderen
-                    </button>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-stera-line pt-3">
-                    <label className="text-xs text-stera-ink-soft">
-                      <span className="mb-1 block">Aantal</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={l.quantity}
-                        onChange={(e) =>
-                          updateLine(l.key, {
-                            quantity: Math.max(
-                              1,
-                              Math.round(Number(e.target.value) || 1)
-                            ),
-                          })
-                        }
-                        className="w-20 rounded-lg border border-stera-line bg-white p-2 text-sm"
-                      />
-                    </label>
-                    <label className="text-xs text-stera-ink-soft">
-                      <span className="mb-1 block">Prijs/stuk (excl. btw)</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={l.unitPriceEuro}
-                        onChange={(e) =>
-                          updateLine(l.key, { unitPriceEuro: e.target.value })
-                        }
-                        placeholder="0,00"
-                        className="w-28 rounded-lg border border-stera-line bg-white p-2 text-sm"
-                      />
-                    </label>
-                    <div className="ml-auto text-right">
-                      <span className="block text-[10px] uppercase tracking-wider text-stera-ink-soft">
-                        Regeltotaal
-                      </span>
-                      <span className="font-semibold tabular-nums text-stera-ink">
-                        {formatEuro(lineTotal)}
-                      </span>
-                    </div>
                   </div>
                 </li>
               )
             })}
           </ul>
+        </section>
+      ) : null}
+
+      {/* Extra / vrije regels */}
+      <section className="stera-card space-y-3">
+        <p className="stera-eyebrow text-stera-green">
+          {slots.length > 0 ? 'Extra regels' : 'Offerteregels'}
+        </p>
+
+        {extraLines.length === 0 ? (
+          <p className="text-sm text-stera-ink-soft">
+            {slots.length > 0
+              ? 'Voeg hier eventueel extra planten, potten of vrije regels toe.'
+              : 'Nog geen regels. Voeg een plant, een buitenpot of een vrije regel toe.'}
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {extraLines.map((l) => (
+              <li key={l.key}>
+                <LineItem
+                  line={l}
+                  onUpdate={(patch) => updateLine(l.key, patch)}
+                  onRemove={() => removeLine(l.key)}
+                />
+              </li>
+            ))}
+          </ul>
         )}
 
-        {/* Toevoeg-knoppen */}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => openPicker('100')}
+            onClick={() => openPickerExtra('100')}
             className="stera-cta stera-cta-secondary"
           >
             + Hydrocultuur-plant
           </button>
           <button
             type="button"
-            onClick={() => openPicker('300')}
+            onClick={() => openPickerExtra('300')}
             className="stera-cta stera-cta-secondary"
           >
             + Buitenpot
@@ -475,108 +696,154 @@ export default function QuoteBuilder({
             + Vrije regel
           </button>
         </div>
-
-        {/* Catalogus-kiezer */}
-        {pickerGroup ? (
-          <div className="rounded-xl border border-stera-green/40 bg-stera-cream-deep/30 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-stera-ink">
-                {pickerGroup === '300'
-                  ? 'Buitenpot kiezen'
-                  : 'Hydrocultuur-plant kiezen'}
-              </p>
-              <button
-                type="button"
-                onClick={() => setPickerGroup(null)}
-                className="text-xs text-stera-ink-soft hover:text-stera-ink"
-              >
-                sluiten
-              </button>
-            </div>
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                value={pickerQuery}
-                onChange={(e) => setPickerQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    runSearch()
-                  }
-                }}
-                placeholder="Zoek op naam (bv. Kentia, Dracaena)..."
-                className="flex-1 rounded-lg border border-stera-line bg-white p-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={runSearch}
-                disabled={pickerLoading}
-                className="stera-cta stera-cta-primary disabled:opacity-50"
-              >
-                {pickerLoading ? 'Zoeken…' : 'Zoeken'}
-              </button>
-            </div>
-
-            {pickerError ? (
-              <p className="mt-2 text-xs text-red-600">{pickerError}</p>
-            ) : null}
-
-            {pickerTouched &&
-            !pickerLoading &&
-            !pickerError &&
-            pickerResults.length === 0 ? (
-              <p className="mt-2 text-xs text-stera-ink-soft">
-                Geen resultaten. Probeer een andere zoekterm.
-              </p>
-            ) : null}
-
-            {pickerResults.length > 0 ? (
-              <ul className="mt-3 grid max-h-80 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
-                {pickerResults.map((item) => {
-                  const sale = item.suggested_sale_price ?? 0
-                  return (
-                    <li key={item.itemcode}>
-                      <button
-                        type="button"
-                        onClick={() => addCatalogLine(item)}
-                        className="flex w-full gap-2 rounded-lg border border-stera-line bg-white p-2 text-left transition hover:border-stera-green"
-                      >
-                        {item.item_picture_name ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={`/api/nieuwkoop/image/${encodeURIComponent(
-                              item.itemcode
-                            )}`}
-                            alt={item.description || item.itemcode}
-                            className="h-14 w-14 shrink-0 rounded object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[9px] text-stera-ink-soft">
-                            geen foto
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-stera-ink">
-                            {item.description || item.itemcode}
-                          </p>
-                          <p className="text-[11px] text-stera-ink-soft">
-                            {buildSpec(item)}
-                          </p>
-                          <p className="text-xs font-semibold text-stera-green">
-                            {sale > 0
-                              ? formatEuro(Math.round(sale * 100))
-                              : 'prijs onbekend'}
-                          </p>
-                        </div>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
       </section>
+
+      {/* Catalogus-kiezer */}
+      {pickerTarget ? (
+        <section className="stera-card space-y-3 border-stera-green/40">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-stera-ink">
+              {pickerTitle}
+            </p>
+            <button
+              type="button"
+              onClick={() => setPickerTarget(null)}
+              className="text-xs text-stera-ink-soft hover:text-stera-ink"
+            >
+              sluiten
+            </button>
+          </div>
+
+          {pickerSlot && pickerTarget.kind === 'slot' ? (
+            <p className="text-xs text-stera-ink-soft">
+              {pickerTarget.role === 'plant'
+                ? 'Het voorstel houdt rekening met de potmaat en lichtbehoefte uit het onderhoud. Pas de filters gerust aan.'
+                : 'De buitenpotten zijn afgestemd op de potmaat van de gekozen plant.'}
+            </p>
+          ) : null}
+
+          {/* Filters */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              type="text"
+              value={pickerQuery}
+              onChange={(e) => setPickerQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  runSearch()
+                }
+              }}
+              placeholder="Zoek op naam (bv. Kentia)..."
+              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+            />
+            {pickerGroup === '100' ? (
+              <select
+                value={pickerLight}
+                onChange={(e) => setPickerLight(e.target.value)}
+                className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+              >
+                <option value="">Alle lichtbehoeften</option>
+                <option value="zon">Zon</option>
+                <option value="half-schaduw">Half-schaduw</option>
+                <option value="schaduw">Schaduw</option>
+              </select>
+            ) : (
+              <div />
+            )}
+            <label className="flex items-center gap-2 text-xs text-stera-ink-soft">
+              <span className="shrink-0">Pot Ø van</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={pickerPotMin}
+                onChange={(e) => setPickerPotMin(e.target.value)}
+                className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
+                placeholder="cm"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-stera-ink-soft">
+              <span className="shrink-0">tot</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={pickerPotMax}
+                onChange={(e) => setPickerPotMax(e.target.value)}
+                className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
+                placeholder="cm"
+              />
+            </label>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={runSearch}
+              disabled={pickerLoading}
+              className="stera-cta stera-cta-primary disabled:opacity-50"
+            >
+              {pickerLoading ? 'Zoeken…' : 'Zoeken'}
+            </button>
+          </div>
+
+          {pickerError ? (
+            <p className="text-xs text-red-600">{pickerError}</p>
+          ) : null}
+
+          {pickerTouched &&
+          !pickerLoading &&
+          !pickerError &&
+          pickerResults.length === 0 ? (
+            <p className="text-xs text-stera-ink-soft">
+              Geen resultaten. Verruim de potmaat of zoek op naam.
+            </p>
+          ) : null}
+
+          {pickerResults.length > 0 ? (
+            <ul className="grid max-h-96 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
+              {pickerResults.map((item) => {
+                const sale = item.suggested_sale_price ?? 0
+                return (
+                  <li key={item.itemcode}>
+                    <button
+                      type="button"
+                      onClick={() => chooseItem(item)}
+                      className="flex w-full gap-2 rounded-lg border border-stera-line bg-white p-2 text-left transition hover:border-stera-green"
+                    >
+                      {item.item_picture_name ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/nieuwkoop/image/${encodeURIComponent(
+                            item.itemcode
+                          )}`}
+                          alt={item.description || item.itemcode}
+                          className="h-14 w-14 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[9px] text-stera-ink-soft">
+                          geen foto
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-stera-ink">
+                          {item.description || item.itemcode}
+                        </p>
+                        <p className="text-[11px] text-stera-ink-soft">
+                          {buildSpec(item)}
+                        </p>
+                        <p className="text-xs font-semibold text-stera-green">
+                          {sale > 0
+                            ? formatEuro(Math.round(sale * 100))
+                            : 'prijs onbekend'}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
 
       {/* Totaal + opslaan */}
       <section className="stera-card space-y-3">
@@ -604,11 +871,124 @@ export default function QuoteBuilder({
           >
             {saving ? 'Opslaan…' : 'Offerte opslaan'}
           </button>
-          <Link href="/dashboard" className="stera-cta stera-cta-ghost">
+          <Link href="/quotes" className="stera-cta stera-cta-ghost">
             Annuleren
           </Link>
         </div>
       </section>
+    </div>
+  )
+}
+
+function LineItem({
+  line,
+  onUpdate,
+  onRemove,
+  onReplace,
+}: {
+  line: Line
+  onUpdate: (patch: Partial<Line>) => void
+  onRemove: () => void
+  onReplace?: () => void
+}) {
+  const lineTotal =
+    euroToCents(line.unitPriceEuro) * Math.max(1, line.quantity)
+  return (
+    <div className="rounded-xl border border-stera-line bg-white p-3">
+      <div className="flex flex-wrap gap-3">
+        {line.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={line.imageUrl}
+            alt={line.name}
+            className="h-16 w-16 shrink-0 rounded object-cover"
+          />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
+            {LINE_TYPE_LABEL[line.lineType]}
+          </div>
+        )}
+        <div className="min-w-0 flex-1 space-y-1">
+          <span className="inline-block rounded-full bg-stera-cream-deep px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+            {LINE_TYPE_LABEL[line.lineType]}
+          </span>
+          {line.lineType === 'custom' ? (
+            <input
+              type="text"
+              value={line.name}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+              placeholder="Omschrijving"
+              className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
+            />
+          ) : (
+            <p className="text-sm font-medium text-stera-ink">{line.name}</p>
+          )}
+          {line.spec ? (
+            <p className="text-xs text-stera-ink-soft">{line.spec}</p>
+          ) : null}
+          {line.itemcode ? (
+            <p className="font-mono text-[11px] text-stera-ink-soft">
+              {line.itemcode}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {onReplace ? (
+            <button
+              type="button"
+              onClick={onReplace}
+              className="text-xs text-stera-green hover:underline"
+            >
+              wijzig
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-xs text-stera-ink-soft hover:text-red-600"
+          >
+            verwijderen
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-stera-line pt-3">
+        <label className="text-xs text-stera-ink-soft">
+          <span className="mb-1 block">Aantal</span>
+          <input
+            type="number"
+            min={1}
+            value={line.quantity}
+            onChange={(e) =>
+              onUpdate({
+                quantity: Math.max(
+                  1,
+                  Math.round(Number(e.target.value) || 1)
+                ),
+              })
+            }
+            className="w-20 rounded-lg border border-stera-line bg-white p-2 text-sm"
+          />
+        </label>
+        <label className="text-xs text-stera-ink-soft">
+          <span className="mb-1 block">Prijs/stuk (excl. btw)</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={line.unitPriceEuro}
+            onChange={(e) => onUpdate({ unitPriceEuro: e.target.value })}
+            placeholder="0,00"
+            className="w-28 rounded-lg border border-stera-line bg-white p-2 text-sm"
+          />
+        </label>
+        <div className="ml-auto text-right">
+          <span className="block text-[10px] uppercase tracking-wider text-stera-ink-soft">
+            Regeltotaal
+          </span>
+          <span className="font-semibold tabular-nums text-stera-ink">
+            {formatEuro(lineTotal)}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }

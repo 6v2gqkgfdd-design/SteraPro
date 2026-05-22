@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 type Tab = {
   href: string
   label: string
-  icon: 'home' | 'maintenance' | 'workorders' | 'companies' | 'catalog'
+  icon: 'home' | 'maintenance' | 'quotes' | 'companies'
   matches: (path: string) => boolean
 }
 
@@ -21,16 +21,19 @@ const TABS: Tab[] = [
     href: '/maintenance',
     label: 'Onderhoud',
     icon: 'maintenance',
+    // Werkbonnen horen bij het onderhoud en lichten dus de Onderhoud-tab op.
     matches: (p) =>
       p.startsWith('/maintenance') ||
+      p.startsWith('/work-orders') ||
       p === '/scan' ||
       p.startsWith('/plants/search'),
   },
   {
-    href: '/work-orders',
-    label: 'Werkbonnen',
-    icon: 'workorders',
-    matches: (p) => p.startsWith('/work-orders'),
+    href: '/quotes',
+    label: 'Offertes',
+    icon: 'quotes',
+    // De catalogus is bereikbaar vanuit het offertes-gedeelte.
+    matches: (p) => p.startsWith('/quotes') || p.startsWith('/catalog'),
   },
   {
     href: '/companies',
@@ -42,12 +45,6 @@ const TABS: Tab[] = [
       p.startsWith('/locations/') ||
       p.startsWith('/rooms/') ||
       p.startsWith('/plants/'),
-  },
-  {
-    href: '/catalog',
-    label: 'Catalogus',
-    icon: 'catalog',
-    matches: (p) => p.startsWith('/catalog'),
   },
 ]
 
@@ -161,12 +158,13 @@ function NavIcon({ name }: { name: Tab['icon'] }) {
           <path d="m9 15 2 2 4-4" />
         </svg>
       )
-    case 'workorders':
+    case 'quotes':
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 3h6a2 2 0 0 1 2 2v0H7v0a2 2 0 0 1 2-2Z" />
-          <path d="M7 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-          <path d="M8 11h8M8 15h5" />
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3v5h5" />
+          <path d="M14.5 11.6a2.4 2.4 0 1 0 0 4.8" />
+          <path d="M8.6 13.2h4.4M8.6 14.8h4.4" />
         </svg>
       )
     case 'companies':
@@ -175,13 +173,6 @@ function NavIcon({ name }: { name: Tab['icon'] }) {
           <path d="M3 21V7l7-4 7 4v14" />
           <path d="M14 21V11h7v10" />
           <path d="M7 9h0M7 13h0M7 17h0" />
-        </svg>
-      )
-    case 'catalog':
-      return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.96a1 1 0 0 1 1.8.86 6 6 0 0 1 1 4.18c-.06 1.1-.23 2.21-.84 3.16C19.65 12.62 18.5 15 16 16c-2 .8-4.5 1-7 1" />
-          <path d="M2 21c0-3 1.85-5.36 5.08-6" />
         </svg>
       )
   }

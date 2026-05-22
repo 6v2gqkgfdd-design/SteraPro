@@ -180,6 +180,10 @@ export default function MaintenancePlantDetailPage() {
   >('')
   const [replacementHeight, setReplacementHeight] = useState('')
   const [replacementPotDiameter, setReplacementPotDiameter] = useState('')
+  const [replacementHanging, setReplacementHanging] = useState(false)
+  const [replacementCareLevel, setReplacementCareLevel] = useState<
+    '' | 'easy' | 'hard'
+  >('')
   const [replacementOuterPot, setReplacementOuterPot] = useState(false)
   const [replacementNotes, setReplacementNotes] = useState('')
 
@@ -376,6 +380,15 @@ export default function MaintenancePlantDetailPage() {
               ? String(existingVisitPlant.replacement_pot_diameter_cm)
               : ''
           )
+          setReplacementHanging(
+            Boolean(existingVisitPlant.replacement_is_hanging)
+          )
+          setReplacementCareLevel(
+            existingVisitPlant.replacement_care_level === 'easy' ||
+              existingVisitPlant.replacement_care_level === 'hard'
+              ? existingVisitPlant.replacement_care_level
+              : ''
+          )
           setReplacementOuterPot(
             Boolean(existingVisitPlant.replacement_needs_outer_pot)
           )
@@ -407,6 +420,8 @@ export default function MaintenancePlantDetailPage() {
           setReplacementLight('')
           setReplacementHeight('')
           setReplacementPotDiameter('')
+          setReplacementHanging(false)
+          setReplacementCareLevel('')
           setReplacementOuterPot(false)
           setReplacementNotes('')
           setExistingPhotoUrl(null)
@@ -446,6 +461,12 @@ export default function MaintenancePlantDetailPage() {
     }
   }, [photoPreview])
 
+  useEffect(() => {
+    return () => {
+      if (roomPhotoPreview) URL.revokeObjectURL(roomPhotoPreview)
+    }
+  }, [roomPhotoPreview])
+
   async function handlePhotoChange(file: File | null) {
     setPhotoError('')
 
@@ -465,6 +486,23 @@ export default function MaintenancePlantDetailPage() {
       setPhotoError(
         err instanceof Error ? err.message : 'Foto kon niet ingeladen worden.'
       )
+    }
+  }
+
+  async function handleRoomPhotoChange(file: File | null) {
+    if (!file) {
+      if (roomPhotoPreview) URL.revokeObjectURL(roomPhotoPreview)
+      setRoomPhotoFile(null)
+      setRoomPhotoPreview('')
+      return
+    }
+    try {
+      const jpeg = await fileToJpeg(file)
+      if (roomPhotoPreview) URL.revokeObjectURL(roomPhotoPreview)
+      setRoomPhotoFile(jpeg)
+      setRoomPhotoPreview(URL.createObjectURL(jpeg))
+    } catch {
+      // Ruimtefoto is optioneel — stil falen volstaat.
     }
   }
 
@@ -565,6 +603,10 @@ export default function MaintenancePlantDetailPage() {
           : null,
         replacement_pot_diameter_cm: followupReplace
           ? parseIntOrNull(replacementPotDiameter)
+          : null,
+        replacement_is_hanging: followupReplace ? replacementHanging : false,
+        replacement_care_level: followupReplace
+          ? replacementCareLevel || null
           : null,
         replacement_needs_outer_pot: followupReplace
           ? replacementOuterPot
@@ -1080,7 +1122,14 @@ export default function MaintenancePlantDetailPage() {
             <select
               id="health_status"
               value={healthStatus}
-              onChange={(e) => setHealthStatus(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value
+                setHealthStatus(value)
+                // Een dode plant moet vervangen worden — zet de
+                // vervangingsvraag meteen aan zodat Jelle de condities
+                // kan invullen. Hij kan dit nog uitvinken.
+                if (value === 'dead') setFollowupReplace(true)
+              }}
               className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
             >
               <option value="healthy">Gezond</option>
@@ -1102,6 +1151,237 @@ export default function MaintenancePlantDetailPage() {
               placeholder="Bijv. water gegeven, bladeren gereinigd, voeding toegevoegd..."
             />
           </div>
+
+          {/* Opvolging — wat moet er na deze beurt nog gebeuren? */}
+          <div className="space-y-3 rounded-lg border border-stera-line bg-stera-cream-deep/40 p-4">
+            <div>
+              <p className="text-sm font-semibold text-stera-ink">
+                Opvolging nodig?
+              </p>
+              <p className="text-xs text-stera-ink-soft">
+                Vink aan wat er met deze plant moet gebeuren. Dit komt op de
+                voorbereidingslijst van de volgende beurt.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={followupRepot}
+                  onChange={(e) => setFollowupRepot(e.target.checked)}
+                />
+                <span>Verpotten</span>
+              </label>
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={followupPrune}
+                  onChange={(e) => setFollowupPrune(e.target.checked)}
+                />
+                <span>Snoeien</span>
+              </label>
+              <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={followupTreat}
+                  onChange={(e) => setFollowupTreat(e.target.checked)}
+                />
+                <span>Behandelen</span>
+              </label>
+              <label className="flex items-center gap-3 rounded-lg border border-stera-green/50 bg-stera-green/5 p-3 text-sm font-medium text-stera-green">
+                <input
+                  type="checkbox"
+                  checked={followupReplace}
+                  onChange={(e) => setFollowupReplace(e.target.checked)}
+                />
+                <span>Vervangen — offerte nodig</span>
+              </label>
+            </div>
+            <div className="space-y-1">
+              <label
+                htmlFor="followup_notes"
+                className="block text-sm font-medium text-stera-ink"
+              >
+                Opvolgingsnotitie
+              </label>
+              <textarea
+                id="followup_notes"
+                value={followupNotes}
+                onChange={(e) => setFollowupNotes(e.target.value)}
+                rows={2}
+                className="w-full rounded-lg border border-stera-line bg-white px-3 py-2 text-sm"
+                placeholder="Bijv. plant verzwakt, klant verwittigen..."
+              />
+            </div>
+          </div>
+
+          {/* Condities voor de vervangingsplant — sturen het offertevoorstel */}
+          {followupReplace && (
+            <div className="space-y-4 rounded-lg border border-stera-green/40 bg-stera-green/5 p-4">
+              <div>
+                <p className="text-sm font-semibold text-stera-green">
+                  Condities voor de vervangingsplant
+                </p>
+                <p className="text-xs text-stera-ink-soft">
+                  Deze gegevens gebruiken we om in de offerte automatisch een
+                  passende hydrocultuur-plant voor te stellen.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="replacement_light"
+                  className="block text-sm font-medium text-stera-ink"
+                >
+                  Lichtbehoefte op deze plek
+                </label>
+                <select
+                  id="replacement_light"
+                  value={replacementLight}
+                  onChange={(e) =>
+                    setReplacementLight(
+                      e.target.value as '' | 'high' | 'medium' | 'low'
+                    )
+                  }
+                  className="w-full rounded-lg border border-stera-line bg-white px-3 py-2.5 text-sm"
+                >
+                  <option value="">— Kies lichtbehoefte —</option>
+                  <option value="high">Zon</option>
+                  <option value="medium">Half-schaduw</option>
+                  <option value="low">Schaduw</option>
+                </select>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="replacement_height"
+                    className="block text-sm font-medium text-stera-ink"
+                  >
+                    Hoogte plant (cm)
+                  </label>
+                  <input
+                    id="replacement_height"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={replacementHeight}
+                    onChange={(e) => setReplacementHeight(e.target.value)}
+                    placeholder="bv. 150"
+                    className="w-full rounded-lg border border-stera-line bg-white px-3 py-2.5 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label
+                    htmlFor="replacement_pot"
+                    className="block text-sm font-medium text-stera-ink"
+                  >
+                    Binnenpot maat (Ø cm)
+                  </label>
+                  <input
+                    id="replacement_pot"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={replacementPotDiameter}
+                    onChange={(e) =>
+                      setReplacementPotDiameter(e.target.value)
+                    }
+                    placeholder="bv. 21"
+                    className="w-full rounded-lg border border-stera-line bg-white px-3 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="replacement_care"
+                  className="block text-sm font-medium text-stera-ink"
+                >
+                  Onderhoud
+                </label>
+                <select
+                  id="replacement_care"
+                  value={replacementCareLevel}
+                  onChange={(e) =>
+                    setReplacementCareLevel(
+                      e.target.value as '' | 'easy' | 'hard'
+                    )
+                  }
+                  className="w-full rounded-lg border border-stera-line bg-white px-3 py-2.5 text-sm"
+                >
+                  <option value="">— Maakt niet uit —</option>
+                  <option value="easy">Makkelijk in onderhoud</option>
+                  <option value="hard">Mag moeilijker zijn</option>
+                </select>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={replacementHanging}
+                    onChange={(e) => setReplacementHanging(e.target.checked)}
+                  />
+                  <span>Hangplant</span>
+                </label>
+                <label className="flex items-center gap-3 rounded-lg border border-stera-line bg-white p-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={replacementOuterPot}
+                    onChange={(e) =>
+                      setReplacementOuterPot(e.target.checked)
+                    }
+                  />
+                  <span>Buitenpot nodig</span>
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-stera-ink">
+                  Foto van de plek (optioneel)
+                </label>
+                <p className="text-xs text-stera-ink-soft">
+                  Een foto van de ruimte waar de nieuwe plant komt — handig
+                  bij de offerte.
+                </p>
+                {(roomPhotoPreview || existingRoomPhotoUrl) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={roomPhotoPreview || existingRoomPhotoUrl || ''}
+                    alt="Foto van de plek"
+                    className="max-h-56 w-full rounded-lg border border-stera-line object-cover"
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) =>
+                    handleRoomPhotoChange(e.target.files?.[0] || null)
+                  }
+                  className="w-full rounded-lg border border-stera-line bg-white p-3 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="replacement_notes"
+                  className="block text-sm font-medium text-stera-ink"
+                >
+                  Extra wensen voor de vervanging
+                </label>
+                <textarea
+                  id="replacement_notes"
+                  value={replacementNotes}
+                  onChange={(e) => setReplacementNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-stera-line bg-white px-3 py-2 text-sm"
+                  placeholder="Bijv. zelfde stijl als de andere planten, kleuraccent..."
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3">
             <button
