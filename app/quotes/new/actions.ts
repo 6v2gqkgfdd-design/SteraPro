@@ -1,0 +1,120 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+
+type QuoteLineInput = {
+  lineType: 'plant' | 'outer_pot' | 'custom'
+  supplier: 'nieuwkoop' | 'stera' | null
+  itemcode: string | null
+  name: string
+  description: string | null
+  spec: string | null
+  imageUrl: string | null
+  supplierUnitPriceCents: number | null
+  unitPriceCents: number
+  quantity: number
+}
+
+type CreateQuoteInput = {
+  locationId: string | null
+  companyId: string | null
+  customerName: string
+  customerEmail: string
+  introNote: string
+  validUntil: string | null
+  sourceVisitId: string | null
+  lines: QuoteLineInput[]
+}
+
+type CreateQuoteResult =
+  | { ok: true; quoteId: string; referenceNumber: string | null }
+  | { ok: false; error: string }
+
+export async function createQuote(
+  input: CreateQuoteInput
+): Promise<CreateQuoteResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return { ok: false, error: 'Je bent niet (meer) ingelogd.' }
+  }
+
+  const lines = input.lines.filter((l) => l.name.trim().length > 0)
+  if (lines.length === 0) {
+    return {
+      ok: false,
+      error: 'Voeg minstens één regel met een naam toe aan de offerte.',
+    }
+  }
+
+  const subtotal = lines.reduce(
+    (sum, l) =>
+      sum + Math.round(l.unitPriceCents) * Math.max(1, l.quantity),
+    0
+  )
+
+  const { data: quote, error: quoteError } = await supabase
+    .from('quotes')
+    .insert({
+      location_id: input.locationId,
+      company_id: input.companyId,
+      source_visit_id: input.sourceVisitId,
+      status: 'draft',
+      customer_name: input.customerName.trim() || null,
+      customer_email: input.customerEmail.trim() || null,
+      intro_note: input.introNote.trim() || null,
+      valid_until: input.validUntil || null,
+      subtotal_cents: subtotal,
+    })
+    .select('id, reference_number')
+    .single()
+
+  if (quoteError || !quote) {
+    return {
+      ok: false,
+      error: quoteError?.message || 'Offerte kon niet aangemaakt worden.',
+    }
+  }
+
+  const lineRows = lines.map((l, idx) => {
+    const unit = Math.round(l.unitPriceCents)
+    const qty = Math.max(1, l.quantity)
+    return {
+      quote_id: quote.id,
+      line_type: l.lineType,
+      position: idx,
+      supplier: l.supplier,
+      nieuwkoop_itemcode: l.itemcode,
+      name: l.name.trim(),
+      description: l.description?.trim() || null,
+      spec: l.spec?.trim() || null,
+      image_url: l.imageUrl || null,
+      supplier_unit_price_cents: l.supplierUnitPriceCents,
+      unit_price_cents: unit,
+      quantity: qty,
+      line_total_cents: unit * qty,
+    }
+  })
+
+  const { error: linesError } = await supabase
+    .from('quote_lines')
+    .insert(lineRows)
+
+  if (linesError) {
+    // Rol de offerte terug zodat er geen lege offerte blijft staan.
+    await supabase.from('quotes').delete().eq('id', quote.id)
+    return { ok: false, error: linesError.message }
+  }
+
+  revalidatePath('/quotes')
+
+  return {
+    ok: true,
+    quoteId: quote.id,
+    referenceNumber: quote.reference_number ?? null,
+  }
+}
