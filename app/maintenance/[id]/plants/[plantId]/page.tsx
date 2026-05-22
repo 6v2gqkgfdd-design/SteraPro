@@ -1134,10 +1134,9 @@ export default function MaintenancePlantDetailPage() {
               onChange={(e) => {
                 const value = e.target.value
                 setHealthStatus(value)
-                // Een dode plant moet vervangen worden — zet de
-                // vervangingsvraag meteen aan zodat Jelle de condities
-                // kan invullen. Hij kan dit nog uitvinken.
-                if (value === 'dead') setFollowupReplace(true)
+                // Vervanging hoort enkel bij een dode plant. Bij 'dood'
+                // staat de vervangingsvraag standaard op 'Ja'.
+                setFollowupReplace(value === 'dead')
               }}
               className="w-full rounded-lg border border-stera-line bg-white px-3 py-3"
             >
@@ -1161,7 +1160,8 @@ export default function MaintenancePlantDetailPage() {
             />
           </div>
 
-          {/* Opvolging — wat moet er na deze beurt nog gebeuren? */}
+          {/* Opvolging — acties voor een plant die nog leeft. */}
+          {healthStatus !== 'dead' && (
           <div className="space-y-3 rounded-lg border border-stera-line bg-stera-cream-deep/40 p-4">
             <div>
               <p className="text-sm font-semibold text-stera-ink">
@@ -1197,14 +1197,6 @@ export default function MaintenancePlantDetailPage() {
                 />
                 <span>Behandelen</span>
               </label>
-              <label className="flex items-center gap-3 rounded-lg border border-stera-green/50 bg-stera-green/5 p-3 text-sm font-medium text-stera-green">
-                <input
-                  type="checkbox"
-                  checked={followupReplace}
-                  onChange={(e) => setFollowupReplace(e.target.checked)}
-                />
-                <span>Vervangen — offerte nodig</span>
-              </label>
             </div>
             <div className="space-y-1">
               <label
@@ -1223,6 +1215,44 @@ export default function MaintenancePlantDetailPage() {
               />
             </div>
           </div>
+          )}
+
+          {/* Dode plant: moet ze vervangen worden? */}
+          {healthStatus === 'dead' && (
+            <div className="space-y-2 rounded-lg border border-stera-green/40 bg-stera-green/5 p-4">
+              <p className="text-sm font-semibold text-stera-ink">
+                Deze plant is dood. Moet ze vervangen worden?
+              </p>
+              <p className="text-xs text-stera-ink-soft">
+                Bij &ldquo;Ja&rdquo; verschijnt deze beurt als voorstel
+                onder Offertes.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFollowupReplace(true)}
+                  className={
+                    followupReplace
+                      ? 'flex-1 rounded-lg bg-stera-green px-3 py-2.5 text-sm font-semibold text-white'
+                      : 'flex-1 rounded-lg border border-stera-line bg-white px-3 py-2.5 text-sm font-medium text-stera-ink'
+                  }
+                >
+                  Ja, vervangen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFollowupReplace(false)}
+                  className={
+                    !followupReplace
+                      ? 'flex-1 rounded-lg bg-stera-ink px-3 py-2.5 text-sm font-semibold text-white'
+                      : 'flex-1 rounded-lg border border-stera-line bg-white px-3 py-2.5 text-sm font-medium text-stera-ink'
+                  }
+                >
+                  Nee
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Condities voor de vervangingsplant — sturen het offertevoorstel */}
           {followupReplace && (

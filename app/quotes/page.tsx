@@ -95,7 +95,9 @@ export default async function QuotesPage() {
         )
       `
       )
-      .or('followup_replace.eq.true,health_status.eq.dead'),
+      .or(
+        'followup_replace.eq.true,and(health_status.eq.dead,followup_replace.is.null)'
+      ),
     supabase
       .from('quotes')
       .select('source_visit_id')

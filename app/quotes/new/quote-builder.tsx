@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createQuote } from './actions'
+import { woImage } from '@/lib/wo-image'
 
 export type LocationOption = {
   id: string
@@ -12,6 +13,8 @@ export type LocationOption = {
 
 export type ReplacementSlot = {
   visitPlantId: string
+  photoUrl: string | null
+  currentPotLabel: string | null
   oldPlantName: string
   oldPlantSpecies: string | null
   light: 'high' | 'medium' | 'low' | null
@@ -551,14 +554,31 @@ export default function QuoteBuilder({
                   key={slot.visitPlantId}
                   className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-3"
                 >
-                  <p className="text-sm font-semibold text-stera-ink">
-                    Vervanging voor {slot.oldPlantName}
-                  </p>
-                  {slot.oldPlantSpecies ? (
-                    <p className="text-xs text-stera-ink-soft">
-                      was: {slot.oldPlantSpecies}
-                    </p>
-                  ) : null}
+                  <div className="flex gap-3">
+                    {slot.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={woImage(slot.photoUrl) || slot.photoUrl}
+                        alt={`Laatste situatie van ${slot.oldPlantName}`}
+                        className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-stera-ink">
+                        Vervanging voor {slot.oldPlantName}
+                      </p>
+                      {slot.oldPlantSpecies ? (
+                        <p className="text-xs text-stera-ink-soft">
+                          was: {slot.oldPlantSpecies}
+                        </p>
+                      ) : null}
+                      {slot.currentPotLabel ? (
+                        <p className="text-xs text-stera-ink-soft">
+                          Huidige pot: {slot.currentPotLabel}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
                   {chips.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {chips.map((c) => (
@@ -698,9 +718,16 @@ export default function QuoteBuilder({
         </div>
       </section>
 
-      {/* Catalogus-kiezer */}
+      {/* Catalogus-kiezer — overlay zodat ze altijd in beeld is */}
       {pickerTarget ? (
-        <section className="stera-card space-y-3 border-stera-green/40">
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:p-6"
+          onClick={() => setPickerTarget(null)}
+        >
+          <section
+            className="my-4 w-full max-w-2xl space-y-3 rounded-2xl bg-white p-4 shadow-xl sm:my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-stera-ink">
               {pickerTitle}
@@ -842,7 +869,8 @@ export default function QuoteBuilder({
               })}
             </ul>
           ) : null}
-        </section>
+          </section>
+        </div>
       ) : null}
 
       {/* Totaal + opslaan */}

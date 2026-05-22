@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { findPotSize } from '@/lib/pot-sizes'
 import QuoteBuilder, {
   type LocationOption,
   type VisitPrefill,
@@ -79,16 +80,18 @@ export default async function NewQuotePage({
         .from('maintenance_visit_plants')
         .select(
           `
-          id,
+          id, photo_url,
           replacement_light_level, replacement_height_cm,
           replacement_pot_diameter_cm, replacement_is_hanging,
           replacement_care_level, replacement_needs_outer_pot,
           replacement_notes,
-          plants ( nickname, species )
+          plants ( nickname, species, pot_size_code )
         `
         )
         .eq('visit_id', visitId)
-        .or('followup_replace.eq.true,health_status.eq.dead')
+        .or(
+          'followup_replace.eq.true,and(health_status.eq.dead,followup_replace.is.null)'
+        )
 
       const company = one(visit.companies) as {
         id?: string
@@ -101,6 +104,7 @@ export default async function NewQuotePage({
           const plant = one(row.plants) as {
             nickname?: string | null
             species?: string | null
+            pot_size_code?: string | null
           } | null
           const lightRaw = row.replacement_light_level
           const light =
@@ -110,8 +114,16 @@ export default async function NewQuotePage({
           const careRaw = row.replacement_care_level
           const careLevel =
             careRaw === 'easy' || careRaw === 'hard' ? careRaw : null
+          const potSize = findPotSize(plant?.pot_size_code ?? null)
+          const currentPotLabel = potSize
+            ? potSize.minDiameter === potSize.maxDiameter
+              ? `Ø ${potSize.minDiameter} cm`
+              : `Ø ${potSize.minDiameter}–${potSize.maxDiameter} cm`
+            : null
           return {
             visitPlantId: row.id as string,
+            photoUrl: (row.photo_url as string | null) ?? null,
+            currentPotLabel,
             oldPlantName:
               plant?.nickname || plant?.species || 'Plant',
             oldPlantSpecies: plant?.species ?? null,
