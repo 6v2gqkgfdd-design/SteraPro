@@ -89,9 +89,7 @@ export default async function NewQuotePage({
         `
         )
         .eq('visit_id', visitId)
-        .or(
-          'followup_replace.eq.true,and(health_status.eq.dead,followup_replace.is.null)'
-        )
+        .eq('followup_replace', true)
 
       const company = one(visit.companies) as {
         id?: string

@@ -236,6 +236,22 @@ export default async function QuoteDetailPage({
             </span>
           </div>
         </div>
+
+        {/* Webshop-doorverwijzing — nog in opbouw */}
+        <div className="stera-card flex flex-wrap items-center justify-between gap-3 border-dashed opacity-80">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-stera-ink">
+              Naar de webshop bestellen
+            </p>
+            <p className="text-xs text-stera-ink-soft">
+              Binnenkort kan de klant deze planten rechtstreeks in de
+              webshop aanpassen, aanvullen en afrekenen.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-stera-cream-deep px-3 py-1 text-xs font-semibold uppercase tracking-wider text-stera-ink-soft">
+            In opbouw
+          </span>
+        </div>
       </div>
     </main>
   )
