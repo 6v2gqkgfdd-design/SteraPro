@@ -29,7 +29,7 @@ export default function NieuwkoopTestPage() {
     try {
       const res = await fetch('/api/nieuwkoop/items?diagnose=1')
       const data = await res.json()
-      setDiagnose(JSON.stringify(data.diagnose ?? data, null, 2))
+      setDiagnose(JSON.stringify(data, null, 2))
     } catch (err) {
       setDiagnose(
         'Fout: ' + (err instanceof Error ? err.message : 'onbekend')
@@ -156,14 +156,14 @@ export default function NieuwkoopTestPage() {
         <div className="stera-card space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-stera-green">
-              Diagnose hydrocultuur
+              Diagnose Nieuwkoop-verbinding
             </p>
             <p className="mt-1 text-sm text-stera-ink-soft">
-              Scant de volledige catalogus en toont hoe Nieuwkoop alles
-              labelt: alle tag-categorieën, alle productgroepen, en welke
-              items het woord &ldquo;hydro&rdquo; vermelden. Voer dit uit
-              en kopieer het resultaat hieronder, dan stel ik het
-              hydrocultuur-filter scherp.
+              Test eerst welke catalogus-oproep werkt (de volledige
+              catalogus geeft momenteel een fout). Lukt er één, dan toont
+              de diagnose meteen ook hoe Nieuwkoop alles labelt — tags,
+              productgroepen en items die &ldquo;hydro&rdquo; vermelden.
+              Voer dit uit en kopieer het volledige resultaat hieronder.
             </p>
           </div>
           <button

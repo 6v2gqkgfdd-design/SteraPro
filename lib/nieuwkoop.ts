@@ -186,3 +186,152 @@ export function filterReplacements(
     return true
   })
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Verbindingstest
+// ─────────────────────────────────────────────────────────────────
+
+export type NieuwkoopProbeAttempt = {
+  label: string
+  path: string
+  ok: boolean
+  status: number | null
+  itemCount: number | null
+  error: string | null
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  ms: number
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Verbindingstest voor de Nieuwkoop API. Probeert enkele varianten van
+ * de /items-oproep parallel en rapporteert per variant of ze lukt. Zo
+ * zien we meteen of het probleem bij de volledige catalogus zit (te
+ * zwaar), bij de gekozen omgeving of bij de authenticatie.
+ *
+ * `items` bevat de resultaten van de eerste geslaagde poging.
+ */
+export async function probeNieuwkoop(): Promise<{
+  baseUrl: string
+  attempts: NieuwkoopProbeAttempt[]
+  items: NieuwkoopItem[]
+}> {
+  const baseUrl = getBaseUrl()
+  const variants: Array<{ label: string; path: string }> = [
+    {
+      label: 'Volledige catalogus (sinds 2000-01-01)',
+      path: '/items?sysmodified=2000-01-01',
+    },
+    {
+      label: 'Enkel planten (mainGroupCode 100)',
+      path: '/items?sysmodified=2000-01-01&mainGroupCode=100',
+    },
+    {
+      label: 'Wijzigingen sinds 2025-01-01',
+      path: '/items?sysmodified=2025-01-01',
+    },
+    {
+      label: 'Wijzigingen sinds 2026-05-01',
+      path: '/items?sysmodified=2026-05-01',
+    },
+  ]
+
+  let auth: string | null = null
+  let authError: string | null = null
+  try {
+    auth = authHeader()
+  } catch (e) {
+    authError =
+      e instanceof Error ? e.message : 'Authenticatie-config ontbreekt.'
+  }
+
+  async function runOne(variant: {
+    label: string
+    path: string
+  }): Promise<{ attempt: NieuwkoopProbeAttempt; items: NieuwkoopItem[] }> {
+    if (!auth) {
+      return {
+        attempt: {
+          label: variant.label,
+          path: variant.path,
+          ok: false,
+          status: null,
+          itemCount: null,
+          error: authError,
+        },
+        items: [],
+      }
+    }
+    try {
+      const res = await fetchWithTimeout(
+        `${baseUrl}${variant.path}`,
+        {
+          headers: { Authorization: auth, Accept: 'application/json' },
+          cache: 'no-store',
+        },
+        12000
+      )
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        return {
+          attempt: {
+            label: variant.label,
+            path: variant.path,
+            ok: false,
+            status: res.status,
+            itemCount: null,
+            error: text.slice(0, 300) || res.statusText,
+          },
+          items: [],
+        }
+      }
+      const data = (await res.json()) as unknown
+      const list = Array.isArray(data) ? (data as NieuwkoopItem[]) : []
+      return {
+        attempt: {
+          label: variant.label,
+          path: variant.path,
+          ok: true,
+          status: res.status,
+          itemCount: list.length,
+          error: null,
+        },
+        items: list,
+      }
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.name === 'AbortError'
+            ? 'Time-out na 12s'
+            : e.message
+          : 'Netwerkfout'
+      return {
+        attempt: {
+          label: variant.label,
+          path: variant.path,
+          ok: false,
+          status: null,
+          itemCount: null,
+          error: msg,
+        },
+        items: [],
+      }
+    }
+  }
+
+  const results = await Promise.all(variants.map(runOne))
+  const attempts = results.map((r) => r.attempt)
+  const firstOk = results.find((r) => r.items.length > 0)
+  return { baseUrl, attempts, items: firstOk ? firstOk.items : [] }
+}

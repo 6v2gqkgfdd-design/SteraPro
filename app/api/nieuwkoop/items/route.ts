@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server'
 import {
   getItems,
   filterReplacements,
+  probeNieuwkoop,
   type NieuwkoopItem,
 } from '@/lib/nieuwkoop'
+
+export const runtime = 'nodejs'
+export const maxDuration = 30
 
 /**
  * GET /api/nieuwkoop/items
@@ -36,11 +40,16 @@ export async function GET(req: Request) {
   const diagnose = url.searchParams.get('diagnose')
 
   try {
-    // Diagnose-modus: scan de volledige catalogus om te zien hoe
+    // Diagnose-modus: eerst een verbindingstest (welke /items-oproep
+    // werkt?), daarna — als er data binnenkomt — analyseren hoe
     // Nieuwkoop hydrocultuur labelt (tags / productgroepen / tekst).
     if (diagnose) {
-      const allItems = await getItems({ sysmodified: '2000-01-01' })
-      return NextResponse.json({ diagnose: buildDiagnosis(allItems) })
+      const probe = await probeNieuwkoop()
+      return NextResponse.json({
+        probe: { baseUrl: probe.baseUrl, attempts: probe.attempts },
+        diagnose:
+          probe.items.length > 0 ? buildDiagnosis(probe.items) : null,
+      })
     }
 
     const items: NieuwkoopItem[] = await getItems({
