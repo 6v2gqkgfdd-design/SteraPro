@@ -229,22 +229,13 @@ export async function probeNieuwkoop(): Promise<{
 }> {
   const baseUrl = getBaseUrl()
   const variants: Array<{ label: string; path: string }> = [
-    {
-      label: 'Volledige catalogus (sinds 2000-01-01)',
-      path: '/items?sysmodified=2000-01-01',
-    },
-    {
-      label: 'Enkel planten (mainGroupCode 100)',
-      path: '/items?sysmodified=2000-01-01&mainGroupCode=100',
-    },
-    {
-      label: 'Wijzigingen sinds 2025-01-01',
-      path: '/items?sysmodified=2025-01-01',
-    },
-    {
-      label: 'Wijzigingen sinds 2026-05-01',
-      path: '/items?sysmodified=2026-05-01',
-    },
+    { label: 'Zonder parameters', path: '/items' },
+    { label: 'Sinds 2024-01-01', path: '/items?sysmodified=2024-01-01' },
+    { label: 'Sinds 2023-01-01', path: '/items?sysmodified=2023-01-01' },
+    { label: 'Sinds 2022-01-01', path: '/items?sysmodified=2022-01-01' },
+    { label: 'Sinds 2020-01-01', path: '/items?sysmodified=2020-01-01' },
+    { label: 'Sinds 2015-01-01', path: '/items?sysmodified=2015-01-01' },
+    { label: 'Sinds 2010-01-01', path: '/items?sysmodified=2010-01-01' },
   ]
 
   let auth: string | null = null
