@@ -93,7 +93,14 @@ function buildSpec(item: CatalogItem): string {
   if (item.height && item.height > 0) {
     parts.push(`H ${Math.round(item.height)} cm`)
   }
-  if (item.diameter_culture_pot && item.diameter_culture_pot > 0) {
+  if (item.product_group_code === '300') {
+    // Buitenpot — toon de eigen diameter van de pot.
+    if (item.diameter && item.diameter > 0) {
+      parts.push(`Ø ${Math.round(item.diameter)} cm`)
+    } else if (item.pot_size) {
+      parts.push(`maat ${item.pot_size}`)
+    }
+  } else if (item.diameter_culture_pot && item.diameter_culture_pot > 0) {
     parts.push(`pot Ø ${Math.round(item.diameter_culture_pot)} cm`)
   } else if (item.pot_size) {
     parts.push(`maat ${item.pot_size}`)
@@ -162,6 +169,8 @@ export default function QuoteBuilder({
   const [pickerLoading, setPickerLoading] = useState(false)
   const [pickerError, setPickerError] = useState('')
   const [pickerTouched, setPickerTouched] = useState(false)
+  const [pickerLightFallback, setPickerLightFallback] = useState(false)
+  const [pickerSizeFallback, setPickerSizeFallback] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -182,7 +191,7 @@ export default function QuoteBuilder({
     light: string
     potMin: string
     potMax: string
-  }) {
+  }): Promise<CatalogItem[]> {
     setPickerLoading(true)
     setPickerError('')
     setPickerTouched(true)
@@ -197,16 +206,23 @@ export default function QuoteBuilder({
       if (!res.ok) {
         throw new Error(data?.error || 'Zoeken mislukt.')
       }
-      setPickerResults(Array.isArray(data.items) ? data.items : [])
+      const items: CatalogItem[] = Array.isArray(data.items)
+        ? data.items
+        : []
+      setPickerResults(items)
+      return items
     } catch (err) {
       setPickerResults([])
       setPickerError(err instanceof Error ? err.message : 'Zoeken mislukt.')
+      return []
     } finally {
       setPickerLoading(false)
     }
   }
 
   function runSearch() {
+    setPickerLightFallback(false)
+    setPickerSizeFallback(false)
     performSearch({
       group: pickerGroup,
       q: pickerQuery,
@@ -225,17 +241,24 @@ export default function QuoteBuilder({
     setPickerResults([])
     setPickerError('')
     setPickerTouched(false)
+    setPickerLightFallback(false)
+    setPickerSizeFallback(false)
     setPickerTarget({ kind: 'extra', group })
     performSearch({ group, q: '', light: '', potMin: '', potMax: '' })
   }
 
-  function openPickerSlot(slotId: string, role: 'plant' | 'outer_pot') {
+  async function openPickerSlot(
+    slotId: string,
+    role: 'plant' | 'outer_pot'
+  ) {
     const slot = slots.find((s) => s.visitPlantId === slotId)
     if (!slot) return
     setPickerQuery('')
     setPickerError('')
     setPickerResults([])
     setPickerTouched(false)
+    setPickerLightFallback(false)
+    setPickerSizeFallback(false)
 
     if (role === 'plant') {
       const light = slot.light ? LIGHT_TO_CATALOG[slot.light] : ''
@@ -247,21 +270,60 @@ export default function QuoteBuilder({
       setPickerPotMin(potMin)
       setPickerPotMax(potMax)
       setPickerTarget({ kind: 'slot', slotId, role })
-      performSearch({ group: '100', q: '', light, potMin, potMax })
+      const items = await performSearch({
+        group: '100',
+        q: '',
+        light,
+        potMin,
+        potMax,
+      })
+      // Geen exacte match op lichtbehoefte? Toon dan toch alle planten
+      // in de juiste potmaat zodat het voorstel nooit leeg blijft.
+      if (items.length === 0 && light) {
+        setPickerLight('')
+        setPickerLightFallback(true)
+        await performSearch({
+          group: '100',
+          q: '',
+          light: '',
+          potMin,
+          potMax,
+        })
+      }
     } else {
-      // Buitenpot afstemmen op de cultuurpot van de gekozen plant.
+      // Buitenpot afstemmen op de cultuurpot van de gekozen plant: de
+      // pot moet er ruim rond passen.
       const plantLine = lines.find(
         (l) => l.slotId === slotId && l.slotRole === 'plant'
       )
       const cp = plantLine?.cultivePotCm ?? slot.potDiameterCm ?? null
       const potMin = cp ? String(Math.max(1, cp - 1)) : ''
-      const potMax = cp ? String(cp + 3) : ''
+      const potMax = cp ? String(cp + 10) : ''
       setPickerGroup('300')
       setPickerLight('')
       setPickerPotMin(potMin)
       setPickerPotMax(potMax)
       setPickerTarget({ kind: 'slot', slotId, role })
-      performSearch({ group: '300', q: '', light: '', potMin, potMax })
+      const items = await performSearch({
+        group: '300',
+        q: '',
+        light: '',
+        potMin,
+        potMax,
+      })
+      // Geen buitenpot in dat maatbereik? Toon dan alle buitenpotten.
+      if (items.length === 0 && (potMin || potMax)) {
+        setPickerPotMin('')
+        setPickerPotMax('')
+        setPickerSizeFallback(true)
+        await performSearch({
+          group: '300',
+          q: '',
+          light: '',
+          potMin: '',
+          potMax: '',
+        })
+      }
     }
   }
 
@@ -746,6 +808,22 @@ export default function QuoteBuilder({
               {pickerTarget.role === 'plant'
                 ? 'Het voorstel houdt rekening met de potmaat en lichtbehoefte uit het onderhoud. Pas de filters gerust aan.'
                 : 'De buitenpotten zijn afgestemd op de potmaat van de gekozen plant.'}
+            </p>
+          ) : null}
+
+          {pickerLightFallback ? (
+            <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+              Geen hydrocultuur-planten met exact die lichtbehoefte. Hieronder
+              alle planten die in de potmaat passen — kies er zelf een
+              geschikte uit of pas de filters aan.
+            </p>
+          ) : null}
+
+          {pickerSizeFallback ? (
+            <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+              Geen buitenpotten in dat maatbereik. Hieronder alle
+              buitenpotten — let op de Ø-maat per pot en kies er een die
+              rond de plantpot past.
             </p>
           ) : null}
 

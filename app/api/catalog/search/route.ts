@@ -52,10 +52,15 @@ export async function GET(req: Request) {
     .order('description')
     .limit(60)
 
+  // Voor planten (groep 100) is de "potmaat" de cultuurpot waarin de
+  // plant staat; voor buitenpotten (groep 300) de eigen diameter van
+  // de pot.
+  const potColumn = group === '300' ? 'diameter' : 'diameter_culture_pot'
+
   if (q) query = query.ilike('description', `%${q}%`)
   if (light) query = query.eq('location_icon_nl', light)
-  if (potMin != null) query = query.gte('diameter_culture_pot', potMin)
-  if (potMax != null) query = query.lte('diameter_culture_pot', potMax)
+  if (potMin != null) query = query.gte(potColumn, potMin)
+  if (potMax != null) query = query.lte(potColumn, potMax)
   if (heightMin != null) query = query.gte('height', heightMin)
   if (heightMax != null) query = query.lte('height', heightMax)
 
