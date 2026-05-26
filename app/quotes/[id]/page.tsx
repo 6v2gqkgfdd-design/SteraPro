@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { woImage } from '@/lib/wo-image'
+import { updateQuoteStatusAction } from './actions'
 
 type QuoteStatus =
   | 'draft'
@@ -84,6 +85,7 @@ export default async function QuoteDetailPage({
       .select(
         `
       id, reference_number, status, intro_note, valid_until, created_at,
+      accepted_at, declined_at,
       customer_name, customer_email, subtotal_cents,
       companies ( name ),
       locations ( name )
@@ -157,6 +159,96 @@ export default async function QuoteDetailPage({
               ? ` · geldig tot ${formatDate(quote.valid_until as string)}`
               : ''}
           </p>
+        </div>
+
+        {/* Status & acties */}
+        <div className="stera-card flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="stera-eyebrow text-stera-green mb-1">Status</p>
+            <p className="text-sm text-stera-ink-soft">
+              {status === 'draft' && 'Concept — nog niet verstuurd.'}
+              {status === 'sent' &&
+                'Verstuurd — wacht op antwoord van de klant.'}
+              {status === 'accepted' &&
+                `Goedgekeurd${
+                  quote.accepted_at
+                    ? ` op ${formatDate(quote.accepted_at as string)}`
+                    : ''
+                }.`}
+              {status === 'declined' &&
+                `Afgewezen${
+                  quote.declined_at
+                    ? ` op ${formatDate(quote.declined_at as string)}`
+                    : ''
+                }.`}
+              {(status === 'ordered' ||
+                status === 'expired' ||
+                status === 'cancelled') &&
+                QUOTE_STATUS_LABEL[status]}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {status === 'draft' && (
+              <form action={updateQuoteStatusAction}>
+                <input
+                  type="hidden"
+                  name="quote_id"
+                  value={quote.id as string}
+                />
+                <input type="hidden" name="status" value="sent" />
+                <button type="submit" className="stera-cta stera-cta-primary">
+                  Markeer als verstuurd
+                </button>
+              </form>
+            )}
+            {status === 'sent' && (
+              <>
+                <form action={updateQuoteStatusAction}>
+                  <input
+                    type="hidden"
+                    name="quote_id"
+                    value={quote.id as string}
+                  />
+                  <input type="hidden" name="status" value="accepted" />
+                  <button
+                    type="submit"
+                    className="stera-cta stera-cta-primary"
+                  >
+                    Markeer als goedgekeurd
+                  </button>
+                </form>
+                <form action={updateQuoteStatusAction}>
+                  <input
+                    type="hidden"
+                    name="quote_id"
+                    value={quote.id as string}
+                  />
+                  <input type="hidden" name="status" value="declined" />
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-stera-line bg-white px-3 py-2 text-sm font-medium text-stera-ink hover:border-red-300"
+                  >
+                    Markeer als afgewezen
+                  </button>
+                </form>
+              </>
+            )}
+            {(status === 'sent' ||
+              status === 'accepted' ||
+              status === 'declined') && (
+              <form action={updateQuoteStatusAction}>
+                <input
+                  type="hidden"
+                  name="quote_id"
+                  value={quote.id as string}
+                />
+                <input type="hidden" name="status" value="draft" />
+                <button type="submit" className="stera-cta stera-cta-ghost">
+                  Heropen als concept
+                </button>
+              </form>
+            )}
+          </div>
         </div>
 
         {quote.intro_note ? (
