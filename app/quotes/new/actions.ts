@@ -23,6 +23,8 @@ type CreateQuoteInput = {
   customerEmail: string
   introNote: string
   validUntil: string | null
+  // Wordt opgeslagen in quotes.margin_pct als factor (bv. 2.5).
+  marginPct: number | null
   sourceVisitId: string | null
   lines: QuoteLineInput[]
 }
@@ -68,6 +70,7 @@ export async function createQuote(
       customer_email: input.customerEmail.trim() || null,
       intro_note: input.introNote.trim() || null,
       valid_until: input.validUntil || null,
+      margin_pct: input.marginPct ?? null,
       subtotal_cents: subtotal,
     })
     .select('id, reference_number')

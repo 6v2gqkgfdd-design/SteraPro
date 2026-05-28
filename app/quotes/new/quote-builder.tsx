@@ -1,9 +1,44 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createQuote } from './actions'
 import { woImage } from '@/lib/wo-image'
+
+// Snelle keuze-knoppen voor de margefactor. Stera kan altijd zelf
+// een andere factor intypen.
+const MARGIN_PRESETS = [
+  { value: 2.2, label: '×2,2', hint: 'Grote planten / herhaalklant' },
+  { value: 2.5, label: '×2,5', hint: 'Standaard' },
+  { value: 2.8, label: '×2,8', hint: 'Kleine offerte / premium' },
+] as const
+
+/**
+ * Slimme keuze van de default-margefactor op basis van de offerte:
+ *  - bevat een dure plant (≥ €200 inkoop) → 2,2× (marge zou anders te zwaar wegen)
+ *  - kleine offerte (totaal < €200 of slechts 1-2 regels) → 2,8×
+ *  - anders → 2,5× standaard.
+ */
+function smartDefaultMargin(
+  lines: { supplierUnitPriceCents: number | null }[]
+): number {
+  const costs = lines
+    .map((l) => (l.supplierUnitPriceCents ?? 0) / 100)
+    .filter((c) => c > 0)
+  if (costs.length === 0) return 2.5
+  const totalCost = costs.reduce((s, c) => s + c, 0)
+  const maxCost = Math.max(...costs)
+  if (maxCost >= 200) return 2.2
+  if (totalCost < 200 || costs.length <= 2) return 2.8
+  return 2.5
+}
+
+/** Standaard 1 week geldig — als YYYY-MM-DD voor de date-input. */
+function defaultValidUntil(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().slice(0, 10)
+}
 
 export type LocationOption = {
   id: string
@@ -185,24 +220,65 @@ export default function QuoteBuilder({
     visitPrefill?.customerEmail ?? ''
   )
   const [introNote, setIntroNote] = useState('')
-  const [validUntil, setValidUntil] = useState('')
+  const [validUntil, setValidUntil] = useState(defaultValidUntil)
+
+  // Margefactor: slim default op basis van de offerte-omvang, daarna
+  // mag de tech aanpassen. Eén factor per offerte; alle regels met een
+  // gekende inkoopprijs herrekenen wanneer ze wijzigt.
+  const initialMargin = smartDefaultMargin(initialLines)
+  const [marginFactor, setMarginFactor] = useState(initialMargin)
+
   const [lines, setLines] = useState<Line[]>(() =>
-    initialLines.map((l) => ({
-      key: nextKey(),
-      slotId: l.slotId,
-      lineType: l.lineType,
-      supplier: l.supplier,
-      itemcode: l.itemcode,
-      name: l.name,
-      description: l.description,
-      spec: l.spec,
-      imageUrl: l.imageUrl,
-      supplierUnitPriceCents: l.supplierUnitPriceCents,
-      unitPriceEuro:
-        l.unitPriceCents > 0 ? (l.unitPriceCents / 100).toFixed(2) : '',
-      quantity: l.quantity,
-    }))
+    initialLines.map((l) => {
+      const euroFromMargin =
+        l.supplierUnitPriceCents != null && l.supplierUnitPriceCents > 0
+          ? ((l.supplierUnitPriceCents * initialMargin) / 100).toFixed(2)
+          : l.unitPriceCents > 0
+            ? (l.unitPriceCents / 100).toFixed(2)
+            : ''
+      return {
+        key: nextKey(),
+        slotId: l.slotId,
+        lineType: l.lineType,
+        supplier: l.supplier,
+        itemcode: l.itemcode,
+        name: l.name,
+        description: l.description,
+        spec: l.spec,
+        imageUrl: l.imageUrl,
+        supplierUnitPriceCents: l.supplierUnitPriceCents,
+        unitPriceEuro: euroFromMargin,
+        quantity: l.quantity,
+      }
+    })
   )
+
+  // Wanneer de marge wijzigt — voor alle regels met een gekende
+  // inkoopprijs de verkoopprijs herrekenen. Custom regels (geen
+  // supplier-prijs) blijven ongewijzigd. Sla de eerste mount over,
+  // want de seeder hierboven heeft al de juiste prijs gezet.
+  const marginInitRef = useRef(true)
+  useEffect(() => {
+    if (marginInitRef.current) {
+      marginInitRef.current = false
+      return
+    }
+    setLines((prev) =>
+      prev.map((l) => {
+        if (
+          l.supplierUnitPriceCents == null ||
+          l.supplierUnitPriceCents <= 0
+        ) {
+          return l
+        }
+        const newEuro = (
+          (l.supplierUnitPriceCents * marginFactor) /
+          100
+        ).toFixed(2)
+        return { ...l, unitPriceEuro: newEuro }
+      })
+    )
+  }, [marginFactor])
 
   // Catalogus-kiezer — werkt op de All-in-1 combinaties (groep 275).
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
@@ -362,6 +438,10 @@ export default function QuoteBuilder({
         : item.product_group_code === '300'
           ? 'outer_pot'
           : 'plant'
+    // Verkoopprijs altijd uit inkoopprijs × actieve margefactor — zo
+    // blijft alles consistent zodra de tech een andere marge kiest.
+    const priceFromMargin =
+      cost != null && cost > 0 ? (cost * marginFactor).toFixed(2) : ''
     const base = {
       lineType,
       supplier: 'nieuwkoop' as const,
@@ -373,7 +453,8 @@ export default function QuoteBuilder({
         ? `/api/nieuwkoop/image/${encodeURIComponent(item.itemcode)}`
         : null,
       supplierUnitPriceCents: cost != null ? Math.round(cost * 100) : null,
-      unitPriceEuro: sale > 0 ? sale.toFixed(2) : '',
+      unitPriceEuro:
+        priceFromMargin || (sale > 0 ? sale.toFixed(2) : ''),
       quantity: 1,
     }
 
@@ -474,6 +555,7 @@ export default function QuoteBuilder({
       customerEmail,
       introNote,
       validUntil: validUntil || null,
+      marginPct: marginFactor,
       sourceVisitId: visitPrefill?.visitId ?? null,
       lines: lines.map((l) => ({
         lineType: l.lineType,
@@ -613,6 +695,55 @@ export default function QuoteBuilder({
             placeholder="Korte toelichting voor de klant..."
           />
         </label>
+      </section>
+
+      {/* Marge */}
+      <section className="stera-card space-y-2">
+        <div>
+          <p className="stera-eyebrow text-stera-green">Marge</p>
+          <p className="text-xs text-stera-ink-soft">
+            Multiplier op de inkoopprijs. Automatisch voorgesteld op
+            basis van de offerte — pas aan indien nodig.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {MARGIN_PRESETS.map((p) => {
+            const active = Math.abs(marginFactor - p.value) < 0.001
+            return (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setMarginFactor(p.value)}
+                title={p.hint}
+                className={
+                  active
+                    ? 'rounded-lg bg-stera-green px-3 py-2 text-sm font-semibold text-white'
+                    : 'rounded-lg border border-stera-line bg-white px-3 py-2 text-sm font-medium text-stera-ink hover:border-stera-green'
+                }
+              >
+                {p.label}{' '}
+                <span className="text-xs opacity-70">— {p.hint}</span>
+              </button>
+            )
+          })}
+          <label className="ml-1 flex items-center gap-1.5 text-sm text-stera-ink">
+            <span className="text-stera-ink-soft">×</span>
+            <input
+              type="number"
+              step="0.1"
+              min={1}
+              max={5}
+              value={marginFactor}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                if (Number.isFinite(v) && v >= 1 && v <= 5) {
+                  setMarginFactor(v)
+                }
+              }}
+              className="w-20 rounded-lg border border-stera-line bg-white p-1.5 text-sm"
+            />
+          </label>
+        </div>
       </section>
 
       {/* Vervangingen — per te vervangen plant uit het onderhoud */}
@@ -913,7 +1044,13 @@ export default function QuoteBuilder({
           {pickerResults.length > 0 ? (
             <ul className="grid max-h-96 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
               {pickerResults.map((item) => {
-                const sale = item.suggested_sale_price ?? 0
+                const cost = item.cost_price ?? 0
+                const displayCents =
+                  cost > 0
+                    ? Math.round(cost * marginFactor * 100)
+                    : (item.suggested_sale_price ?? 0) > 0
+                      ? Math.round((item.suggested_sale_price ?? 0) * 100)
+                      : 0
                 return (
                   <li key={item.itemcode}>
                     <button
@@ -943,8 +1080,8 @@ export default function QuoteBuilder({
                           {buildSpec(item)}
                         </p>
                         <p className="text-xs font-semibold text-stera-green">
-                          {sale > 0
-                            ? formatEuro(Math.round(sale * 100))
+                          {displayCents > 0
+                            ? formatEuro(displayCents)
                             : 'prijs onbekend'}
                         </p>
                       </div>
