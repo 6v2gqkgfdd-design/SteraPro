@@ -140,6 +140,7 @@ export default async function NewQuotePage({
         .select(
           `
           id, plant_id, photo_url,
+          followup_replace, health_status,
           replacement_light_level, replacement_height_cm,
           replacement_pot_diameter_cm, replacement_is_hanging,
           replacement_care_level, replacement_needs_outer_pot,
