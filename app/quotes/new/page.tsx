@@ -8,6 +8,7 @@ import QuoteBuilder, {
   type InitialLineInput,
 } from './quote-builder'
 import { formatRoomLabel } from '@/lib/rooms'
+import { analyzeReplacementPhotos } from '@/lib/ai/photo-analysis'
 
 const LIGHT_TO_CATALOG_MAP: Record<'high' | 'medium' | 'low', string> = {
   high: 'zon',
@@ -57,13 +58,20 @@ function scoreCandidate(c: Candidate, slot: ReplacementSlot): number {
   if (slot.oldPlantSpecies && c.description) {
     const speciesLower = slot.oldPlantSpecies.toLowerCase()
     const descLower = c.description.toLowerCase()
-    if (descLower.includes(speciesLower)) score += 100
+    if (descLower.includes(speciesLower)) score += 200
     else {
       const genus = speciesLower.split(/\s+/)[0]
       if (genus && genus.length > 2 && descLower.includes(genus)) {
-        score += 80
+        score += 150
       }
     }
+  }
+  // Hoogte (alleen als we een doelhoogte hebben — manueel of via AI).
+  if (slot.heightCm && c.height && c.height > 0) {
+    const diff = Math.abs(c.height - slot.heightCm)
+    if (diff <= 20) score += 50
+    else if (diff <= 50) score += 20
+    else if (diff > 100) score -= 30
   }
   return score
 }
@@ -268,6 +276,33 @@ export default async function NewQuotePage({
           }
         }
       )
+
+      // AI-foto-analyse: vul ontbrekende condities aan (hoogte,
+      // lichtbehoefte, potmaat) op basis van de foto. Eén batched call
+      // naar Claude Vision voor alle slots samen.
+      if (slots.length > 0) {
+        const ai = await analyzeReplacementPhotos(
+          slots.map((s) => ({
+            visitPlantId: s.visitPlantId,
+            photoUrl: s.photoUrl,
+            oldPlantName: s.oldPlantName,
+            oldPlantSpecies: s.oldPlantSpecies,
+          }))
+        )
+        for (const slot of slots) {
+          const insight = ai.get(slot.visitPlantId)
+          if (!insight) continue
+          if (slot.heightCm == null && insight.heightCm != null) {
+            slot.heightCm = insight.heightCm
+          }
+          if (slot.light == null && insight.light != null) {
+            slot.light = insight.light
+          }
+          if (slot.potDiameterCm == null && insight.potDiameterCm != null) {
+            slot.potDiameterCm = insight.potDiameterCm
+          }
+        }
+      }
 
       visitPrefill = {
         visitId: visit.id,
