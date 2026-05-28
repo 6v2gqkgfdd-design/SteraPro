@@ -43,15 +43,20 @@ function buildCandidateSpec(c: Candidate): string {
 // soort-naam overlap (volledige soortnaam, anders genus).
 function scoreCandidate(c: Candidate, slot: ReplacementSlot): number {
   let score = 0
-  // Voorkeur: de potmaat die de tech expliciet opgaf. Anders de
-  // huidige plant-potmaat als ruwe schatting.
+  // Voorkeur-volgorde voor de doelpotmaat:
+  //   1. wat de tech expliciet ingaf in het condities-blok,
+  //   2. de huidige pot van de plant (pot_size_code),
+  //   3. (verderop in de pipeline) de AI-schatting — alleen als 1 én
+  //      2 ontbreken; daarom hier in dezelfde volgorde lezen.
   const p = slot.potDiameterCm ?? slot.currentPotDiameterCm
   if (p && c.diameter && c.diameter > 0) {
     const diff = Math.abs(c.diameter - p)
-    if (diff === 0) score += 100
-    else if (diff <= 2) score += 80 - diff * 10
-    else if (diff <= 5) score += 40 - diff * 5
-    else score += Math.max(0, 20 - diff)
+    // Pot weegt zwaarder dan andere signalen — voor Stera is dat
+    // het belangrijkste criterium voor een passende combinatie.
+    if (diff === 0) score += 150
+    else if (diff <= 2) score += 120 - diff * 15
+    else if (diff <= 5) score += 60 - diff * 8
+    else score += Math.max(0, 30 - diff * 2)
   }
   const lightTarget = slot.light ? LIGHT_TO_CATALOG_MAP[slot.light] : null
   if (lightTarget && c.location_icon_nl === lightTarget) score += 50
@@ -292,13 +297,19 @@ export default async function NewQuotePage({
         for (const slot of slots) {
           const insight = ai.get(slot.visitPlantId)
           if (!insight) continue
+          // Manueel ingegeven waardes (door de tech) en de gekende
+          // pot van de plant zelf hebben voorrang op de AI-schatting.
           if (slot.heightCm == null && insight.heightCm != null) {
             slot.heightCm = insight.heightCm
           }
           if (slot.light == null && insight.light != null) {
             slot.light = insight.light
           }
-          if (slot.potDiameterCm == null && insight.potDiameterCm != null) {
+          if (
+            slot.potDiameterCm == null &&
+            slot.currentPotDiameterCm == null &&
+            insight.potDiameterCm != null
+          ) {
             slot.potDiameterCm = insight.potDiameterCm
           }
         }
