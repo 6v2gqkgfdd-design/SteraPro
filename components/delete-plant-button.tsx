@@ -58,11 +58,19 @@ export default function DeletePlantButton({
     router.refresh()
   }
 
+  // stopPropagation zorgt dat het omliggende RowMenu (dat zichzelf sluit
+  // op een binnenklik) niet onmiddellijk dichtklapt en zo deze knop én
+  // de bevestigings-modal uit beeld haalt voor ze kunnen verschijnen.
+  function openConfirm(e: React.MouseEvent) {
+    e.stopPropagation()
+    setOpen(true)
+  }
+
   const trigger =
     variant === 'menu' ? (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openConfirm}
         disabled={loading}
         className="block w-full px-4 py-3 text-left text-sm text-red-700 transition hover:bg-red-50 disabled:opacity-50"
       >
@@ -71,7 +79,7 @@ export default function DeletePlantButton({
     ) : (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openConfirm}
         disabled={loading}
         className="stera-cta stera-cta-danger disabled:opacity-50"
       >
