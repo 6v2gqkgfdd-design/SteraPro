@@ -280,38 +280,43 @@ export default async function CatalogPage({
           {list.map((p) => (
             <li
               key={p.itemcode}
-              className="bg-white rounded-xl overflow-hidden border border-stera-ink/10 hover:shadow-md transition flex flex-col"
+              className="bg-white rounded-xl overflow-hidden border border-stera-ink/10 hover:shadow-md hover:border-stera-green transition"
             >
-              <div className="aspect-square bg-stera-cream/40 relative">
-                {p.item_picture_name ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={`/api/nieuwkoop/image/${p.itemcode}`}
-                    alt={p.description}
-                    loading="lazy"
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-stera-ink/30 text-xs">
-                    Geen foto
-                  </div>
-                )}
-              </div>
-              <div className="p-3 flex-1 flex flex-col">
-                <h3 className="text-sm font-medium text-stera-ink leading-tight line-clamp-2 min-h-[2.5em]">
-                  {generateSteraName(p)}
-                </h3>
-                <div className="mt-2 flex items-baseline justify-between gap-2 mt-auto pt-2">
-                  <span className="font-semibold text-stera-ink">
-                    {formatPrice(Number(p.suggested_sale_price ?? 0))}
-                  </span>
-                  {kind === "plant" && p.location_icon_nl ? (
-                    <span className="text-[10px] uppercase tracking-wider text-stera-ink/50 truncate">
-                      {p.location_icon_nl}
-                    </span>
-                  ) : null}
+              <Link
+                href={`/catalog/${p.itemcode}`}
+                className="flex h-full flex-col"
+              >
+                <div className="aspect-square bg-stera-cream/40 relative">
+                  {p.item_picture_name ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={`/api/nieuwkoop/image/${p.itemcode}`}
+                      alt={p.description}
+                      loading="lazy"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-stera-ink/30 text-xs">
+                      Geen foto
+                    </div>
+                  )}
                 </div>
-              </div>
+                <div className="p-3 flex-1 flex flex-col">
+                  <h3 className="text-sm font-medium text-stera-ink leading-tight line-clamp-2 min-h-[2.5em]">
+                    {generateSteraName(p)}
+                  </h3>
+                  <div className="mt-2 flex items-baseline justify-between gap-2 mt-auto pt-2">
+                    <span className="font-semibold text-stera-ink">
+                      {formatPrice(Number(p.suggested_sale_price ?? 0))}
+                    </span>
+                    {kind === "plant" && p.location_icon_nl ? (
+                      <span className="text-[10px] uppercase tracking-wider text-stera-ink/50 truncate">
+                        {p.location_icon_nl}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
