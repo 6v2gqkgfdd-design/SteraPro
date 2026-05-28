@@ -34,6 +34,7 @@ const QUOTE_STATUS_TONE: Record<QuoteStatus, string> = {
 }
 
 const LINE_TYPE_LABEL: Record<string, string> = {
+  combination: 'Combinatie',
   plant: 'Plant',
   outer_pot: 'Buitenpot',
   custom: 'Vrije regel',

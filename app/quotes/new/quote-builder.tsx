@@ -52,8 +52,7 @@ type CatalogItem = {
 type Line = {
   key: string
   slotId: string | null
-  slotRole: 'plant' | 'outer_pot' | null
-  lineType: 'plant' | 'outer_pot' | 'custom'
+  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination'
   supplier: 'nieuwkoop' | 'stera' | null
   itemcode: string | null
   name: string
@@ -63,12 +62,11 @@ type Line = {
   supplierUnitPriceCents: number | null
   unitPriceEuro: string
   quantity: number
-  cultivePotCm: number | null
 }
 
 type PickerTarget =
-  | { kind: 'extra'; group: '100' | '300' }
-  | { kind: 'slot'; slotId: string; role: 'plant' | 'outer_pot' }
+  | { kind: 'extra' }
+  | { kind: 'slot'; slotId: string }
 
 let keyCounter = 0
 function nextKey() {
@@ -93,8 +91,11 @@ function buildSpec(item: CatalogItem): string {
   if (item.height && item.height > 0) {
     parts.push(`H ${Math.round(item.height)} cm`)
   }
-  if (item.product_group_code === '300') {
-    // Buitenpot — toon de eigen diameter van de pot.
+  if (
+    item.product_group_code === '300' ||
+    item.product_group_code === '275'
+  ) {
+    // Combinatie of buitenpot — toon de eigen diameter van de pot.
     if (item.diameter && item.diameter > 0) {
       parts.push(`Ø ${Math.round(item.diameter)} cm`)
     } else if (item.pot_size) {
@@ -112,6 +113,7 @@ function buildSpec(item: CatalogItem): string {
 }
 
 const LINE_TYPE_LABEL: Record<Line['lineType'], string> = {
+  combination: 'Combinatie',
   plant: 'Plant',
   outer_pot: 'Buitenpot',
   custom: 'Vrije regel',
@@ -158,9 +160,8 @@ export default function QuoteBuilder({
   const [validUntil, setValidUntil] = useState('')
   const [lines, setLines] = useState<Line[]>([])
 
-  // Catalogus-kiezer
+  // Catalogus-kiezer — werkt op de All-in-1 combinaties (groep 275).
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
-  const [pickerGroup, setPickerGroup] = useState<'100' | '300'>('100')
   const [pickerQuery, setPickerQuery] = useState('')
   const [pickerLight, setPickerLight] = useState('')
   const [pickerPotMin, setPickerPotMin] = useState('')
@@ -186,7 +187,7 @@ export default function QuoteBuilder({
   )
 
   async function performSearch(opts: {
-    group: '100' | '300'
+    group: '100' | '275' | '300'
     q: string
     light: string
     potMin: string
@@ -224,16 +225,15 @@ export default function QuoteBuilder({
     setPickerLightFallback(false)
     setPickerSizeFallback(false)
     performSearch({
-      group: pickerGroup,
+      group: '275',
       q: pickerQuery,
-      light: pickerGroup === '100' ? pickerLight : '',
+      light: pickerLight,
       potMin: pickerPotMin,
       potMax: pickerPotMax,
     })
   }
 
-  function openPickerExtra(group: '100' | '300') {
-    setPickerGroup(group)
+  function openPickerExtra() {
     setPickerQuery('')
     setPickerLight('')
     setPickerPotMin('')
@@ -243,14 +243,17 @@ export default function QuoteBuilder({
     setPickerTouched(false)
     setPickerLightFallback(false)
     setPickerSizeFallback(false)
-    setPickerTarget({ kind: 'extra', group })
-    performSearch({ group, q: '', light: '', potMin: '', potMax: '' })
+    setPickerTarget({ kind: 'extra' })
+    performSearch({
+      group: '275',
+      q: '',
+      light: '',
+      potMin: '',
+      potMax: '',
+    })
   }
 
-  async function openPickerSlot(
-    slotId: string,
-    role: 'plant' | 'outer_pot'
-  ) {
+  async function openPickerSlot(slotId: string) {
     const slot = slots.find((s) => s.visitPlantId === slotId)
     if (!slot) return
     setPickerQuery('')
@@ -260,84 +263,53 @@ export default function QuoteBuilder({
     setPickerLightFallback(false)
     setPickerSizeFallback(false)
 
-    if (role === 'plant') {
-      const light = slot.light ? LIGHT_TO_CATALOG[slot.light] : ''
-      const p = slot.potDiameterCm
-      const potMin = p ? String(Math.max(1, p - 2)) : ''
-      const potMax = p ? String(p + 2) : ''
-      setPickerGroup('100')
-      setPickerLight(light)
-      setPickerPotMin(potMin)
-      setPickerPotMax(potMax)
-      setPickerTarget({ kind: 'slot', slotId, role })
-      const items = await performSearch({
-        group: '100',
-        q: '',
-        light,
-        potMin,
-        potMax,
-      })
-      // Geen exacte match op lichtbehoefte? Toon dan toch alle planten
-      // in de juiste potmaat zodat het voorstel nooit leeg blijft.
-      if (items.length === 0 && light) {
-        setPickerLight('')
-        setPickerLightFallback(true)
-        await performSearch({
-          group: '100',
-          q: '',
-          light: '',
-          potMin,
-          potMax,
-        })
-      }
-    } else {
-      // Buitenpot afstemmen op de cultuurpot van de gekozen plant: de
-      // pot moet er ruim rond passen.
-      const plantLine = lines.find(
-        (l) => l.slotId === slotId && l.slotRole === 'plant'
-      )
-      const cp = plantLine?.cultivePotCm ?? slot.potDiameterCm ?? null
-      const potMin = cp ? String(Math.max(1, cp - 1)) : ''
-      const potMax = cp ? String(cp + 10) : ''
-      setPickerGroup('300')
+    const light = slot.light ? LIGHT_TO_CATALOG[slot.light] : ''
+    const p = slot.potDiameterCm
+    const potMin = p ? String(Math.max(1, p - 2)) : ''
+    const potMax = p ? String(p + 2) : ''
+    setPickerLight(light)
+    setPickerPotMin(potMin)
+    setPickerPotMax(potMax)
+    setPickerTarget({ kind: 'slot', slotId })
+
+    const items = await performSearch({
+      group: '275',
+      q: '',
+      light,
+      potMin,
+      potMax,
+    })
+    // Geen exacte match op lichtbehoefte? Toon dan alle combinaties
+    // in de juiste potmaat zodat het voorstel nooit leeg blijft.
+    if (items.length === 0 && light) {
       setPickerLight('')
-      setPickerPotMin(potMin)
-      setPickerPotMax(potMax)
-      setPickerTarget({ kind: 'slot', slotId, role })
-      const items = await performSearch({
-        group: '300',
+      setPickerLightFallback(true)
+      await performSearch({
+        group: '275',
         q: '',
         light: '',
         potMin,
         potMax,
       })
-      // Geen buitenpot in dat maatbereik? Toon dan alle buitenpotten.
-      if (items.length === 0 && (potMin || potMax)) {
-        setPickerPotMin('')
-        setPickerPotMax('')
-        setPickerSizeFallback(true)
-        await performSearch({
-          group: '300',
-          q: '',
-          light: '',
-          potMin: '',
-          potMax: '',
-        })
-      }
     }
   }
 
   function chooseItem(item: CatalogItem) {
     if (!pickerTarget) return
-    const isPot = item.product_group_code === '300'
     const sale = item.suggested_sale_price ?? 0
     const cost = item.cost_price ?? null
-    const cultive =
-      item.diameter_culture_pot && item.diameter_culture_pot > 0
-        ? Math.round(item.diameter_culture_pot)
-        : null
+    // Standaard zijn de keuzes nu All-in-1 combinaties (groep 275).
+    // Mocht er een historisch artikel uit groep 100/300 doorpassen,
+    // dan vangen we dat hieronder af zodat het juiste line_type bewaard
+    // wordt.
+    const lineType: Line['lineType'] =
+      item.product_group_code === '275'
+        ? 'combination'
+        : item.product_group_code === '300'
+          ? 'outer_pot'
+          : 'plant'
     const base = {
-      lineType: (isPot ? 'outer_pot' : 'plant') as Line['lineType'],
+      lineType,
       supplier: 'nieuwkoop' as const,
       itemcode: item.itemcode,
       name: item.description || item.itemcode,
@@ -349,24 +321,20 @@ export default function QuoteBuilder({
       supplierUnitPriceCents: cost != null ? Math.round(cost * 100) : null,
       unitPriceEuro: sale > 0 ? sale.toFixed(2) : '',
       quantity: 1,
-      cultivePotCm: cultive,
     }
 
     if (pickerTarget.kind === 'extra') {
       setLines((prev) => [
         ...prev,
-        { key: nextKey(), slotId: null, slotRole: null, ...base },
+        { key: nextKey(), slotId: null, ...base },
       ])
     } else {
-      const { slotId, role } = pickerTarget
+      const { slotId } = pickerTarget
       setLines((prev) => {
-        const idx = prev.findIndex(
-          (l) => l.slotId === slotId && l.slotRole === role
-        )
+        const idx = prev.findIndex((l) => l.slotId === slotId)
         const line: Line = {
           key: idx >= 0 ? prev[idx].key : nextKey(),
           slotId,
-          slotRole: role,
           ...base,
         }
         if (idx >= 0) {
@@ -386,7 +354,6 @@ export default function QuoteBuilder({
       {
         key: nextKey(),
         slotId: null,
-        slotRole: null,
         lineType: 'custom',
         supplier: null,
         itemcode: null,
@@ -397,7 +364,6 @@ export default function QuoteBuilder({
         supplierUnitPriceCents: null,
         unitPriceEuro: '',
         quantity: 1,
-        cultivePotCm: null,
       },
     ])
   }
@@ -490,12 +456,8 @@ export default function QuoteBuilder({
       : null
   const pickerTitle =
     pickerTarget?.kind === 'slot'
-      ? pickerTarget.role === 'plant'
-        ? `Hydrocultuur-plant kiezen voor ${pickerSlot?.oldPlantName ?? ''}`
-        : 'Buitenpot kiezen'
-      : pickerGroup === '300'
-        ? 'Buitenpot kiezen'
-        : 'Hydrocultuur-plant kiezen'
+      ? `Combinatie kiezen voor ${pickerSlot?.oldPlantName ?? ''}`
+      : 'Combinatie kiezen'
 
   return (
     <div className="space-y-5">
@@ -591,17 +553,8 @@ export default function QuoteBuilder({
 
           <ul className="space-y-4">
             {slots.map((slot) => {
-              const plantLine =
-                lines.find(
-                  (l) =>
-                    l.slotId === slot.visitPlantId && l.slotRole === 'plant'
-                ) ?? null
-              const potLine =
-                lines.find(
-                  (l) =>
-                    l.slotId === slot.visitPlantId &&
-                    l.slotRole === 'outer_pot'
-                ) ?? null
+              const slotLine =
+                lines.find((l) => l.slotId === slot.visitPlantId) ?? null
 
               const chips: string[] = []
               if (slot.light) chips.push(LIGHT_LABEL[slot.light])
@@ -659,67 +612,27 @@ export default function QuoteBuilder({
                     </p>
                   ) : null}
 
-                  {/* Nieuwe plant */}
+                  {/* Vervangings-combinatie */}
                   <div className="mt-3">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
-                      Nieuwe plant
-                    </p>
-                    {plantLine ? (
+                    {slotLine ? (
                       <LineItem
-                        line={plantLine}
+                        line={slotLine}
                         onUpdate={(patch) =>
-                          updateLine(plantLine.key, patch)
+                          updateLine(slotLine.key, patch)
                         }
-                        onRemove={() => removeLine(plantLine.key)}
+                        onRemove={() => removeLine(slotLine.key)}
                         onReplace={() =>
-                          openPickerSlot(slot.visitPlantId, 'plant')
+                          openPickerSlot(slot.visitPlantId)
                         }
                       />
                     ) : (
                       <button
                         type="button"
-                        onClick={() =>
-                          openPickerSlot(slot.visitPlantId, 'plant')
-                        }
+                        onClick={() => openPickerSlot(slot.visitPlantId)}
                         className="stera-cta stera-cta-secondary"
                       >
-                        + Kies hydrocultuur-plant
+                        + Kies combinatie
                       </button>
-                    )}
-                  </div>
-
-                  {/* Buitenpot */}
-                  <div className="mt-3">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
-                      Buitenpot
-                    </p>
-                    {potLine ? (
-                      <LineItem
-                        line={potLine}
-                        onUpdate={(patch) => updateLine(potLine.key, patch)}
-                        onRemove={() => removeLine(potLine.key)}
-                        onReplace={() =>
-                          openPickerSlot(slot.visitPlantId, 'outer_pot')
-                        }
-                      />
-                    ) : (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openPickerSlot(slot.visitPlantId, 'outer_pot')
-                          }
-                          className="stera-cta stera-cta-secondary"
-                        >
-                          + Kies passende buitenpot
-                        </button>
-                        {!plantLine ? (
-                          <p className="mt-1 text-[11px] text-stera-ink-soft">
-                            Kies eerst een plant voor de beste
-                            potmaat-match.
-                          </p>
-                        ) : null}
-                      </div>
                     )}
                   </div>
                 </li>
@@ -758,17 +671,10 @@ export default function QuoteBuilder({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => openPickerExtra('100')}
+            onClick={() => openPickerExtra()}
             className="stera-cta stera-cta-secondary"
           >
-            + Hydrocultuur-plant
-          </button>
-          <button
-            type="button"
-            onClick={() => openPickerExtra('300')}
-            className="stera-cta stera-cta-secondary"
-          >
-            + Buitenpot
+            + Combinatie
           </button>
           <button
             type="button"
@@ -805,25 +711,23 @@ export default function QuoteBuilder({
 
           {pickerSlot && pickerTarget.kind === 'slot' ? (
             <p className="text-xs text-stera-ink-soft">
-              {pickerTarget.role === 'plant'
-                ? 'Het voorstel houdt rekening met de potmaat en lichtbehoefte uit het onderhoud. Pas de filters gerust aan.'
-                : 'De buitenpotten zijn afgestemd op de potmaat van de gekozen plant.'}
+              Het voorstel houdt rekening met de potmaat en lichtbehoefte
+              uit het onderhoud. Pas de filters gerust aan.
             </p>
           ) : null}
 
           {pickerLightFallback ? (
             <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              Geen hydrocultuur-planten met exact die lichtbehoefte. Hieronder
-              alle planten die in de potmaat passen — kies er zelf een
+              Geen combinaties met exact die lichtbehoefte. Hieronder alle
+              combinaties die in de potmaat passen — kies er zelf een
               geschikte uit of pas de filters aan.
             </p>
           ) : null}
 
           {pickerSizeFallback ? (
             <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              Geen buitenpotten in dat maatbereik. Hieronder alle
-              buitenpotten — let op de Ø-maat per pot en kies er een die
-              rond de plantpot past.
+              Geen combinaties in dat maatbereik. Hieronder alle resultaten
+              — let op de Ø-maat per combinatie.
             </p>
           ) : null}
 
@@ -842,20 +746,16 @@ export default function QuoteBuilder({
               placeholder="Zoek op naam (bv. Kentia)..."
               className="rounded-lg border border-stera-line bg-white p-2 text-sm"
             />
-            {pickerGroup === '100' ? (
-              <select
-                value={pickerLight}
-                onChange={(e) => setPickerLight(e.target.value)}
-                className="rounded-lg border border-stera-line bg-white p-2 text-sm"
-              >
-                <option value="">Alle lichtbehoeften</option>
-                <option value="zon">Zon</option>
-                <option value="half-schaduw">Half-schaduw</option>
-                <option value="schaduw">Schaduw</option>
-              </select>
-            ) : (
-              <div />
-            )}
+            <select
+              value={pickerLight}
+              onChange={(e) => setPickerLight(e.target.value)}
+              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+            >
+              <option value="">Alle lichtbehoeften</option>
+              <option value="zon">Zon</option>
+              <option value="half-schaduw">Half-schaduw</option>
+              <option value="schaduw">Schaduw</option>
+            </select>
             <label className="flex items-center gap-2 text-xs text-stera-ink-soft">
               <span className="shrink-0">Pot Ø van</span>
               <input

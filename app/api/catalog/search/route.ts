@@ -15,7 +15,7 @@ export const runtime = 'nodejs'
 //   light         → location_icon_nl (zon / half-schaduw / schaduw)
 //   potMin/potMax → diameter_culture_pot (cm) — potmaat-bereik
 //   heightMin/Max → height (cm)
-const ALLOWED_GROUPS = new Set(['100', '300'])
+const ALLOWED_GROUPS = new Set(['100', '275', '300'])
 
 function numParam(url: URL, key: string): number | null {
   const raw = url.searchParams.get(key)
@@ -53,9 +53,12 @@ export async function GET(req: Request) {
     .limit(60)
 
   // Voor planten (groep 100) is de "potmaat" de cultuurpot waarin de
-  // plant staat; voor buitenpotten (groep 300) de eigen diameter van
-  // de pot.
-  const potColumn = group === '300' ? 'diameter' : 'diameter_culture_pot'
+  // plant staat; voor buitenpotten (groep 300) en All-in-1 combinaties
+  // (groep 275) de eigen diameter van de pot.
+  const potColumn =
+    group === '300' || group === '275'
+      ? 'diameter'
+      : 'diameter_culture_pot'
 
   if (q) query = query.ilike('description', `%${q}%`)
   if (light) query = query.eq('location_icon_nl', light)

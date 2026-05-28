@@ -100,10 +100,9 @@ export default async function CatalogItemPage({
 
   const r = item as Record<string, unknown>
   const m = (margin ?? {}) as Record<string, unknown>
-  const isPot = r.product_group_code === '300'
   const tags = Array.isArray(r.tags) ? (r.tags as string[]) : []
 
-  const backHref = isPot ? '/catalog?kind=pot' : '/catalog'
+  const backHref = '/catalog'
 
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8 max-w-5xl mx-auto">
