@@ -168,6 +168,7 @@ export default async function CatalogPage({
     typeof params.diameter === 'string' ? params.diameter : ''
   const height = typeof params.height === 'string' ? params.height : ''
   const heightBucket = HEIGHT_BUCKETS[height] ?? null
+  const system = typeof params.system === 'string' ? params.system : ''
   // 'f' is een marker dat het formulier ingediend werd, zodat we weten
   // of 'Op voorraad' bewust uit gezet is (vinkje uit) of nooit
   // aangeraakt is (eerste bezoek → default aan).
@@ -175,12 +176,20 @@ export default async function CatalogPage({
   const inStock = formSubmitted ? params.inStock === '1' : true
   const page = Math.max(1, Number(params.page) || 1)
 
-  // Beschikbare pot-diameters binnen de combinaties — voor de dropdown.
-  const { data: diameterRows } = await supabase
-    .from('v_nieuwkoop_with_margin')
-    .select('diameter')
-    .eq('product_group_code', GROUP_CODE)
-    .not('diameter', 'is', null)
+  // Beschikbare pot-diameters + beplantingssystemen binnen de
+  // combinaties — voor de dropdowns. Parallel ophalen.
+  const [{ data: diameterRows }, { data: varietyRows }] = await Promise.all([
+    supabase
+      .from('v_nieuwkoop_with_margin')
+      .select('diameter')
+      .eq('product_group_code', GROUP_CODE)
+      .not('diameter', 'is', null),
+    supabase
+      .from('v_nieuwkoop_with_margin')
+      .select('item_variety_nl')
+      .eq('product_group_code', GROUP_CODE)
+      .not('item_variety_nl', 'is', null),
+  ])
 
   const allDiameters: number[] = Array.from(
     new Set(
@@ -190,6 +199,14 @@ export default async function CatalogPage({
         .map((n) => Math.round(n))
     )
   ).sort((a, b) => a - b)
+
+  const allVarieties: string[] = Array.from(
+    new Set(
+      ((varietyRows ?? []) as Array<{ item_variety_nl: string | null }>)
+        .map((v) => v.item_variety_nl)
+        .filter((v): v is string => Boolean(v))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'nl'))
 
   // Hoofdquery met filters
   let query = supabase
@@ -211,6 +228,7 @@ export default async function CatalogPage({
   if (diameter) query = query.eq('diameter', Number(diameter))
   if (heightBucket?.min) query = query.gte('height', heightBucket.min)
   if (heightBucket?.max) query = query.lte('height', heightBucket.max)
+  if (system) query = query.eq('item_variety_nl', system)
 
   query = query
     .order('description')
@@ -226,6 +244,7 @@ export default async function CatalogPage({
     if (light) usp.set('light', light)
     if (diameter) usp.set('diameter', diameter)
     if (height) usp.set('height', height)
+    if (system) usp.set('system', system)
     if (inStock) usp.set('inStock', '1')
     if (page > 1) usp.set('page', String(page))
     for (const [k, v] of Object.entries(overrides)) {
@@ -307,6 +326,19 @@ export default async function CatalogPage({
           {Object.entries(HEIGHT_BUCKETS).map(([key, b]) => (
             <option key={key} value={key}>
               {b.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          name="system"
+          defaultValue={system}
+          className="rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
+        >
+          <option value="">Alle systemen</option>
+          {allVarieties.map((v) => (
+            <option key={v} value={v}>
+              {v}
             </option>
           ))}
         </select>
