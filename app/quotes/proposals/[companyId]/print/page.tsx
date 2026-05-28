@@ -78,11 +78,11 @@ export default async function ReplacementsPrintPage({
       .from('maintenance_visit_plants')
       .select(
         `
-        id, photo_url, created_at,
+        id, plant_id, photo_url, created_at,
         replacement_light_level, replacement_height_cm,
         replacement_pot_diameter_cm, replacement_is_hanging,
         replacement_care_level, replacement_notes,
-        plants ( nickname, species, reference_code, pot_size_code ),
+        plants ( nickname, species, reference_code, pot_size_code, photo_url ),
         maintenance_visits!inner (
           id, scheduled_start, ended_at, company_id,
           locations ( name )
@@ -98,6 +98,34 @@ export default async function ReplacementsPrintPage({
 
   type Row = Record<string, unknown>
   const plants = (rows ?? []) as Row[]
+
+  // De "dood"-rij heeft vaak geen foto (plant is automatisch
+  // gemarkeerd). We zoeken per plant de meest recente foto uit ALLE
+  // eerdere onderhoudsbeurten als fallback.
+  const photoPlantIds = Array.from(
+    new Set(
+      plants
+        .map((r) => (r.plant_id as string | null) ?? null)
+        .filter((v): v is string => Boolean(v))
+    )
+  )
+  const latestPhotoByPlant = new Map<string, string>()
+  if (photoPlantIds.length > 0) {
+    const { data: photoRows } = await supabase
+      .from('maintenance_visit_plants')
+      .select('plant_id, photo_url, created_at')
+      .in('plant_id', photoPlantIds)
+      .not('photo_url', 'is', null)
+      .order('created_at', { ascending: false })
+    for (const p of (photoRows ?? []) as Array<{
+      plant_id: string
+      photo_url: string
+    }>) {
+      if (!latestPhotoByPlant.has(p.plant_id)) {
+        latestPhotoByPlant.set(p.plant_id, p.photo_url)
+      }
+    }
+  }
   const companyName = (company.name as string | null) || 'Klant'
 
   return (
@@ -135,6 +163,7 @@ export default async function ReplacementsPrintPage({
                 species?: string | null
                 reference_code?: string | null
                 pot_size_code?: string | null
+                photo_url?: string | null
               } | null
               const visit = one(r.maintenance_visits) as {
                 scheduled_start?: string | null
@@ -144,9 +173,15 @@ export default async function ReplacementsPrintPage({
               const location = one(visit?.locations) as {
                 name?: string | null
               } | null
-              const photoSrc =
-                thumb(r.photo_url as string | null) ||
-                ((r.photo_url as string | null) ?? null)
+              const plantId = (r.plant_id as string | null) ?? null
+              const rawPhoto =
+                (r.photo_url as string | null) ??
+                (plantId
+                  ? latestPhotoByPlant.get(plantId) ?? null
+                  : null) ??
+                plant?.photo_url ??
+                null
+              const photoSrc = rawPhoto ? thumb(rawPhoto) || rawPhoto : null
               const lightRaw = r.replacement_light_level
               const light =
                 lightRaw === 'high' ||

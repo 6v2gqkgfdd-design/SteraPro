@@ -82,24 +82,19 @@ export default async function CatalogItemPage({
 }) {
   const { itemcode } = await params
 
-  // Twee parallelle queries: de ruwe Nieuwkoop-data en de marge-cijfers.
-  const [{ data: item }, { data: margin }] = await Promise.all([
-    supabase
-      .from('nieuwkoop_products')
-      .select('*')
-      .eq('itemcode', itemcode)
-      .maybeSingle(),
-    supabase
-      .from('v_nieuwkoop_with_margin')
-      .select('cost_price, effective_margin_factor, suggested_sale_price')
-      .eq('itemcode', itemcode)
-      .maybeSingle(),
-  ])
+  // De view bevat zowel de ruwe Nieuwkoop-velden als de marge-cijfers,
+  // en is toegankelijk voor de anon-rol — de onderliggende tabel niet
+  // altijd.
+  const { data: item } = await supabase
+    .from('v_nieuwkoop_with_margin')
+    .select('*')
+    .eq('itemcode', itemcode)
+    .maybeSingle()
 
   if (!item) notFound()
 
   const r = item as Record<string, unknown>
-  const m = (margin ?? {}) as Record<string, unknown>
+  const m = r // marge-velden zitten in dezelfde rij
   const tags = Array.isArray(r.tags) ? (r.tags as string[]) : []
 
   const backHref = '/catalog'

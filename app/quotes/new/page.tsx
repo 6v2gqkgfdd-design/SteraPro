@@ -80,16 +80,46 @@ export default async function NewQuotePage({
         .from('maintenance_visit_plants')
         .select(
           `
-          id, photo_url,
+          id, plant_id, photo_url,
           replacement_light_level, replacement_height_cm,
           replacement_pot_diameter_cm, replacement_is_hanging,
           replacement_care_level, replacement_needs_outer_pot,
           replacement_notes,
-          plants ( nickname, species, pot_size_code )
+          plants ( nickname, species, pot_size_code, photo_url )
         `
         )
         .eq('visit_id', visitId)
         .eq('followup_replace', true)
+
+      // Voor de meeste planten is er op de "dood"-rij geen foto
+      // ge-upload (de plant is via standaard onderhoud of SQL gemarkeerd).
+      // We zoeken daarom per plant de meest recente foto uit ALLE eerdere
+      // onderhoudsbeurten als fallback.
+      const flaggedPlantIds = Array.from(
+        new Set(
+          (flagged ?? [])
+            .map((r) => (r as { plant_id?: string | null }).plant_id)
+            .filter((v): v is string => Boolean(v))
+        )
+      )
+
+      const latestPhotoByPlant = new Map<string, string>()
+      if (flaggedPlantIds.length > 0) {
+        const { data: photoRows } = await supabase
+          .from('maintenance_visit_plants')
+          .select('plant_id, photo_url, created_at')
+          .in('plant_id', flaggedPlantIds)
+          .not('photo_url', 'is', null)
+          .order('created_at', { ascending: false })
+        for (const p of (photoRows ?? []) as Array<{
+          plant_id: string
+          photo_url: string
+        }>) {
+          if (!latestPhotoByPlant.has(p.plant_id)) {
+            latestPhotoByPlant.set(p.plant_id, p.photo_url)
+          }
+        }
+      }
 
       const company = one(visit.companies) as {
         id?: string
@@ -103,7 +133,9 @@ export default async function NewQuotePage({
             nickname?: string | null
             species?: string | null
             pot_size_code?: string | null
+            photo_url?: string | null
           } | null
+          const plantId = (row.plant_id as string | null) ?? null
           const lightRaw = row.replacement_light_level
           const light =
             lightRaw === 'high' || lightRaw === 'medium' || lightRaw === 'low'
@@ -118,9 +150,14 @@ export default async function NewQuotePage({
               ? `Ø ${potSize.minDiameter} cm`
               : `Ø ${potSize.minDiameter}–${potSize.maxDiameter} cm`
             : null
+          const cascadedPhoto =
+            (row.photo_url as string | null) ??
+            (plantId ? latestPhotoByPlant.get(plantId) ?? null : null) ??
+            plant?.photo_url ??
+            null
           return {
             visitPlantId: row.id as string,
-            photoUrl: (row.photo_url as string | null) ?? null,
+            photoUrl: cascadedPhoto,
             currentPotLabel,
             oldPlantName:
               plant?.nickname || plant?.species || 'Plant',
