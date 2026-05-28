@@ -620,9 +620,12 @@ export default function MaintenancePlantDetailPage() {
         replacement_needs_outer_pot: followupReplace
           ? replacementOuterPot
           : false,
-        replacement_notes: followupReplace
-          ? replacementNotes.trim() || null
-          : null,
+        // Notitie hoort bij elke dode plant — ook als hij NIET vervangen
+        // wordt (dan staat hier waarom).
+        replacement_notes:
+          healthStatus === 'dead'
+            ? replacementNotes.trim() || null
+            : null,
       }
 
       if (photoPath !== undefined) {
@@ -1251,6 +1254,30 @@ export default function MaintenancePlantDetailPage() {
                   Nee
                 </button>
               </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="dead_replacement_notes"
+                  className="block text-sm font-medium text-stera-ink"
+                >
+                  Toelichting / opmerking
+                </label>
+                <textarea
+                  id="dead_replacement_notes"
+                  value={replacementNotes}
+                  onChange={(e) => setReplacementNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-stera-line bg-white px-3 py-2 text-sm"
+                  placeholder={
+                    followupReplace
+                      ? 'Bv. zelfde stijl als de andere planten, kleuraccent...'
+                      : 'Bv. klant wil ze niet vervangen, te weinig licht...'
+                  }
+                />
+                <p className="text-xs text-stera-ink-soft">
+                  Verschijnt in de offerte als reden bij deze plant.
+                </p>
+              </div>
             </div>
           )}
 
@@ -1403,22 +1430,6 @@ export default function MaintenancePlantDetailPage() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label
-                  htmlFor="replacement_notes"
-                  className="block text-sm font-medium text-stera-ink"
-                >
-                  Extra wensen voor de vervanging
-                </label>
-                <textarea
-                  id="replacement_notes"
-                  value={replacementNotes}
-                  onChange={(e) => setReplacementNotes(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-lg border border-stera-line bg-white px-3 py-2 text-sm"
-                  placeholder="Bijv. zelfde stijl als de andere planten, kleuraccent..."
-                />
-              </div>
             </div>
           )}
 

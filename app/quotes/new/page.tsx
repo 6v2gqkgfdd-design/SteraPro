@@ -148,7 +148,12 @@ export default async function NewQuotePage({
         `
         )
         .eq('visit_id', visitId)
-        .eq('followup_replace', true)
+        // Zowel planten die vervangen worden (followup_replace=true) als
+        // dode planten waar de tech expliciet "Nee" antwoordde — die laatste
+        // verschijnen in de offerte als "niet voorgesteld" met de reden.
+        .or(
+          'followup_replace.eq.true,and(health_status.eq.dead,followup_replace.eq.false)'
+        )
 
       // Voor de meeste planten is er op de "dood"-rij geen foto
       // ge-upload (de plant is via standaard onderhoud of SQL gemarkeerd).
@@ -214,10 +219,12 @@ export default async function NewQuotePage({
             (plantId ? latestPhotoByPlant.get(plantId) ?? null : null) ??
             plant?.photo_url ??
             null
+          const wantsReplacement = Boolean(row.followup_replace)
           return {
             visitPlantId: row.id as string,
             photoUrl: cascadedPhoto,
             currentPotLabel,
+            wantsReplacement,
             oldPlantName:
               plant?.nickname || plant?.species || 'Plant',
             oldPlantSpecies: plant?.species ?? null,
@@ -263,6 +270,25 @@ export default async function NewQuotePage({
         const candidates = (candidatesRaw ?? []) as Candidate[]
 
         for (const slot of slots) {
+          // "Nee, niet vervangen" → meteen een uitlegregel (€0) met
+          // de reden uit de onderhoud-notitie als beschrijving.
+          if (!slot.wantsReplacement) {
+            initialLines.push({
+              slotId: slot.visitPlantId,
+              lineType: 'custom',
+              supplier: null,
+              itemcode: null,
+              name: `Vervanging voor ${slot.oldPlantName} — niet voorgesteld`,
+              description: slot.notes ?? '',
+              spec: null,
+              imageUrl: null,
+              supplierUnitPriceCents: null,
+              unitPriceCents: 0,
+              quantity: 1,
+            })
+            continue
+          }
+
           let best: Candidate | null = null
           let bestScore = 0
           for (const c of candidates) {

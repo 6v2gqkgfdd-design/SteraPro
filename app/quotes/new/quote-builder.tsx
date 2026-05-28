@@ -15,6 +15,10 @@ export type ReplacementSlot = {
   visitPlantId: string
   photoUrl: string | null
   currentPotLabel: string | null
+  // false = dode plant waar de tech "Nee" antwoordde op "moet ze
+  // vervangen worden?". Verschijnt nog steeds in de offerte, maar
+  // initieel als uitlegregel zonder voorgestelde plant.
+  wantsReplacement: boolean
   oldPlantName: string
   oldPlantSpecies: string | null
   light: 'high' | 'medium' | 'low' | null
@@ -636,9 +640,16 @@ export default function QuoteBuilder({
                       />
                     ) : null}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-stera-ink">
-                        Vervanging voor {slot.oldPlantName}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-stera-ink">
+                          Vervanging voor {slot.oldPlantName}
+                        </p>
+                        {!slot.wantsReplacement ? (
+                          <span className="rounded-full bg-stera-ink/10 px-2 py-0.5 text-[11px] font-medium text-stera-ink-soft">
+                            Niet voorgesteld
+                          </span>
+                        ) : null}
+                      </div>
                       {slot.oldPlantSpecies ? (
                         <p className="text-xs text-stera-ink-soft">
                           was: {slot.oldPlantSpecies}
