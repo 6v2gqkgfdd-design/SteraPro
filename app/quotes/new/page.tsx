@@ -7,6 +7,7 @@ import QuoteBuilder, {
   type ReplacementSlot,
   type InitialLineInput,
 } from './quote-builder'
+import { formatRoomLabel } from '@/lib/rooms'
 
 const LIGHT_TO_CATALOG_MAP: Record<'high' | 'medium' | 'low', string> = {
   high: 'zon',
@@ -147,7 +148,10 @@ export default async function NewQuotePage({
           replacement_pot_diameter_cm, replacement_is_hanging,
           replacement_care_level, replacement_needs_outer_pot,
           replacement_notes,
-          plants ( nickname, species, pot_size_code, photo_url )
+          plants (
+            nickname, species, pot_size_code, photo_url,
+            rooms ( id, name, floor )
+          )
         `
         )
         .eq('visit_id', visitId)
@@ -201,7 +205,16 @@ export default async function NewQuotePage({
             species?: string | null
             pot_size_code?: string | null
             photo_url?: string | null
+            rooms?: unknown
           } | null
+          const room = one(plant?.rooms) as {
+            id?: string | null
+            name?: string | null
+            floor?: string | null
+          } | null
+          const roomLabel = room?.name
+            ? formatRoomLabel(room.name, room.floor ?? null)
+            : null
           const plantId = (row.plant_id as string | null) ?? null
           const lightRaw = row.replacement_light_level
           const light =
@@ -233,6 +246,8 @@ export default async function NewQuotePage({
             photoUrl: cascadedPhoto,
             currentPotLabel,
             currentPotDiameterCm,
+            roomId: (room?.id as string | null) ?? null,
+            roomLabel,
             wantsReplacement,
             oldPlantName:
               plant?.nickname || plant?.species || 'Plant',
@@ -264,17 +279,25 @@ export default async function NewQuotePage({
       }
 
       // Automatisch voorstel per slot: één catalogus-query, score per
-      // slot in JS — snel ook bij 5+ slots.
+      // slot in JS — snel ook bij 5+ slots. We laten 'is_stock_item'
+      // bewust weg uit de filter — voor sommige rijen is dat veld NULL
+      // in de sync, wat de lijst onterecht leegmaakt. Niet-voorradige
+      // suggesties zijn beter dan geen suggesties (de tech kan altijd
+      // wisselen).
       if (slots.length > 0) {
-        const { data: candidatesRaw } = await supabase
+        const { data: candidatesRaw, error: candError } = await supabase
           .from('v_nieuwkoop_with_margin')
           .select(
             'itemcode, description, item_picture_name, cost_price, suggested_sale_price, product_group_code, diameter, height, location_icon_nl'
           )
           .eq('product_group_code', '275')
-          .eq('is_stock_item', true)
           .not('item_picture_name', 'is', null)
           .limit(5000)
+
+        if (candError) {
+          // eslint-disable-next-line no-console
+          console.error('[auto-suggest] candidate fetch error', candError)
+        }
 
         const candidates = (candidatesRaw ?? []) as Candidate[]
 

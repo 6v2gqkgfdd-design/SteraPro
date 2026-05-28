@@ -19,6 +19,8 @@ export type ReplacementSlot = {
   // dient als fallback voor de matching wanneer de techn. geen
   // expliciete replacement_pot_diameter_cm opgaf.
   currentPotDiameterCm: number | null
+  roomId: string | null
+  roomLabel: string | null
   // false = dode plant waar de tech "Nee" antwoordde op "moet ze
   // vervangen worden?". Verschijnt nog steeds in de offerte, maar
   // initieel als uitlegregel zonder voorgestelde plant.
@@ -227,6 +229,16 @@ export default function QuoteBuilder({
     (sum, l) => sum + euroToCents(l.unitPriceEuro) * Math.max(1, l.quantity),
     0
   )
+
+  // Slots groeperen per ruimte zodat de offerte logisch geordend
+  // wordt (alle planten van de inkom samen, alle planten van bureau 1
+  // samen, enz.).
+  const slotsByRoom = new Map<string, ReplacementSlot[]>()
+  for (const slot of slots) {
+    const key = slot.roomLabel || 'Zonder ruimte'
+    if (!slotsByRoom.has(key)) slotsByRoom.set(key, [])
+    slotsByRoom.get(key)!.push(slot)
+  }
 
   async function performSearch(opts: {
     group: '100' | '275' | '300'
@@ -616,8 +628,14 @@ export default function QuoteBuilder({
             </p>
           </div>
 
-          <ul className="space-y-4">
-            {slots.map((slot) => {
+          {Array.from(slotsByRoom.entries()).map(
+            ([roomLabel, roomSlots]) => (
+              <div key={roomLabel} className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-stera-green">
+                  {roomLabel}
+                </h3>
+                <ul className="space-y-4">
+                  {roomSlots.map((slot) => {
               const slotLine =
                 lines.find((l) => l.slotId === slot.visitPlantId) ?? null
 
@@ -723,8 +741,11 @@ export default function QuoteBuilder({
                   </div>
                 </li>
               )
-            })}
-          </ul>
+                  })}
+                </ul>
+              </div>
+            )
+          )}
         </section>
       ) : null}
 
