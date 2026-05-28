@@ -15,6 +15,10 @@ export type ReplacementSlot = {
   visitPlantId: string
   photoUrl: string | null
   currentPotLabel: string | null
+  // Midpunt-diameter van de huidige binnenpot (uit pot_size_code) —
+  // dient als fallback voor de matching wanneer de techn. geen
+  // expliciete replacement_pot_diameter_cm opgaf.
+  currentPotDiameterCm: number | null
   // false = dode plant waar de tech "Nee" antwoordde op "moet ze
   // vervangen worden?". Verschijnt nog steeds in de offerte, maar
   // initieel als uitlegregel zonder voorgestelde plant.

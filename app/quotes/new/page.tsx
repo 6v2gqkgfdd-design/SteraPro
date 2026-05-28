@@ -41,7 +41,9 @@ function buildCandidateSpec(c: Candidate): string {
 // soort-naam overlap (volledige soortnaam, anders genus).
 function scoreCandidate(c: Candidate, slot: ReplacementSlot): number {
   let score = 0
-  const p = slot.potDiameterCm
+  // Voorkeur: de potmaat die de tech expliciet opgaf. Anders de
+  // huidige plant-potmaat als ruwe schatting.
+  const p = slot.potDiameterCm ?? slot.currentPotDiameterCm
   if (p && c.diameter && c.diameter > 0) {
     const diff = Math.abs(c.diameter - p)
     if (diff === 0) score += 100
@@ -215,6 +217,11 @@ export default async function NewQuotePage({
               ? `Ø ${potSize.minDiameter} cm`
               : `Ø ${potSize.minDiameter}–${potSize.maxDiameter} cm`
             : null
+          const currentPotDiameterCm = potSize
+            ? Math.round(
+                (potSize.minDiameter + potSize.maxDiameter) / 2
+              )
+            : null
           const cascadedPhoto =
             (row.photo_url as string | null) ??
             (plantId ? latestPhotoByPlant.get(plantId) ?? null : null) ??
@@ -225,6 +232,7 @@ export default async function NewQuotePage({
             visitPlantId: row.id as string,
             photoUrl: cascadedPhoto,
             currentPotLabel,
+            currentPotDiameterCm,
             wantsReplacement,
             oldPlantName:
               plant?.nickname || plant?.species || 'Plant',
@@ -291,7 +299,9 @@ export default async function NewQuotePage({
           }
 
           let best: Candidate | null = null
-          let bestScore = 0
+          // Start onder 0 zodat we ook iets voorstellen als geen
+          // enkel signaal raakt — de tech kan altijd "wijzig" klikken.
+          let bestScore = -1
           for (const c of candidates) {
             const s = scoreCandidate(c, slot)
             if (s > bestScore) {
