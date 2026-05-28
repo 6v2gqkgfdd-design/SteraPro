@@ -1,20 +1,13 @@
 /**
  * Stera Pro — Catalogus pagina
  *
- * Plaats op: app/catalog/page.tsx
+ * Toont enkel de twee productgroepen die voor de bedrijven-app
+ * relevant zijn:
+ *   - product_group_code = '100' → Hydrocultuur-planten
+ *   - product_group_code = '300' → Plantenbakken (buitenpotten)
  *
- * Server component die de Nieuwkoop catalogus toont met filters + paginatie.
- * Filters worden via URL search params doorgegeven (GET form), zodat de pagina
- * deelbaar / bookmarkbaar is en altijd server-rendered.
- *
- * Vereiste env vars:
- *   NEXT_PUBLIC_SUPABASE_URL
- *   NEXT_PUBLIC_SUPABASE_ANON_KEY
- *
- * Vereiste views (al aangemaakt):
- *   v_nieuwkoop_with_margin
- *   v_catalog_groups
- *   v_catalog_pot_diameters
+ * Alle andere Nieuwkoop-artikelen zijn niet van toepassing en worden
+ * niet getoond.
  */
 
 import Link from "next/link";
@@ -30,6 +23,16 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
+type Kind = "plant" | "pot";
+const KIND_GROUP: Record<Kind, string> = {
+  plant: "100",
+  pot: "300",
+};
+const KIND_LABEL: Record<Kind, string> = {
+  plant: "Hydrocultuur-planten",
+  pot: "Potten",
+};
+
 type Product = {
   itemcode: string;
   description: string;
@@ -37,24 +40,23 @@ type Product = {
   cost_price: number;
   effective_margin_factor: number;
   suggested_sale_price: number;
-  main_group_code: string;
-  main_group_description_nl: string;
   product_group_code: string;
   height: number | null;
   diameter: number | null;
   diameter_culture_pot: number | null;
   pot_size: string | null;
   location_icon_nl: string | null;
-  show_on_website: boolean;
 };
 
 /** Genereer een Stera-naam (white-label) op basis van het Nieuwkoop product */
 function generateSteraName(p: Product): string {
   let name = p.description || p.itemcode;
-  if (p.main_group_code === "100" && p.height && Number(p.height) > 0) {
+  if (p.product_group_code === "100" && p.height && Number(p.height) > 0) {
     name += `, H${Math.round(Number(p.height))}cm`;
   } else if (p.diameter_culture_pot && Number(p.diameter_culture_pot) > 0) {
     name += `, Ø${Math.round(Number(p.diameter_culture_pot))}cm`;
+  } else if (p.diameter && Number(p.diameter) > 0) {
+    name += `, Ø${Math.round(Number(p.diameter))}cm`;
   }
   return name;
 }
@@ -75,7 +77,8 @@ export default async function CatalogPage({
 }) {
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q.trim() : "";
-  const group = typeof params.group === "string" ? params.group : "";
+  const kindParam = typeof params.kind === "string" ? params.kind : "plant";
+  const kind: Kind = kindParam === "pot" ? "pot" : "plant";
   const light = typeof params.light === "string" ? params.light : "";
   const priceMin = Number(params.priceMin) || 0;
   const priceMax = Number(params.priceMax) || 0;
@@ -83,32 +86,44 @@ export default async function CatalogPage({
     typeof params.potDiameter === "string" ? params.potDiameter : "";
   const page = Math.max(1, Number(params.page) || 1);
 
-  // Filter-opties ophalen (parallel)
-  const [groupsRes, diametersRes] = await Promise.all([
-    supabase.from("v_catalog_groups").select("code, name"),
-    supabase.from("v_catalog_pot_diameters").select("diameter"),
-  ]);
+  const groupCode = KIND_GROUP[kind];
 
-  const allGroups: { code: string; name: string }[] = groupsRes.data ?? [];
-  const allDiameters: number[] =
-    (diametersRes.data ?? []).map((d: any) => Number(d.diameter)) ?? [];
+  // Beschikbare pot-diameters voor de huidige tab. Bij planten kijken
+  // we naar de cultuurpot-maten, bij potten naar de pot-diameter zelf.
+  // We lezen ze direct uit de view zodat we enkel maten tonen die ook
+  // echt voorkomen in deze groep.
+  const potColumn =
+    kind === "pot" ? "diameter" : "diameter_culture_pot";
+
+  const { data: diameterRows } = await supabase
+    .from("v_nieuwkoop_with_margin")
+    .select(potColumn)
+    .eq("product_group_code", groupCode)
+    .not(potColumn, "is", null);
+
+  const allDiameters: number[] = Array.from(
+    new Set(
+      ((diameterRows ?? []) as Array<Record<string, unknown>>)
+        .map((d) => Number(d[potColumn]))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    )
+  ).sort((a, b) => a - b);
 
   // Hoofdquery met filters
   let query = supabase
     .from("v_nieuwkoop_with_margin")
     .select(
-      "itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, main_group_code, main_group_description_nl, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, show_on_website",
+      "itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl",
       { count: "exact" }
     )
-    .eq("show_on_website", true);
+    .eq("product_group_code", groupCode);
 
   if (q) query = query.ilike("description", `%${q}%`);
-  if (group) query = query.eq("main_group_code", group);
-  if (light) query = query.eq("location_icon_nl", light);
+  if (kind === "plant" && light)
+    query = query.eq("location_icon_nl", light);
   if (priceMin > 0) query = query.gte("suggested_sale_price", priceMin);
   if (priceMax > 0) query = query.lte("suggested_sale_price", priceMax);
-  if (potDiameter)
-    query = query.eq("diameter_culture_pot", Number(potDiameter));
+  if (potDiameter) query = query.eq(potColumn, Number(potDiameter));
 
   query = query.order("description").range(
     (page - 1) * PAGE_SIZE,
@@ -120,8 +135,8 @@ export default async function CatalogPage({
   // Helper: URL bouwen met behoud van alle filters
   function buildHref(overrides: Record<string, string | number>) {
     const usp = new URLSearchParams();
+    if (kind !== "plant") usp.set("kind", kind);
     if (q) usp.set("q", q);
-    if (group) usp.set("group", group);
     if (light) usp.set("light", light);
     if (priceMin > 0) usp.set("priceMin", String(priceMin));
     if (priceMax > 0) usp.set("priceMax", String(priceMax));
@@ -140,14 +155,34 @@ export default async function CatalogPage({
 
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      <header className="mb-6">
+      <header className="mb-4">
         <h1 className="text-3xl font-serif text-stera-ink">Catalogus</h1>
         <p className="text-sm text-stera-ink/70 mt-1">
-          {error
-            ? `Fout bij ophalen: ${error.message}`
-            : `${(count ?? 0).toLocaleString("nl-BE")} producten beschikbaar`}
+          Hydrocultuur-planten en bijhorende potten uit het Nieuwkoop-assortiment.
         </p>
       </header>
+
+      {/* Tabs — Hydrocultuur / Potten */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {(["plant", "pot"] as Kind[]).map((k) => {
+          const href =
+            "/catalog" + (k === "plant" ? "" : `?kind=${k}`);
+          const active = kind === k;
+          return (
+            <Link
+              key={k}
+              href={href}
+              className={
+                active
+                  ? "rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white"
+                  : "rounded-full border border-stera-ink/20 bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
+              }
+            >
+              {KIND_LABEL[k]}
+            </Link>
+          );
+        })}
+      </div>
 
       {/* Filter bar — server-rendered form met GET */}
       <form
@@ -155,6 +190,8 @@ export default async function CatalogPage({
         action="/catalog"
         className="mb-6 bg-white/60 border border-stera-ink/10 rounded-xl p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6"
       >
+        <input type="hidden" name="kind" value={kind} />
+
         <input
           type="search"
           name="q"
@@ -163,36 +200,29 @@ export default async function CatalogPage({
           className="sm:col-span-2 lg:col-span-2 rounded-lg border border-stera-ink/20 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-stera-ink/30"
         />
 
-        <select
-          name="group"
-          defaultValue={group}
-          className="rounded-lg border border-stera-ink/20 px-3 py-2 bg-white"
-        >
-          <option value="">Alle groepen</option>
-          {allGroups.map((g) => (
-            <option key={g.code} value={g.code}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          name="light"
-          defaultValue={light}
-          className="rounded-lg border border-stera-ink/20 px-3 py-2 bg-white"
-        >
-          <option value="">Alle lichtbehoeften</option>
-          <option value="zon">Zon</option>
-          <option value="half-schaduw">Half-schaduw</option>
-          <option value="schaduw">Schaduw</option>
-        </select>
+        {kind === "plant" ? (
+          <select
+            name="light"
+            defaultValue={light}
+            className="rounded-lg border border-stera-ink/20 px-3 py-2 bg-white"
+          >
+            <option value="">Alle lichtbehoeften</option>
+            <option value="zon">Zon</option>
+            <option value="half-schaduw">Half-schaduw</option>
+            <option value="schaduw">Schaduw</option>
+          </select>
+        ) : (
+          <div />
+        )}
 
         <select
           name="potDiameter"
           defaultValue={potDiameter}
           className="rounded-lg border border-stera-ink/20 px-3 py-2 bg-white"
         >
-          <option value="">Alle pot-diameters</option>
+          <option value="">
+            {kind === "pot" ? "Alle pot-diameters" : "Alle plant-pot-diameters"}
+          </option>
           {allDiameters.map((d) => (
             <option key={d} value={d}>
               Ø {d} cm
@@ -227,13 +257,15 @@ export default async function CatalogPage({
             Filter toepassen
           </button>
           <Link
-            href="/catalog"
+            href={kind === "plant" ? "/catalog" : "/catalog?kind=pot"}
             className="rounded-lg border border-stera-ink/20 px-4 py-2 font-medium hover:bg-white transition"
           >
             Reset
           </Link>
           <span className="ml-auto text-xs text-stera-ink/50">
-            {(count ?? 0).toLocaleString("nl-BE")} resultaten
+            {error
+              ? `Fout: ${error.message}`
+              : `${(count ?? 0).toLocaleString("nl-BE")} resultaten`}
           </span>
         </div>
       </form>
@@ -273,11 +305,11 @@ export default async function CatalogPage({
                   <span className="font-semibold text-stera-ink">
                     {formatPrice(Number(p.suggested_sale_price ?? 0))}
                   </span>
-                  {p.location_icon_nl && (
+                  {kind === "plant" && p.location_icon_nl ? (
                     <span className="text-[10px] uppercase tracking-wider text-stera-ink/50 truncate">
                       {p.location_icon_nl}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </li>
