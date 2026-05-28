@@ -15,6 +15,17 @@ export const dynamic = 'force-dynamic'
 const PAGE_SIZE = 48
 const GROUP_CODE = '275' // All-in-1 concepts (Combinaties)
 
+const HEIGHT_BUCKETS: Record<
+  string,
+  { min?: number; max?: number; label: string }
+> = {
+  '0-50': { max: 50, label: 'Tot 50 cm' },
+  '50-100': { min: 50, max: 100, label: '50 – 100 cm' },
+  '100-150': { min: 100, max: 150, label: '100 – 150 cm' },
+  '150-200': { min: 150, max: 200, label: '150 – 200 cm' },
+  '200+': { min: 200, label: '200 cm en hoger' },
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -155,10 +166,13 @@ export default async function CatalogPage({
   const light = typeof params.light === 'string' ? params.light : ''
   const diameter =
     typeof params.diameter === 'string' ? params.diameter : ''
-  const heightMin = Number(params.heightMin) || 0
-  const heightMax = Number(params.heightMax) || 0
-  const priceMin = Number(params.priceMin) || 0
-  const priceMax = Number(params.priceMax) || 0
+  const height = typeof params.height === 'string' ? params.height : ''
+  const heightBucket = HEIGHT_BUCKETS[height] ?? null
+  // 'f' is een marker dat het formulier ingediend werd, zodat we weten
+  // of 'Op voorraad' bewust uit gezet is (vinkje uit) of nooit
+  // aangeraakt is (eerste bezoek → default aan).
+  const formSubmitted = typeof params.f === 'string'
+  const inStock = formSubmitted ? params.inStock === '1' : true
   const page = Math.max(1, Number(params.page) || 1)
 
   // Beschikbare pot-diameters binnen de combinaties — voor de dropdown.
@@ -186,13 +200,17 @@ export default async function CatalogPage({
     )
     .eq('product_group_code', GROUP_CODE)
 
+  // Enkel artikels met een foto tonen — schoner overzicht voor de
+  // selectie. Bij het schakelen naar live kunnen we apart nakijken
+  // welke artikels zonder foto er eventueel bij moeten.
+  query = query.not('item_picture_name', 'is', null)
+
+  if (inStock) query = query.eq('is_stock_item', true)
   if (q) query = query.ilike('description', `%${q}%`)
   if (light) query = query.eq('location_icon_nl', light)
   if (diameter) query = query.eq('diameter', Number(diameter))
-  if (heightMin > 0) query = query.gte('height', heightMin)
-  if (heightMax > 0) query = query.lte('height', heightMax)
-  if (priceMin > 0) query = query.gte('suggested_sale_price', priceMin)
-  if (priceMax > 0) query = query.lte('suggested_sale_price', priceMax)
+  if (heightBucket?.min) query = query.gte('height', heightBucket.min)
+  if (heightBucket?.max) query = query.lte('height', heightBucket.max)
 
   query = query
     .order('description')
@@ -202,13 +220,13 @@ export default async function CatalogPage({
 
   function buildHref(overrides: Record<string, string | number>) {
     const usp = new URLSearchParams()
+    // 'f' meegeven zodat de inStock-state bij paginatie behouden blijft.
+    usp.set('f', '1')
     if (q) usp.set('q', q)
     if (light) usp.set('light', light)
     if (diameter) usp.set('diameter', diameter)
-    if (heightMin > 0) usp.set('heightMin', String(heightMin))
-    if (heightMax > 0) usp.set('heightMax', String(heightMax))
-    if (priceMin > 0) usp.set('priceMin', String(priceMin))
-    if (priceMax > 0) usp.set('priceMax', String(priceMax))
+    if (height) usp.set('height', height)
+    if (inStock) usp.set('inStock', '1')
     if (page > 1) usp.set('page', String(page))
     for (const [k, v] of Object.entries(overrides)) {
       if (v === '' || v === 0) usp.delete(k)
@@ -236,6 +254,11 @@ export default async function CatalogPage({
         action="/catalog"
         className="mb-6 grid gap-3 rounded-xl border border-stera-ink/10 bg-white/60 p-4 sm:grid-cols-2 lg:grid-cols-6"
       >
+        {/* Marker zodat de server weet dat het formulier ingediend is —
+            zo kunnen we 'Op voorraad' standaard aan zetten op het eerste
+            bezoek én correct uitvinken als de gebruiker dat doet. */}
+        <input type="hidden" name="f" value="1" />
+
         <input
           type="search"
           name="q"
@@ -275,43 +298,29 @@ export default async function CatalogPage({
           ))}
         </select>
 
-        <div className="flex gap-2">
-          <input
-            type="number"
-            name="heightMin"
-            min={0}
-            defaultValue={heightMin || ''}
-            placeholder="H min"
-            className="w-1/2 rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
-          />
-          <input
-            type="number"
-            name="heightMax"
-            min={0}
-            defaultValue={heightMax || ''}
-            placeholder="H max"
-            className="w-1/2 rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
-          />
-        </div>
+        <select
+          name="height"
+          defaultValue={height}
+          className="rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
+        >
+          <option value="">Alle hoogtes</option>
+          {Object.entries(HEIGHT_BUCKETS).map(([key, b]) => (
+            <option key={key} value={key}>
+              {b.label}
+            </option>
+          ))}
+        </select>
 
-        <div className="flex gap-2">
+        <label className="flex items-center gap-2 rounded-lg border border-stera-ink/20 bg-white px-3 py-2 text-sm font-medium text-stera-ink">
           <input
-            type="number"
-            name="priceMin"
-            min={0}
-            defaultValue={priceMin || ''}
-            placeholder="€ min"
-            className="w-1/2 rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
+            type="checkbox"
+            name="inStock"
+            value="1"
+            defaultChecked={inStock}
+            className="h-4 w-4 accent-stera-green"
           />
-          <input
-            type="number"
-            name="priceMax"
-            min={0}
-            defaultValue={priceMax || ''}
-            placeholder="€ max"
-            className="w-1/2 rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
-          />
-        </div>
+          Op voorraad
+        </label>
 
         <div className="sm:col-span-2 lg:col-span-6 flex flex-wrap items-center gap-2">
           <button
