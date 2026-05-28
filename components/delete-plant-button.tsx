@@ -31,14 +31,23 @@ export default function DeletePlantButton({
       .select()
 
     if (error) {
-      toast.error(`Verwijderen mislukt: ${error.message}`)
+      // eslint-disable-next-line no-console
+      console.error('[delete plant] error', error)
+      toast.error(`Verwijderen mislukt: ${error.message}`, {
+        duration: 20000,
+      })
       setLoading(false)
       return
     }
 
     if (!data || data.length === 0) {
+      // eslint-disable-next-line no-console
+      console.error('[delete plant] geen rijen verwijderd', { plantId })
       toast.error(
-        'Plant niet verwijderd — waarschijnlijk blokkeert een Supabase policy (RLS) de delete.'
+        'Plant niet verwijderd — geen rij geraakt. Mogelijk blokkeert een ' +
+          'Supabase policy of een foreign key. Open de browser-console voor ' +
+          'meer detail.',
+        { duration: 20000 }
       )
       setLoading(false)
       return

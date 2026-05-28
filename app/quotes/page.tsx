@@ -58,6 +58,7 @@ function one<T>(value: T[] | T | null | undefined): T | null {
 
 type ProposalVisit = {
   visitId: string
+  companyId: string | null
   title: string | null
   companyName: string | null
   locationName: string | null
@@ -90,7 +91,7 @@ export default async function QuotesPage() {
         id, visit_id,
         maintenance_visits (
           id, title, scheduled_start, ended_at, status,
-          companies ( name ),
+          companies ( id, name ),
           locations ( name )
         )
       `
@@ -140,10 +141,14 @@ export default async function QuotesPage() {
         }
       | null
     if (!v) continue
-    const company = one(v.companies) as { name?: string } | null
+    const company = one(v.companies) as {
+      id?: string
+      name?: string
+    } | null
     const location = one(v.locations) as { name?: string } | null
     proposalMap.set(visitId, {
       visitId,
+      companyId: company?.id ?? null,
       title: v.title ?? null,
       companyName: company?.name ?? null,
       locationName: location?.name ?? null,
@@ -195,10 +200,13 @@ export default async function QuotesPage() {
           ) : (
             <ul className="grid gap-3">
               {proposals.map((p) => (
-                <li key={p.visitId}>
+                <li
+                  key={p.visitId}
+                  className="stera-card transition hover:border-stera-green"
+                >
                   <Link
                     href={`/quotes/new?visit=${p.visitId}`}
-                    className="stera-card block transition hover:border-stera-green"
+                    className="block"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -227,6 +235,16 @@ export default async function QuotesPage() {
                       </div>
                     </div>
                   </Link>
+                  {p.companyId ? (
+                    <div className="mt-3 border-t border-stera-line pt-3">
+                      <Link
+                        href={`/quotes/proposals/${p.companyId}/print`}
+                        className="text-xs text-stera-ink-soft underline-offset-2 hover:text-stera-green hover:underline"
+                      >
+                        Bekijk &amp; print alle vervangingen voor deze klant →
+                      </Link>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
