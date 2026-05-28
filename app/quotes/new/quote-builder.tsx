@@ -35,6 +35,22 @@ export type VisitPrefill = {
   slots: ReplacementSlot[]
 }
 
+// Server geeft per slot al een voorgesteld artikel mee zodat de builder
+// niet leeg opent. Cents → euro-string gebeurt bij het seeden.
+export type InitialLineInput = {
+  slotId: string
+  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination'
+  supplier: 'nieuwkoop' | 'stera' | null
+  itemcode: string | null
+  name: string
+  description: string | null
+  spec: string | null
+  imageUrl: string | null
+  supplierUnitPriceCents: number | null
+  unitPriceCents: number
+  quantity: number
+}
+
 type CatalogItem = {
   itemcode: string
   description: string | null
@@ -141,9 +157,11 @@ const CARE_LABEL: Record<'easy' | 'hard', string> = {
 export default function QuoteBuilder({
   locations,
   visitPrefill,
+  initialLines = [],
 }: {
   locations: LocationOption[]
   visitPrefill?: VisitPrefill | null
+  initialLines?: InitialLineInput[]
 }) {
   const slots = visitPrefill?.slots ?? []
 
@@ -158,7 +176,23 @@ export default function QuoteBuilder({
   )
   const [introNote, setIntroNote] = useState('')
   const [validUntil, setValidUntil] = useState('')
-  const [lines, setLines] = useState<Line[]>([])
+  const [lines, setLines] = useState<Line[]>(() =>
+    initialLines.map((l) => ({
+      key: nextKey(),
+      slotId: l.slotId,
+      lineType: l.lineType,
+      supplier: l.supplier,
+      itemcode: l.itemcode,
+      name: l.name,
+      description: l.description,
+      spec: l.spec,
+      imageUrl: l.imageUrl,
+      supplierUnitPriceCents: l.supplierUnitPriceCents,
+      unitPriceEuro:
+        l.unitPriceCents > 0 ? (l.unitPriceCents / 100).toFixed(2) : '',
+      quantity: l.quantity,
+    }))
+  )
 
   // Catalogus-kiezer — werkt op de All-in-1 combinaties (groep 275).
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
@@ -346,6 +380,29 @@ export default function QuoteBuilder({
       })
     }
     setPickerTarget(null)
+  }
+
+  function addSkipLine(slotId: string, oldPlantName: string) {
+    // "Geen vervangingsplant" — vervang elke bestaande slot-regel door
+    // een vrije regel met de uitleg, prijs €0. De gebruiker kan de
+    // toelichting bewerken.
+    setLines((prev) => [
+      ...prev.filter((l) => l.slotId !== slotId),
+      {
+        key: nextKey(),
+        slotId,
+        lineType: 'custom',
+        supplier: null,
+        itemcode: null,
+        name: `Vervanging voor ${oldPlantName} — niet voorgesteld`,
+        description: '',
+        spec: null,
+        imageUrl: null,
+        supplierUnitPriceCents: null,
+        unitPriceEuro: '',
+        quantity: 1,
+      },
+    ])
   }
 
   function addCustomLine() {
@@ -626,13 +683,27 @@ export default function QuoteBuilder({
                         }
                       />
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => openPickerSlot(slot.visitPlantId)}
-                        className="stera-cta stera-cta-secondary"
-                      >
-                        + Kies combinatie
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openPickerSlot(slot.visitPlantId)}
+                          className="stera-cta stera-cta-secondary"
+                        >
+                          + Kies combinatie
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            addSkipLine(
+                              slot.visitPlantId,
+                              slot.oldPlantName
+                            )
+                          }
+                          className="stera-cta stera-cta-ghost"
+                        >
+                          Geen vervanging
+                        </button>
+                      </div>
                     )}
                   </div>
                 </li>
@@ -903,12 +974,28 @@ function LineItem({
     <div className="rounded-xl border border-stera-line bg-white p-3">
       <div className="flex flex-wrap gap-3">
         {line.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={line.imageUrl}
-            alt={line.name}
-            className="h-16 w-16 shrink-0 rounded object-cover"
-          />
+          line.itemcode ? (
+            <Link
+              href={`/catalog/${line.itemcode}`}
+              target="_blank"
+              title="Details van dit artikel openen"
+              className="shrink-0"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={line.imageUrl}
+                alt={line.name}
+                className="h-16 w-16 rounded object-cover transition hover:ring-2 hover:ring-stera-green"
+              />
+            </Link>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={line.imageUrl}
+              alt={line.name}
+              className="h-16 w-16 shrink-0 rounded object-cover"
+            />
+          )
         ) : (
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
             {LINE_TYPE_LABEL[line.lineType]}
@@ -919,13 +1006,32 @@ function LineItem({
             {LINE_TYPE_LABEL[line.lineType]}
           </span>
           {line.lineType === 'custom' ? (
-            <input
-              type="text"
-              value={line.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-              placeholder="Omschrijving"
-              className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
-            />
+            <>
+              <input
+                type="text"
+                value={line.name}
+                onChange={(e) => onUpdate({ name: e.target.value })}
+                placeholder="Omschrijving"
+                className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
+              />
+              <textarea
+                value={line.description ?? ''}
+                onChange={(e) =>
+                  onUpdate({ description: e.target.value })
+                }
+                placeholder="Toelichting / opmerking"
+                rows={2}
+                className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
+              />
+            </>
+          ) : line.itemcode ? (
+            <Link
+              href={`/catalog/${line.itemcode}`}
+              target="_blank"
+              className="block text-sm font-medium text-stera-ink underline-offset-2 hover:text-stera-green hover:underline"
+            >
+              {line.name}
+            </Link>
           ) : (
             <p className="text-sm font-medium text-stera-ink">{line.name}</p>
           )}
