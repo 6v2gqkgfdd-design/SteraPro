@@ -421,7 +421,10 @@ export default async function CatalogPage({
   const height = typeof params.height === 'string' ? params.height : ''
   const heightBucket = HEIGHT_BUCKETS[height] ?? null
   const formSubmitted = typeof params.f === 'string'
-  const inStock = formSubmitted ? params.inStock === '1' : true
+  // Standaard NIET filteren op voorraad — momenteel zijn de meeste
+  // artikels niet als 'op voorraad' geregistreerd in de sync, dus dat
+  // zou de lijst leeg maken. De gebruiker kan zelf aanvinken.
+  const inStock = formSubmitted ? params.inStock === '1' : false
   const systems = parseArray(params.system)
   const shapes = parseArray(params.shape) as Shape[]
   const plantsoorten = parseArray(params.plantsoort)
@@ -440,6 +443,7 @@ export default async function CatalogPage({
     )
     .eq('product_group_code', GROUP_CODE)
     .not('item_picture_name', 'is', null)
+    .neq('item_picture_name', '')
     .order('description')
     .limit(5000)
 
@@ -465,13 +469,18 @@ export default async function CatalogPage({
     }
   }
 
-  const items = ((rawItems ?? []) as Omit<Product, 'item_variety_nl'>[]).map(
-    (it) =>
-      ({
-        ...it,
-        item_variety_nl: varietyByCode.get(it.itemcode) ?? null,
-      }) as Product
-  )
+  const items = ((rawItems ?? []) as Omit<Product, 'item_variety_nl'>[])
+    .filter(
+      (it) =>
+        it.item_picture_name && String(it.item_picture_name).trim() !== ''
+    )
+    .map(
+      (it) =>
+        ({
+          ...it,
+          item_variety_nl: varietyByCode.get(it.itemcode) ?? null,
+        }) as Product
+    )
 
   // Verrijk met afgeleide velden.
   const enriched: Enriched[] = items.map((it) => {

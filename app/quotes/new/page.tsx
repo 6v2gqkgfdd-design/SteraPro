@@ -338,6 +338,7 @@ export default async function NewQuotePage({
           )
           .eq('product_group_code', '275')
           .not('item_picture_name', 'is', null)
+          .neq('item_picture_name', '')
           .limit(5000)
 
         if (candError) {
