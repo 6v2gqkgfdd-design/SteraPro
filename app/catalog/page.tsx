@@ -431,10 +431,12 @@ export default async function CatalogPage({
   // Server-side fetch — alles in groep 275 met een foto. (is_stock_item
   // doen we in-memory zodat de optellingen ook items zonder voorraad
   // mee kunnen tellen wanneer de gebruiker dat vinkje uitzet.)
+  // item_variety_nl zit (nog) niet in de view — we halen het apart op
+  // uit nieuwkoop_products en mergen op itemcode.
   let baseQuery = supabase
     .from('v_nieuwkoop_with_margin')
     .select(
-      'itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, item_variety_nl, is_stock_item'
+      'itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, is_stock_item'
     )
     .eq('product_group_code', GROUP_CODE)
     .not('item_picture_name', 'is', null)
@@ -443,9 +445,33 @@ export default async function CatalogPage({
 
   if (inStock) baseQuery = baseQuery.eq('is_stock_item', true)
 
-  const { data: rawItems, error } = await baseQuery
+  const [{ data: rawItems, error }, { data: varietyRows }] =
+    await Promise.all([
+      baseQuery,
+      supabase
+        .from('nieuwkoop_products')
+        .select('itemcode, item_variety_nl')
+        .eq('product_group_code', GROUP_CODE)
+        .not('item_variety_nl', 'is', null),
+    ])
 
-  const items = (rawItems ?? []) as Product[]
+  const varietyByCode = new Map<string, string>()
+  for (const v of (varietyRows ?? []) as Array<{
+    itemcode: string
+    item_variety_nl: string | null
+  }>) {
+    if (v.itemcode && v.item_variety_nl) {
+      varietyByCode.set(v.itemcode, v.item_variety_nl)
+    }
+  }
+
+  const items = ((rawItems ?? []) as Omit<Product, 'item_variety_nl'>[]).map(
+    (it) =>
+      ({
+        ...it,
+        item_variety_nl: varietyByCode.get(it.itemcode) ?? null,
+      }) as Product
+  )
 
   // Verrijk met afgeleide velden.
   const enriched: Enriched[] = items.map((it) => {
