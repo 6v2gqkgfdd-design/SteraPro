@@ -466,9 +466,7 @@ export default async function CatalogPage({
   // de migratie niet gedraaid is) laten we de foto-filter gewoon weg.
   const varietyByCode = new Map<string, string>()
   const photoOkCodes = new Set<string>()
-  let photoFilterActive = false
   if (!nkError && nieuwkoopRows) {
-    photoFilterActive = true
     for (const v of nieuwkoopRows as Array<{
       itemcode: string
       item_variety_nl: string | null
@@ -483,12 +481,18 @@ export default async function CatalogPage({
     }
   }
 
+  // Foto-filter alleen toepassen als we daadwerkelijk een lijst hebben
+  // van OK-items. Zo niet (query faalde, RLS, lege array, ...), tonen
+  // we sowieso alles met een ingevulde foto-naam — beter dan een leeg
+  // scherm.
+  const photoFilterUsable = photoOkCodes.size > 0
+
   const items = ((rawItems ?? []) as Omit<Product, 'item_variety_nl'>[])
     .filter(
       (it) =>
         it.item_picture_name &&
         String(it.item_picture_name).trim() !== '' &&
-        (!photoFilterActive || photoOkCodes.has(it.itemcode))
+        (!photoFilterUsable || photoOkCodes.has(it.itemcode))
     )
     .map(
       (it) =>

@@ -355,13 +355,11 @@ export default async function NewQuotePage({
           console.error('[auto-suggest] candidate fetch error', candError)
         }
 
-        // Foto-filter alleen toepassen als de query slaagde. Faalt ze
-        // (bv. has_image-kolom nog niet aangemaakt), dan vallen we
-        // terug op de oude lijst.
+        // Foto-filter alleen toepassen als we effectief een lijst van
+        // OK-items hebben (anders vallen we terug op alles met een
+        // ingevulde foto-naam — beter dan een leeg voorstel).
         const photoOkSet = new Set<string>()
-        let photoFilterActive = false
         if (!photoMetaError && photoMeta) {
-          photoFilterActive = true
           for (const r of photoMeta as Array<{
             itemcode: string
             has_image: boolean | null
@@ -371,8 +369,9 @@ export default async function NewQuotePage({
             }
           }
         }
+        const photoFilterUsable = photoOkSet.size > 0
         const candidates = ((candidatesRaw ?? []) as Candidate[]).filter(
-          (c) => !photoFilterActive || photoOkSet.has(c.itemcode)
+          (c) => !photoFilterUsable || photoOkSet.has(c.itemcode)
         )
 
         for (const slot of slots) {
