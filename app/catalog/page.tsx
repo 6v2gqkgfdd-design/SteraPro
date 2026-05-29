@@ -523,7 +523,8 @@ export default async function CatalogPage({
     supabase
       .from('nieuwkoop_products')
       .select('itemcode, item_variety_nl, has_image, width, depth, length')
-      .eq('product_group_code', GROUP_CODE),
+      .eq('product_group_code', GROUP_CODE)
+      .limit(10000),
   ])
 
   // varietyByCode = beplantingssysteem-info per item.
