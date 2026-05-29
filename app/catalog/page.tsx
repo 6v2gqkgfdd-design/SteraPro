@@ -23,6 +23,7 @@
 
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
+import AutoSubmitForm from '@/components/auto-submit-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,7 +83,47 @@ const SHAPE_KEYWORDS: Record<Exclude<Shape, 'Overig'>, string[]> = {
   Square: ['square', 'vierkant'],
 }
 
-function detectShape(potName: string): Shape {
+/**
+ * Dimensies vertellen vaak meer dan de naam: een echte rectangle-pot
+ * heeft width != depth met diameter = 0. Een square pot heeft
+ * width ≈ depth en geen diameter. Alles met diameter > 0 is rond
+ * (Globe/Balloon/Cylinder/Bowl/Oval/Barrel/Emperor/...).
+ */
+function detectShapeByDimensions(dims: {
+  diameter: number | null
+  width: number | null
+  depth: number | null
+  length: number | null
+  height: number | null
+}): Shape | null {
+  const d = Number(dims.diameter ?? 0)
+  const w = Number(dims.width ?? 0)
+  const dep = Number(dims.depth ?? 0)
+  const len = Number(dims.length ?? 0)
+  const h = Number(dims.height ?? 0)
+
+  // Geen diameter en wel andere afmetingen → rechthoekige/vierkante
+  // pot. We gebruiken length, width, depth om te bepalen welke.
+  if (d <= 0 && (len > 0 || w > 0 || dep > 0)) {
+    // De lange en korte zijden van de basis.
+    const sides = [len, w, dep].filter((x) => x > 0)
+    if (sides.length >= 2) {
+      const longSide = Math.max(...sides)
+      const shortSide = Math.min(...sides)
+      const diff = Math.abs(longSide - shortSide)
+      if (diff > 5) return 'Rectangle'
+      // Width ≈ depth: square of cube (cube = ongeveer even hoog).
+      if (h > 0 && Math.abs(longSide - h) <= 5) return 'Cube'
+      return 'Square'
+    }
+    // Enkel length ingevuld zonder width/depth → vermoedelijk een
+    // langwerpige plantenbak.
+    if (len > 0) return 'Rectangle'
+  }
+  return null
+}
+
+function detectShapeByKeyword(potName: string): Shape {
   const lower = ` ${potName.toLowerCase()} `
   for (const shape of SHAPES) {
     if (shape === 'Overig') continue
@@ -92,6 +133,21 @@ function detectShape(potName: string): Shape {
     }
   }
   return 'Overig'
+}
+
+function detectShape(
+  potName: string,
+  dims: {
+    diameter: number | null
+    width: number | null
+    depth: number | null
+    length: number | null
+    height: number | null
+  }
+): Shape {
+  // Dimensies eerst — als ze rechthoek/vierkant/kubus duidelijk
+  // aangeven, vertrouwen we daarop. Anders trefwoorden in de naam.
+  return detectShapeByDimensions(dims) ?? detectShapeByKeyword(potName)
 }
 
 // --- Description-parsing -------------------------------------------
@@ -358,6 +414,9 @@ type Product = {
   location_icon_nl: string | null
   item_variety_nl: string | null
   is_stock_item: boolean | null
+  width: number | null
+  depth: number | null
+  length: number | null
 }
 
 type Enriched = Product & {
@@ -466,17 +525,35 @@ export default async function CatalogPage({
   // de migratie niet gedraaid is) laten we de foto-filter gewoon weg.
   const varietyByCode = new Map<string, string>()
   const photoOkCodes = new Set<string>()
+  const dimsByCode = new Map<
+    string,
+    {
+      width: number | null
+      depth: number | null
+      length: number | null
+    }
+  >()
   if (!nkError && nieuwkoopRows) {
     for (const v of nieuwkoopRows as Array<{
       itemcode: string
       item_variety_nl: string | null
       has_image: boolean | null
+      width: number | null
+      depth: number | null
+      length: number | null
     }>) {
       if (v.itemcode && v.item_variety_nl) {
         varietyByCode.set(v.itemcode, v.item_variety_nl)
       }
       if (v.itemcode && v.has_image !== false) {
         photoOkCodes.add(v.itemcode)
+      }
+      if (v.itemcode) {
+        dimsByCode.set(v.itemcode, {
+          width: v.width,
+          depth: v.depth,
+          length: v.length,
+        })
       }
     }
   }
@@ -494,13 +571,16 @@ export default async function CatalogPage({
         String(it.item_picture_name).trim() !== '' &&
         (!photoFilterUsable || photoOkCodes.has(it.itemcode))
     )
-    .map(
-      (it) =>
-        ({
-          ...it,
-          item_variety_nl: varietyByCode.get(it.itemcode) ?? null,
-        }) as Product
-    )
+    .map((it) => {
+      const dims = dimsByCode.get(it.itemcode)
+      return {
+        ...it,
+        item_variety_nl: varietyByCode.get(it.itemcode) ?? null,
+        width: dims?.width ?? null,
+        depth: dims?.depth ?? null,
+        length: dims?.length ?? null,
+      } as Product
+    })
 
   // Verrijk met afgeleide velden.
   const enriched: Enriched[] = items.map((it) => {
@@ -509,7 +589,13 @@ export default async function CatalogPage({
       ...it,
       plantsoort: extractPlantsoort(plantPart),
       merk: extractMerk(potPart),
-      shape: detectShape(potPart),
+      shape: detectShape(potPart, {
+        diameter: it.diameter,
+        width: it.width,
+        depth: it.depth,
+        length: it.length,
+        height: it.height,
+      }),
     }
   })
 
@@ -615,7 +701,7 @@ export default async function CatalogPage({
         </p>
       </header>
 
-      <form method="GET" action="/catalog">
+      <AutoSubmitForm method="GET" action="/catalog">
         <input type="hidden" name="f" value="1" />
 
         {/* Pot-vorm — iconen-rij bovenaan */}
@@ -952,7 +1038,7 @@ export default async function CatalogPage({
             )}
           </div>
         </div>
-      </form>
+      </AutoSubmitForm>
     </main>
   )
 }
