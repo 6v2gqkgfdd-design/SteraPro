@@ -82,8 +82,10 @@ export type VisitPrefill = {
 
 // Server geeft per slot al een voorgesteld artikel mee zodat de builder
 // niet leeg opent. Cents → euro-string gebeurt bij het seeden.
+// slotId = null betekent een vrije regel (geen gekoppelde slot) — komt
+// voor wanneer een bestaande offerte wordt bewerkt.
 export type InitialLineInput = {
-  slotId: string
+  slotId: string | null
   lineType: 'plant' | 'outer_pot' | 'custom' | 'combination'
   supplier: 'nieuwkoop' | 'stera' | null
   itemcode: string | null
@@ -203,29 +205,46 @@ export default function QuoteBuilder({
   locations,
   visitPrefill,
   initialLines = [],
+  existingQuoteId = null,
+  initialHeader,
 }: {
   locations: LocationOption[]
   visitPrefill?: VisitPrefill | null
   initialLines?: InitialLineInput[]
+  /** In edit-modus: id van de bestaande draft-offerte. */
+  existingQuoteId?: string | null
+  /** In edit-modus: bestaande waarden voor de header. */
+  initialHeader?: {
+    locationId: string | null
+    customerName: string
+    customerEmail: string
+    introNote: string
+    validUntil: string | null
+    marginPct: number | null
+  }
 }) {
   const slots = visitPrefill?.slots ?? []
+  const isEdit = Boolean(existingQuoteId)
 
   const [locationId, setLocationId] = useState(
-    visitPrefill?.locationId ?? ''
+    initialHeader?.locationId ?? visitPrefill?.locationId ?? ''
   )
   const [customerName, setCustomerName] = useState(
-    visitPrefill?.customerName ?? ''
+    initialHeader?.customerName ?? visitPrefill?.customerName ?? ''
   )
   const [customerEmail, setCustomerEmail] = useState(
-    visitPrefill?.customerEmail ?? ''
+    initialHeader?.customerEmail ?? visitPrefill?.customerEmail ?? ''
   )
-  const [introNote, setIntroNote] = useState('')
-  const [validUntil, setValidUntil] = useState(defaultValidUntil)
+  const [introNote, setIntroNote] = useState(initialHeader?.introNote ?? '')
+  const [validUntil, setValidUntil] = useState(
+    initialHeader?.validUntil || defaultValidUntil()
+  )
 
-  // Margefactor: slim default op basis van de offerte-omvang, daarna
-  // mag de tech aanpassen. Eén factor per offerte; alle regels met een
-  // gekende inkoopprijs herrekenen wanneer ze wijzigt.
-  const initialMargin = smartDefaultMargin(initialLines)
+  // Margefactor: in edit-modus de bestaande factor, anders slim default
+  // op basis van de offerte-omvang. Alle regels met een gekende
+  // inkoopprijs herrekenen wanneer hij wijzigt.
+  const initialMargin =
+    initialHeader?.marginPct ?? smartDefaultMargin(initialLines)
   const [marginFactor, setMarginFactor] = useState(initialMargin)
 
   const [lines, setLines] = useState<Line[]>(() =>
@@ -569,6 +588,7 @@ export default function QuoteBuilder({
         unitPriceCents: euroToCents(l.unitPriceEuro),
         quantity: Math.max(1, l.quantity),
       })),
+      existingQuoteId: existingQuoteId ?? null,
     })
     setSaving(false)
     if (!result.ok) {
@@ -586,12 +606,16 @@ export default function QuoteBuilder({
       <div className="stera-card space-y-4 text-center">
         <p className="text-3xl">✓</p>
         <div>
-          <p className="font-semibold text-stera-ink">Offerte aangemaakt</p>
+          <p className="font-semibold text-stera-ink">
+            {isEdit ? 'Offerte bijgewerkt' : 'Offerte aangemaakt'}
+          </p>
           <p className="mt-1 text-sm text-stera-ink-soft">
             {success.referenceNumber
               ? `Offertenummer ${success.referenceNumber}.`
               : 'De offerte is opgeslagen.'}{' '}
-            Ze staat als concept klaar.
+            {isEdit
+              ? 'Je wijzigingen zijn opgeslagen.'
+              : 'Ze staat als concept klaar.'}
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">

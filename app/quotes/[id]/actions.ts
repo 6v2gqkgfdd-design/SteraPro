@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 const VALID_STATUSES = new Set([
@@ -44,4 +45,28 @@ export async function updateQuoteStatusAction(formData: FormData) {
   await supabase.from('quotes').update(update).eq('id', quoteId)
   revalidatePath(`/quotes/${quoteId}`)
   revalidatePath('/quotes')
+}
+
+// Volledige verwijdering — cascade zorgt dat quote_lines mee verdwijnen.
+// Always-allowed maar wel met dubbele bevestiging in de UI. Na succes
+// gaan we terug naar het offerte-overzicht.
+export async function deleteQuoteAction(formData: FormData) {
+  const quoteId = String(formData.get('quote_id') || '')
+  const confirm = String(formData.get('confirm') || '')
+  if (!quoteId) return
+  if (confirm !== 'VERWIJDER') {
+    // Veiligheidsnet — UI vraagt de bevestiging, mocht hij ontbreken
+    // dan stoppen we hier zonder iets te wijzigen.
+    return
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return
+
+  await supabase.from('quotes').delete().eq('id', quoteId)
+  revalidatePath('/quotes')
+  redirect('/quotes')
 }

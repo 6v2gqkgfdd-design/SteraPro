@@ -94,8 +94,8 @@ begin
           'source_visit_plant_id', ql.source_visit_plant_id,
           -- Naam van de te-vervangen plant zodat we per regel kunnen
           -- tonen 'Vervanging voor [oude plant naam] in [ruimte]'.
-          'old_plant_name', vp.nickname,
-          'old_plant_species', vp.species,
+          'old_plant_name', p.nickname,
+          'old_plant_species', p.species,
           'room_name', r.name,
           'room_floor', r.floor
         ) order by ql.position, ql.created_at

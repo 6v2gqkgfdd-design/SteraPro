@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { woImage } from '@/lib/wo-image'
 import { updateQuoteStatusAction } from './actions'
 import ShareQuoteLink from './share-link'
+import DeleteQuoteButton from './delete-quote'
 
 type QuoteStatus =
   | 'draft'
@@ -191,17 +192,28 @@ export default async function QuoteDetailPage({
           </div>
           <div className="flex flex-wrap gap-2">
             {status === 'draft' && (
-              <form action={updateQuoteStatusAction}>
-                <input
-                  type="hidden"
-                  name="quote_id"
-                  value={quote.id as string}
-                />
-                <input type="hidden" name="status" value="sent" />
-                <button type="submit" className="stera-cta stera-cta-primary">
-                  Markeer als verstuurd
-                </button>
-              </form>
+              <>
+                <Link
+                  href={`/quotes/${quote.id as string}/edit`}
+                  className="stera-cta stera-cta-ghost"
+                >
+                  Bewerken
+                </Link>
+                <form action={updateQuoteStatusAction}>
+                  <input
+                    type="hidden"
+                    name="quote_id"
+                    value={quote.id as string}
+                  />
+                  <input type="hidden" name="status" value="sent" />
+                  <button
+                    type="submit"
+                    className="stera-cta stera-cta-primary"
+                  >
+                    Markeer als verstuurd
+                  </button>
+                </form>
+              </>
             )}
             {status === 'sent' && (
               <>
@@ -335,6 +347,23 @@ export default async function QuoteDetailPage({
         {quote.signing_token ? (
           <ShareQuoteLink token={quote.signing_token as string} />
         ) : null}
+
+        {/* Verwijder-zone — staat onderaan en is duidelijk
+            gemarkeerd zodat hij niet per ongeluk gebruikt wordt. */}
+        <div className="stera-card flex flex-wrap items-center justify-between gap-3 border-red-200">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-red-700">
+              Offerte verwijderen
+            </p>
+            <p className="text-xs text-stera-ink-soft">
+              Definitief weg, inclusief alle regels en klant-beslissingen.
+            </p>
+          </div>
+          <DeleteQuoteButton
+            quoteId={quote.id as string}
+            referenceNumber={(quote.reference_number as string) ?? null}
+          />
+        </div>
 
         {/* Webshop-doorverwijzing — nog in opbouw */}
         <div className="stera-card flex flex-wrap items-center justify-between gap-3 border-dashed opacity-80">
