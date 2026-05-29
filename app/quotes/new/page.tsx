@@ -27,6 +27,19 @@ type Candidate = {
   diameter: number | null
   height: number | null
   location_icon_nl: string | null
+  // length zit op nieuwkoop_products (niet in de view); we mergen het
+  // in nadat we de candidates ophalen, en gebruiken het om de pot-vorm
+  // van de kandidaat te bepalen (Rond = enkel diameter, Hoekig =
+  // length ingevuld).
+  length?: number | null
+}
+
+function candidateShape(c: Candidate): 'Rond' | 'Hoekig' | null {
+  const len = Number(c.length ?? 0)
+  const d = Number(c.diameter ?? 0)
+  if (len > 0 && d <= 0) return 'Hoekig'
+  if (d > 0 && len <= 0) return 'Rond'
+  return null
 }
 
 function buildCandidateSpec(c: Candidate): string {
@@ -78,6 +91,15 @@ function scoreCandidate(c: Candidate, slot: ReplacementSlot): number {
     if (diff <= 20) score += 50
     else if (diff <= 50) score += 20
     else if (diff > 100) score -= 30
+  }
+  // Pot-vorm: grote boost wanneer de kandidaat dezelfde stijl heeft
+  // als de oude plant (Rond ↔ Rond, Hoekig ↔ Hoekig). Negatieve
+  // boost bij verkeerd type zodat een rond pot nooit ineens als
+  // hoekig wordt voorgesteld als er ook ronde kandidaten zijn.
+  if (slot.potShape) {
+    const cs = candidateShape(c)
+    if (cs && cs === slot.potShape) score += 100
+    else if (cs && cs !== slot.potShape) score -= 75
   }
   return score
 }
@@ -275,6 +297,7 @@ export default async function NewQuotePage({
               typeof row.replacement_pot_diameter_cm === 'number'
                 ? row.replacement_pot_diameter_cm
                 : null,
+            potShape: null,
             isHanging: Boolean(row.replacement_is_hanging),
             careLevel,
             needsOuterPot: row.replacement_needs_outer_pot !== false,
@@ -313,6 +336,9 @@ export default async function NewQuotePage({
           ) {
             slot.potDiameterCm = insight.potDiameterCm
           }
+          if (slot.potShape == null && insight.potShape != null) {
+            slot.potShape = insight.potShape
+          }
         }
       }
 
@@ -347,7 +373,7 @@ export default async function NewQuotePage({
             .limit(5000),
           supabase
             .from('nieuwkoop_products')
-            .select('itemcode, has_image, item_variety_nl')
+            .select('itemcode, has_image, item_variety_nl, length')
             .eq('product_group_code', '275'),
         ])
 
@@ -363,12 +389,14 @@ export default async function NewQuotePage({
         // de kandidatenset — die kunnen nooit een dode plant vervangen.
         const photoOkSet = new Set<string>()
         const mosmuurSet = new Set<string>()
+        const lengthByCode = new Map<string, number | null>()
         const MOS_WORDS = ['bolmos', 'platmos', 'rendiermos', 'bol- en']
         if (!photoMetaError && photoMeta) {
           for (const r of photoMeta as Array<{
             itemcode: string
             has_image: boolean | null
             item_variety_nl: string | null
+            length: number | null
           }>) {
             if (!r.itemcode) continue
             if (r.has_image !== false) photoOkSet.add(r.itemcode)
@@ -376,14 +404,20 @@ export default async function NewQuotePage({
             if (MOS_WORDS.some((w) => v.includes(w))) {
               mosmuurSet.add(r.itemcode)
             }
+            lengthByCode.set(r.itemcode, r.length)
           }
         }
         const photoFilterUsable = photoOkSet.size > 0
-        const candidates = ((candidatesRaw ?? []) as Candidate[]).filter(
-          (c) =>
-            !mosmuurSet.has(c.itemcode) &&
-            (!photoFilterUsable || photoOkSet.has(c.itemcode))
-        )
+        const candidates = ((candidatesRaw ?? []) as Candidate[])
+          .filter(
+            (c) =>
+              !mosmuurSet.has(c.itemcode) &&
+              (!photoFilterUsable || photoOkSet.has(c.itemcode))
+          )
+          .map((c) => ({
+            ...c,
+            length: lengthByCode.get(c.itemcode) ?? null,
+          }))
 
         for (const slot of slots) {
           // "Nee, niet vervangen" → meteen een uitlegregel (€0) met

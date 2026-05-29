@@ -102,7 +102,15 @@ export default async function QuoteDetailPage({
       .from('quote_lines')
       .select(
         `id, line_type, name, description, spec, image_url,
-       unit_price_cents, quantity, line_total_cents, position`
+       unit_price_cents, quantity, line_total_cents, position,
+       source_visit_plant_id,
+       maintenance_visit_plants (
+         photo_url,
+         plants (
+           nickname, species, photo_url,
+           rooms ( name, floor )
+         )
+       )`
       )
       .eq('quote_id', id)
       .order('position', { ascending: true }),
@@ -287,50 +295,118 @@ export default async function QuoteDetailPage({
               {lines.map((l: Record<string, unknown>) => {
                 const img = woImage(l.image_url as string | null)
                 const qty = (l.quantity as number) || 1
+                // "Vervangt"-info ophalen uit de geneste join.
+                const vp = one(
+                  l.maintenance_visit_plants as
+                    | Record<string, unknown>[]
+                    | Record<string, unknown>
+                    | null
+                )
+                const oldPlant = vp
+                  ? (one(vp.plants as
+                      | Record<string, unknown>[]
+                      | Record<string, unknown>
+                      | null) as Record<string, unknown> | null)
+                  : null
+                const oldPlantName = oldPlant
+                  ? ((oldPlant.nickname ||
+                      oldPlant.species) as string | undefined) || null
+                  : null
+                const oldPlantPhoto =
+                  ((vp?.photo_url as string | null) ?? null) ||
+                  ((oldPlant?.photo_url as string | null) ?? null)
+                const oldRoom = oldPlant
+                  ? (one(oldPlant.rooms as
+                      | Record<string, unknown>[]
+                      | Record<string, unknown>
+                      | null) as
+                      | { name?: string | null; floor?: string | null }
+                      | null)
+                  : null
+                const oldRoomLabel = oldRoom
+                  ? [oldRoom.name, oldRoom.floor].filter(Boolean).join(' · ')
+                  : ''
                 return (
                   <li
                     key={l.id as string}
-                    className="flex flex-wrap gap-3 rounded-xl border border-stera-line bg-white p-3"
+                    className="rounded-xl border border-stera-line bg-white p-3"
                   >
-                    {l.line_type === 'transport' ? (
-                      <DeliveryIllustration className="h-16 w-20 shrink-0 rounded" />
-                    ) : img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={img}
-                        alt={(l.name as string) || ''}
-                        className="h-16 w-16 shrink-0 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
-                        {LINE_TYPE_LABEL[l.line_type as string] || 'Regel'}
+                    {oldPlantName ? (
+                      <div className="mb-3 flex items-center gap-3 border-b border-stera-line/70 pb-3">
+                        {oldPlantPhoto ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={oldPlantPhoto}
+                            alt={`Te vervangen: ${oldPlantName}`}
+                            className="h-14 w-14 shrink-0 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
+                            geen foto
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="stera-eyebrow text-stera-green text-[10px]">
+                            Vervangt
+                          </p>
+                          <p className="text-sm font-medium text-stera-ink">
+                            {oldPlantName}
+                          </p>
+                          {oldRoomLabel ? (
+                            <p className="text-xs text-stera-ink-soft">
+                              📍 {oldRoomLabel}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span
+                          aria-hidden
+                          className="shrink-0 text-2xl text-stera-green/50"
+                        >
+                          →
+                        </span>
                       </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <span className="inline-block rounded-full bg-stera-cream-deep px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
-                        {LINE_TYPE_LABEL[l.line_type as string] || 'Regel'}
-                      </span>
-                      <p className="mt-1 text-sm font-medium text-stera-ink">
-                        {l.name as string}
-                      </p>
-                      {l.spec ? (
-                        <p className="text-xs text-stera-ink-soft">
-                          {l.spec as string}
+                    ) : null}
+                    <div className="flex flex-wrap gap-3">
+                      {l.line_type === 'transport' ? (
+                        <DeliveryIllustration className="h-16 w-20 shrink-0 rounded" />
+                      ) : img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={img}
+                          alt={(l.name as string) || ''}
+                          className="h-16 w-16 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
+                          {LINE_TYPE_LABEL[l.line_type as string] || 'Regel'}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="inline-block rounded-full bg-stera-cream-deep px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+                          {LINE_TYPE_LABEL[l.line_type as string] || 'Regel'}
+                        </span>
+                        <p className="mt-1 text-sm font-medium text-stera-ink">
+                          {l.name as string}
                         </p>
-                      ) : null}
-                      {l.description ? (
+                        {l.spec ? (
+                          <p className="text-xs text-stera-ink-soft">
+                            {l.spec as string}
+                          </p>
+                        ) : null}
+                        {l.description ? (
+                          <p className="text-xs text-stera-ink-soft">
+                            {l.description as string}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="text-right">
                         <p className="text-xs text-stera-ink-soft">
-                          {l.description as string}
+                          {qty} × {formatEuro((l.unit_price_cents as number) ?? 0)}
                         </p>
-                      ) : null}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-stera-ink-soft">
-                        {qty} × {formatEuro((l.unit_price_cents as number) ?? 0)}
-                      </p>
-                      <p className="font-semibold tabular-nums text-stera-ink">
-                        {formatEuro((l.line_total_cents as number) ?? 0)}
-                      </p>
+                        <p className="font-semibold tabular-nums text-stera-ink">
+                          {formatEuro((l.line_total_cents as number) ?? 0)}
+                        </p>
+                      </div>
                     </div>
                   </li>
                 )

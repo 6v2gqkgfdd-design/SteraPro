@@ -209,6 +209,7 @@ export default async function EditQuotePage({
               typeof row.replacement_pot_diameter_cm === 'number'
                 ? row.replacement_pot_diameter_cm
                 : null,
+            potShape: null,
             isHanging: Boolean(row.replacement_is_hanging),
             careLevel,
             needsOuterPot: row.replacement_needs_outer_pot !== false,

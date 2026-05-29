@@ -6,6 +6,8 @@
  *   - hoogte (cm)
  *   - lichtbehoefte (zon / half-schaduw / schaduw)
  *   - diameter van de binnenpot (cm)
+ *   - pot-vorm (Rond / Hoekig) — zodat het auto-voorstel een
+ *     visueel consistente combinatie kiest.
  *
  * Die inschattingen vullen de slot-condities aan wanneer de tech
  * niets manueel ingaf, zodat het auto-voorstel beter scoort.
@@ -25,10 +27,30 @@ export type AiSlotInput = {
   oldPlantSpecies: string | null
 }
 
+export type PotShape = 'Rond' | 'Hoekig'
+
 export type AiSlotInsight = {
   heightCm: number | null
   light: 'high' | 'medium' | 'low' | null
   potDiameterCm: number | null
+  potShape: PotShape | null
+}
+
+function parsePotShape(raw: unknown): PotShape | null {
+  if (typeof raw !== 'string') return null
+  const v = raw.trim().toLowerCase()
+  if (v === 'rond' || v === 'round') return 'Rond'
+  if (
+    v === 'hoekig' ||
+    v === 'vierkant' ||
+    v === 'rechthoek' ||
+    v === 'square' ||
+    v === 'rectangular' ||
+    v === 'rectangle'
+  ) {
+    return 'Hoekig'
+  }
+  return null
 }
 
 const LIGHT_FROM_CATALOG: Record<string, 'high' | 'medium' | 'low'> = {
@@ -96,9 +118,10 @@ export async function analyzeReplacementPhotos(
       '- height_cm: hoogte van de plant in cm (zonder pot, het zichtbare bovengrondse deel).',
       '- light: lichtbehoefte voor deze plek — "zon", "half-schaduw" of "schaduw" — op basis van het zichtbare daglicht in de omgeving.',
       '- pot_diameter_cm: diameter van de binnenpot in cm (geschat).',
+      '- pot_shape: vorm van de zichtbare buitenpot — "Rond" wanneer de pot rond/cilindrisch/ovaal/bol is, "Hoekig" wanneer de pot vierkant/rechthoekig/kubusvormig is. Geef null als de pot niet duidelijk zichtbaar is.',
       '',
       'Antwoord ENKEL met geldige JSON, zonder code-blok of toelichting, in dit exacte formaat:',
-      '[{"id":"<visitPlantId>","height_cm":<number|null>,"light":"<zon|half-schaduw|schaduw|null>","pot_diameter_cm":<number|null>}, ...]',
+      '[{"id":"<visitPlantId>","height_cm":<number|null>,"light":"<zon|half-schaduw|schaduw|null>","pot_diameter_cm":<number|null>,"pot_shape":"<Rond|Hoekig|null>"}, ...]',
       '',
       'Geef null als je iets echt niet kan inschatten. Behoud de volgorde en de id-velden.',
     ].join('\n'),
@@ -171,6 +194,7 @@ export async function analyzeReplacementPhotos(
       heightCm: parseNumber(item.height_cm),
       light: parseLight(item.light),
       potDiameterCm: parseNumber(item.pot_diameter_cm),
+      potShape: parsePotShape(item.pot_shape),
     })
   }
 

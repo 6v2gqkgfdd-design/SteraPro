@@ -67,6 +67,10 @@ export type ReplacementSlot = {
   light: 'high' | 'medium' | 'low' | null
   heightCm: number | null
   potDiameterCm: number | null
+  // Pot-vorm van de huidige plant — gebruikt om bij auto-suggest een
+  // combinatie met dezelfde stijl voor te stellen (visuele consistentie
+  // bij de klant op locatie). Wordt afgeleid uit de AI-foto-analyse.
+  potShape: 'Rond' | 'Hoekig' | null
   isHanging: boolean
   careLevel: 'easy' | 'hard' | null
   needsOuterPot: boolean
