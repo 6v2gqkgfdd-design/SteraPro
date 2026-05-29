@@ -48,7 +48,7 @@ const TABS: Tab[] = [
   },
 ]
 
-const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/']
+const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/', '/q/']
 
 export default function AppNav() {
   const pathname = usePathname() || ''
