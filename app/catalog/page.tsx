@@ -449,31 +449,30 @@ export default async function CatalogPage({
 
   if (inStock) baseQuery = baseQuery.eq('is_stock_item', true)
 
-  // Extra info uit nieuwkoop_products: beplantingssysteem +
-  // item_picture_sysmodified. Die laatste is enkel gezet wanneer de
-  // leverancier ooit een foto-update registreerde — een goede proxy
-  // voor "er bestaat echt een foto" (i.t.t. enkel een ingevulde
-  // bestandsnaam).
-  const [{ data: rawItems, error }, { data: nieuwkoopRows }] =
-    await Promise.all([
+  const [{ data: rawItems, error }, { data: nieuwkoopRows }] = await Promise.all(
+    [
       baseQuery,
       supabase
         .from('nieuwkoop_products')
-        .select('itemcode, item_variety_nl, item_picture_sysmodified')
+        .select('itemcode, item_variety_nl, has_image')
         .eq('product_group_code', GROUP_CODE),
-    ])
+    ]
+  )
 
+  // Bouw twee maps: varietyByCode voor de beplantingssysteem-info,
+  // photoOkCodes voor "heeft echt een foto" (true) of "nog niet
+  // gecheckt" (null). false = uitsluiten.
   const varietyByCode = new Map<string, string>()
   const photoOkCodes = new Set<string>()
   for (const v of (nieuwkoopRows ?? []) as Array<{
     itemcode: string
     item_variety_nl: string | null
-    item_picture_sysmodified: string | null
+    has_image: boolean | null
   }>) {
     if (v.itemcode && v.item_variety_nl) {
       varietyByCode.set(v.itemcode, v.item_variety_nl)
     }
-    if (v.itemcode && v.item_picture_sysmodified) {
+    if (v.itemcode && v.has_image !== false) {
       photoOkCodes.add(v.itemcode)
     }
   }

@@ -331,36 +331,40 @@ export default async function NewQuotePage({
       // suggesties zijn beter dan geen suggesties (de tech kan altijd
       // wisselen).
       if (slots.length > 0) {
-        const [{ data: candidatesRaw, error: candError }, { data: photoMeta }] =
-          await Promise.all([
-            supabase
-              .from('v_nieuwkoop_with_margin')
-              .select(
-                'itemcode, description, item_picture_name, cost_price, suggested_sale_price, product_group_code, diameter, height, location_icon_nl'
-              )
-              .eq('product_group_code', '275')
-              .not('item_picture_name', 'is', null)
-              .neq('item_picture_name', '')
-              .limit(5000),
-            // item_picture_sysmodified niet null = er bestaat echt
-            // een foto bij de leverancier (i.t.t. enkel een naam).
-            supabase
-              .from('nieuwkoop_products')
-              .select('itemcode')
-              .eq('product_group_code', '275')
-              .not('item_picture_sysmodified', 'is', null),
-          ])
+        const [
+          { data: candidatesRaw, error: candError },
+          { data: photoMeta },
+        ] = await Promise.all([
+          supabase
+            .from('v_nieuwkoop_with_margin')
+            .select(
+              'itemcode, description, item_picture_name, cost_price, suggested_sale_price, product_group_code, diameter, height, location_icon_nl'
+            )
+            .eq('product_group_code', '275')
+            .not('item_picture_name', 'is', null)
+            .neq('item_picture_name', '')
+            .limit(5000),
+          supabase
+            .from('nieuwkoop_products')
+            .select('itemcode, has_image')
+            .eq('product_group_code', '275'),
+        ])
 
         if (candError) {
           // eslint-disable-next-line no-console
           console.error('[auto-suggest] candidate fetch error', candError)
         }
 
-        const photoOkSet = new Set<string>(
-          ((photoMeta ?? []) as Array<{ itemcode: string }>).map(
-            (r) => r.itemcode
-          )
-        )
+        // has_image=false → uitsluiten, true of null → meenemen.
+        const photoOkSet = new Set<string>()
+        for (const r of (photoMeta ?? []) as Array<{
+          itemcode: string
+          has_image: boolean | null
+        }>) {
+          if (r.itemcode && r.has_image !== false) {
+            photoOkSet.add(r.itemcode)
+          }
+        }
         const candidates = ((candidatesRaw ?? []) as Candidate[]).filter(
           (c) => photoOkSet.has(c.itemcode)
         )
