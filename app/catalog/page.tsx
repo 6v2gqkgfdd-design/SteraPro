@@ -1,5 +1,5 @@
 /**
- * Stera Pro — Catalogus pagina (Nieuwkoop-stijl filterscherm)
+ * Stera Pro — Catalogus pagina
  *
  * Toont enkel productgroep 275 "All-in-1 concepts" (combinaties van
  * plant + pot voorgekweekt met watermeter).
@@ -16,7 +16,7 @@
  *  - Merk (multi-select met aantallen — afgeleid uit description)
  *
  * Plantsoort en pot-merk worden uit de description afgeleid omdat
- * Nieuwkoop ze niet als aparte velden teruggeeft voor combinaties.
+ * de leverancier ze niet als aparte velden teruggeeft voor combinaties.
  * Pot-vorm wordt heuristisch uit de pot-naam gehaald via een
  * keyword-mapping.
  */
@@ -581,8 +581,8 @@ export default async function CatalogPage({
       <header className="mb-4">
         <h1 className="text-3xl font-serif text-stera-ink">Catalogus</h1>
         <p className="mt-1 text-sm text-stera-ink/70">
-          Nieuwkoop All-in-1 combinaties — plant in pot, voorgekweekt
-          en met watermeter.
+          All-in-1 combinaties — plant in pot, voorgekweekt en met
+          watermeter, klaar om af te leveren.
         </p>
       </header>
 
@@ -826,10 +826,51 @@ export default async function CatalogPage({
                         )}
                       </div>
                       <div className="flex flex-1 flex-col p-3">
-                        <h3 className="line-clamp-2 min-h-[2.5em] text-sm font-medium leading-tight text-stera-ink">
-                          {generateSteraName(p)}
+                        <h3 className="line-clamp-2 min-h-[2.5em] text-sm font-semibold leading-tight text-stera-ink">
+                          {p.description || p.itemcode}
                         </h3>
-                        <div className="mt-auto flex items-baseline justify-between gap-2 pt-2">
+                        <div className="mt-1.5 flex gap-2">
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            {p.item_variety_nl ? (
+                              <p className="truncate text-xs text-stera-ink/70">
+                                {p.item_variety_nl}
+                              </p>
+                            ) : null}
+                            <p className="font-mono text-[10px] text-stera-ink/50">
+                              {p.itemcode}
+                            </p>
+                          </div>
+                          <div className="shrink-0 space-y-0.5 border-l border-stera-ink/10 pl-2 text-xs text-stera-ink/60">
+                            {p.diameter && p.diameter > 0 ? (
+                              <div className="flex items-center gap-1.5">
+                                <span aria-hidden className="text-stera-ink/40">
+                                  ⌀
+                                </span>
+                                <span>{Math.round(p.diameter)}</span>
+                              </div>
+                            ) : null}
+                            {p.height && p.height > 0 ? (
+                              <div className="flex items-center gap-1.5">
+                                <span aria-hidden className="text-stera-ink/40">
+                                  ↕
+                                </span>
+                                <span>{Math.round(p.height)}</span>
+                              </div>
+                            ) : null}
+                            {p.diameter_culture_pot &&
+                            p.diameter_culture_pot > 0 ? (
+                              <div className="flex items-center gap-1.5">
+                                <span aria-hidden className="text-stera-ink/40">
+                                  ⌀
+                                </span>
+                                <span>
+                                  {Math.round(p.diameter_culture_pot)}
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="mt-auto flex items-baseline justify-between gap-2 border-t border-stera-ink/10 pt-2">
                           <span className="font-semibold text-stera-ink">
                             {formatPrice(
                               Number(p.suggested_sale_price ?? 0)
