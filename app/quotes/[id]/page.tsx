@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { woImage } from '@/lib/wo-image'
 import { updateQuoteStatusAction } from './actions'
+import ShareQuoteLink from './share-link'
 
 type QuoteStatus =
   | 'draft'
@@ -86,7 +87,7 @@ export default async function QuoteDetailPage({
       .select(
         `
       id, reference_number, status, intro_note, valid_until, created_at,
-      accepted_at, declined_at,
+      accepted_at, declined_at, signing_token,
       customer_name, customer_email, subtotal_cents,
       companies ( name ),
       locations ( name )
@@ -329,6 +330,11 @@ export default async function QuoteDetailPage({
             </span>
           </div>
         </div>
+
+        {/* Publieke deel-link voor de klant */}
+        {quote.signing_token ? (
+          <ShareQuoteLink token={quote.signing_token as string} />
+        ) : null}
 
         {/* Webshop-doorverwijzing — nog in opbouw */}
         <div className="stera-card flex flex-wrap items-center justify-between gap-3 border-dashed opacity-80">
