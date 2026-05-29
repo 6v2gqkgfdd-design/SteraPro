@@ -449,31 +449,37 @@ export default async function CatalogPage({
 
   if (inStock) baseQuery = baseQuery.eq('is_stock_item', true)
 
-  const [{ data: rawItems, error }, { data: nieuwkoopRows }] = await Promise.all(
-    [
-      baseQuery,
-      supabase
-        .from('nieuwkoop_products')
-        .select('itemcode, item_variety_nl, has_image')
-        .eq('product_group_code', GROUP_CODE),
-    ]
-  )
+  const [
+    { data: rawItems, error },
+    { data: nieuwkoopRows, error: nkError },
+  ] = await Promise.all([
+    baseQuery,
+    supabase
+      .from('nieuwkoop_products')
+      .select('itemcode, item_variety_nl, has_image')
+      .eq('product_group_code', GROUP_CODE),
+  ])
 
-  // Bouw twee maps: varietyByCode voor de beplantingssysteem-info,
-  // photoOkCodes voor "heeft echt een foto" (true) of "nog niet
-  // gecheckt" (null). false = uitsluiten.
+  // varietyByCode = beplantingssysteem-info per item.
+  // photoFilterActive = de extra query slaagde → we mogen op has_image
+  // filteren. Bij een fout (bv. has_image-kolom bestaat nog niet omdat
+  // de migratie niet gedraaid is) laten we de foto-filter gewoon weg.
   const varietyByCode = new Map<string, string>()
   const photoOkCodes = new Set<string>()
-  for (const v of (nieuwkoopRows ?? []) as Array<{
-    itemcode: string
-    item_variety_nl: string | null
-    has_image: boolean | null
-  }>) {
-    if (v.itemcode && v.item_variety_nl) {
-      varietyByCode.set(v.itemcode, v.item_variety_nl)
-    }
-    if (v.itemcode && v.has_image !== false) {
-      photoOkCodes.add(v.itemcode)
+  let photoFilterActive = false
+  if (!nkError && nieuwkoopRows) {
+    photoFilterActive = true
+    for (const v of nieuwkoopRows as Array<{
+      itemcode: string
+      item_variety_nl: string | null
+      has_image: boolean | null
+    }>) {
+      if (v.itemcode && v.item_variety_nl) {
+        varietyByCode.set(v.itemcode, v.item_variety_nl)
+      }
+      if (v.itemcode && v.has_image !== false) {
+        photoOkCodes.add(v.itemcode)
+      }
     }
   }
 
@@ -482,7 +488,7 @@ export default async function CatalogPage({
       (it) =>
         it.item_picture_name &&
         String(it.item_picture_name).trim() !== '' &&
-        photoOkCodes.has(it.itemcode)
+        (!photoFilterActive || photoOkCodes.has(it.itemcode))
     )
     .map(
       (it) =>

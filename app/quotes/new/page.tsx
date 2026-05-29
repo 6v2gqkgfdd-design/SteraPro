@@ -333,7 +333,7 @@ export default async function NewQuotePage({
       if (slots.length > 0) {
         const [
           { data: candidatesRaw, error: candError },
-          { data: photoMeta },
+          { data: photoMeta, error: photoMetaError },
         ] = await Promise.all([
           supabase
             .from('v_nieuwkoop_with_margin')
@@ -355,18 +355,24 @@ export default async function NewQuotePage({
           console.error('[auto-suggest] candidate fetch error', candError)
         }
 
-        // has_image=false → uitsluiten, true of null → meenemen.
+        // Foto-filter alleen toepassen als de query slaagde. Faalt ze
+        // (bv. has_image-kolom nog niet aangemaakt), dan vallen we
+        // terug op de oude lijst.
         const photoOkSet = new Set<string>()
-        for (const r of (photoMeta ?? []) as Array<{
-          itemcode: string
-          has_image: boolean | null
-        }>) {
-          if (r.itemcode && r.has_image !== false) {
-            photoOkSet.add(r.itemcode)
+        let photoFilterActive = false
+        if (!photoMetaError && photoMeta) {
+          photoFilterActive = true
+          for (const r of photoMeta as Array<{
+            itemcode: string
+            has_image: boolean | null
+          }>) {
+            if (r.itemcode && r.has_image !== false) {
+              photoOkSet.add(r.itemcode)
+            }
           }
         }
         const candidates = ((candidatesRaw ?? []) as Candidate[]).filter(
-          (c) => photoOkSet.has(c.itemcode)
+          (c) => !photoFilterActive || photoOkSet.has(c.itemcode)
         )
 
         for (const slot of slots) {
