@@ -515,7 +515,7 @@ export default async function CatalogPage({
     baseQuery,
     supabase
       .from('nieuwkoop_products')
-      .select('itemcode, item_variety_nl, has_image')
+      .select('itemcode, item_variety_nl, has_image, width, depth, length')
       .eq('product_group_code', GROUP_CODE),
   ])
 
