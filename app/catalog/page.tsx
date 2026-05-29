@@ -449,30 +449,41 @@ export default async function CatalogPage({
 
   if (inStock) baseQuery = baseQuery.eq('is_stock_item', true)
 
-  const [{ data: rawItems, error }, { data: varietyRows }] =
+  // Extra info uit nieuwkoop_products: beplantingssysteem +
+  // item_picture_sysmodified. Die laatste is enkel gezet wanneer de
+  // leverancier ooit een foto-update registreerde — een goede proxy
+  // voor "er bestaat echt een foto" (i.t.t. enkel een ingevulde
+  // bestandsnaam).
+  const [{ data: rawItems, error }, { data: nieuwkoopRows }] =
     await Promise.all([
       baseQuery,
       supabase
         .from('nieuwkoop_products')
-        .select('itemcode, item_variety_nl')
-        .eq('product_group_code', GROUP_CODE)
-        .not('item_variety_nl', 'is', null),
+        .select('itemcode, item_variety_nl, item_picture_sysmodified')
+        .eq('product_group_code', GROUP_CODE),
     ])
 
   const varietyByCode = new Map<string, string>()
-  for (const v of (varietyRows ?? []) as Array<{
+  const photoOkCodes = new Set<string>()
+  for (const v of (nieuwkoopRows ?? []) as Array<{
     itemcode: string
     item_variety_nl: string | null
+    item_picture_sysmodified: string | null
   }>) {
     if (v.itemcode && v.item_variety_nl) {
       varietyByCode.set(v.itemcode, v.item_variety_nl)
+    }
+    if (v.itemcode && v.item_picture_sysmodified) {
+      photoOkCodes.add(v.itemcode)
     }
   }
 
   const items = ((rawItems ?? []) as Omit<Product, 'item_variety_nl'>[])
     .filter(
       (it) =>
-        it.item_picture_name && String(it.item_picture_name).trim() !== ''
+        it.item_picture_name &&
+        String(it.item_picture_name).trim() !== '' &&
+        photoOkCodes.has(it.itemcode)
     )
     .map(
       (it) =>
