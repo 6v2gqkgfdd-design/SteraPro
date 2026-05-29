@@ -346,7 +346,7 @@ export default async function NewQuotePage({
             .limit(5000),
           supabase
             .from('nieuwkoop_products')
-            .select('itemcode, has_image')
+            .select('itemcode, has_image, item_variety_nl')
             .eq('product_group_code', '275'),
         ])
 
@@ -358,20 +358,30 @@ export default async function NewQuotePage({
         // Foto-filter alleen toepassen als we effectief een lijst van
         // OK-items hebben (anders vallen we terug op alles met een
         // ingevulde foto-naam — beter dan een leeg voorstel).
+        // Mosmuren (item_variety_nl bevat een mos-woord) altijd uit
+        // de kandidatenset — die kunnen nooit een dode plant vervangen.
         const photoOkSet = new Set<string>()
+        const mosmuurSet = new Set<string>()
+        const MOS_WORDS = ['bolmos', 'platmos', 'rendiermos', 'bol- en']
         if (!photoMetaError && photoMeta) {
           for (const r of photoMeta as Array<{
             itemcode: string
             has_image: boolean | null
+            item_variety_nl: string | null
           }>) {
-            if (r.itemcode && r.has_image !== false) {
-              photoOkSet.add(r.itemcode)
+            if (!r.itemcode) continue
+            if (r.has_image !== false) photoOkSet.add(r.itemcode)
+            const v = (r.item_variety_nl ?? '').toLowerCase()
+            if (MOS_WORDS.some((w) => v.includes(w))) {
+              mosmuurSet.add(r.itemcode)
             }
           }
         }
         const photoFilterUsable = photoOkSet.size > 0
         const candidates = ((candidatesRaw ?? []) as Candidate[]).filter(
-          (c) => !photoFilterUsable || photoOkSet.has(c.itemcode)
+          (c) =>
+            !mosmuurSet.has(c.itemcode) &&
+            (!photoFilterUsable || photoOkSet.has(c.itemcode))
         )
 
         for (const slot of slots) {
