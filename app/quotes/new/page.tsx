@@ -441,23 +441,14 @@ export default async function NewQuotePage({
     }
   }
 
-  // Levering-regel (transport + installatie-uren) automatisch
-  // toevoegen. Uren = 1u basis + 0,5u per plant; transport is gratis
-  // vanaf €750 aan andere regels. Tech kan altijd manueel aanpassen.
+  // Levering-regel automatisch toevoegen. Drie vaste tarieven op
+  // basis van het plantsubtotaal: €99 onder €300, €49 tussen
+  // €300-€749, gratis vanaf €750. Tech kan altijd manueel aanpassen.
   const nonDeliverySubtotalCents = initialLines.reduce(
     (sum, l) => sum + l.unitPriceCents * Math.max(1, l.quantity),
     0
   )
-  // Alleen vervangings-regels meetellen (planten/combinaties), niet
-  // de uitlegregels of latere extras zonder slot.
-  const plantCount = initialLines.filter(
-    (l) =>
-      (l.lineType === 'combination' ||
-        l.lineType === 'plant' ||
-        l.lineType === 'outer_pot') &&
-      l.unitPriceCents > 0
-  ).length
-  const delivery = planDelivery(nonDeliverySubtotalCents, plantCount)
+  const delivery = planDelivery(nonDeliverySubtotalCents)
   initialLines.push({
     slotId: null,
     lineType: 'transport',

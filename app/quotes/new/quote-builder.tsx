@@ -308,8 +308,7 @@ export default function QuoteBuilder({
   }, [marginFactor])
 
   // Live levering-recalc: subtotaal van de niet-transport-regels
-  // bepaalt of we gratis transport geven. Aantal plant-regels bepaalt
-  // de installatie-uren (1u + 0,5u per plant). Stopt zodra de tech de
+  // bepaalt het tarief (€99 / €49 / gratis). Stopt zodra de tech de
   // levering-regel zelf heeft aangepast (override).
   const nonTransportSubtotalCents = lines
     .filter((l) => l.lineType !== 'transport')
@@ -318,17 +317,10 @@ export default function QuoteBuilder({
         s + euroToCents(l.unitPriceEuro) * Math.max(1, l.quantity),
       0
     )
-  const livePlantCount = lines.filter(
-    (l) =>
-      (l.lineType === 'combination' ||
-        l.lineType === 'plant' ||
-        l.lineType === 'outer_pot') &&
-      euroToCents(l.unitPriceEuro) > 0
-  ).length
 
   useEffect(() => {
     if (transportOverridden) return
-    const plan = planDelivery(nonTransportSubtotalCents, livePlantCount)
+    const plan = planDelivery(nonTransportSubtotalCents)
     const targetEuro = (plan.unitPriceCents / 100).toFixed(2)
 
     setLines((prev) => {
@@ -351,7 +343,7 @@ export default function QuoteBuilder({
       }
       return next
     })
-  }, [nonTransportSubtotalCents, livePlantCount, transportOverridden])
+  }, [nonTransportSubtotalCents, transportOverridden])
 
   // Catalogus-kiezer — werkt op de All-in-1 combinaties (groep 275).
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)

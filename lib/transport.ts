@@ -1,88 +1,73 @@
 /**
  * Levering-regel op offertes.
  *
- * Eén gecombineerde "Levering en installatie"-regel die zowel de
- * transport- als de tijdskost dekt. Berekening:
+ * Eén "Levering en installatie"-regel per offerte met drie vaste
+ * tarieven, gebaseerd op het subtotaal van de andere regels:
  *
- *   Levering-totaal = transport-tarief + (uren × uurloon)
+ *   Subtotaal < €300       → €99
+ *   Subtotaal €300 – €749  → €49
+ *   Subtotaal ≥ €750       → Gratis
  *
- *   Uren  = 1 u basis (laden + rijden) + 0,5 u installatie per plant
- *   Transport = €110 standaard, €0 wanneer subtotaal andere regels
- *               ≥ €750 (gratis-transport-bonus). De uren blijven
- *               altijd aangerekend — jouw tijd kost jou ook altijd.
+ * Commerciële redenering: psychologische prijspunten (€99 / €49 / €0)
+ * werken sterker dan een berekende uurloon-prijs. Onder €300 dekt de
+ * €99 grotendeels de echte kostprijs; bij grotere offertes haalt de
+ * plant-marge het verlies ruim binnen. De "Gratis vanaf €750"-grens
+ * fungeert als upsell-prikkel.
  *
- * Bedrag wordt centraal beheerd hier zodat je in één file kan
- * bijstellen (uurtarief, drempel, transport-tarief).
+ * Tech kan de regel altijd manueel aanpassen of verwijderen.
  */
 
-import { HOURLY_RATE_EUR_CENTS } from './labour'
+/** Onderste prijspunt (kleine offertes onder €300). */
+export const DELIVERY_PRICE_LOW_CENTS = 9900
 
-/** Transport-vaste prijs (zonder marge) in cent. */
-export const TRANSPORT_STANDARD_CENTS = 11000
+/** Middelste prijspunt (€300 – €749). */
+export const DELIVERY_PRICE_MID_CENTS = 4900
 
-/** Vanaf dit subtotaal (excl. levering) wordt het transport gratis. */
-export const TRANSPORT_FREE_THRESHOLD_CENTS = 75000
+/** Drempel waaronder we het volle €99-tarief vragen. */
+export const DELIVERY_LOW_THRESHOLD_CENTS = 30000
 
-/** Basisuren per offerte (laden + rijden enkele rit + terug). */
-export const DELIVERY_BASE_MINUTES = 60
-
-/**
- * Extra installatietijd per plant.
- * 10 min volstaat normaal: pot zit er al, dus oude plant eruit,
- * nieuwe plant erin, water + check.
- */
-export const DELIVERY_MINUTES_PER_PLANT = 10
+/** Drempel waarboven we gratis leveren. */
+export const DELIVERY_FREE_THRESHOLD_CENTS = 75000
 
 export type DeliveryPlan = {
   unitPriceCents: number
   name: string
   description: string
-  hours: number
-  transportCents: number
-  labourCents: number
-  freeTransport: boolean
+  tier: 'low' | 'mid' | 'free'
 }
 
 /**
- * Bepaal de gecombineerde Levering-regel.
+ * Bepaal de Levering-regel voor een gegeven plantsubtotaal.
  *
  * @param nonDeliverySubtotalCents Subtotaal van alle niet-levering-regels
- *   (combinaties, planten, potten, ...). Bepaalt of het transport
- *   gratis is.
- * @param plantCount Aantal vervangings-regels in de offerte. Bepaalt
- *   de installatietijd (1u + 0,5u per plant). Default 0.
+ *   (combinaties, planten, potten, ...). Bepaalt het tarief.
  */
 export function planDelivery(
-  nonDeliverySubtotalCents: number,
-  plantCount: number = 0
+  nonDeliverySubtotalCents: number
 ): DeliveryPlan {
-  const freeTransport =
-    nonDeliverySubtotalCents >= TRANSPORT_FREE_THRESHOLD_CENTS
-  const transportCents = freeTransport ? 0 : TRANSPORT_STANDARD_CENTS
-
-  const minutes =
-    DELIVERY_BASE_MINUTES + DELIVERY_MINUTES_PER_PLANT * Math.max(0, plantCount)
-  const hours = minutes / 60
-  const labourCents = Math.round((minutes / 60) * HOURLY_RATE_EUR_CENTS)
-
-  const unitPriceCents = transportCents + labourCents
-
-  const name = freeTransport
-    ? 'Levering en installatie (transport gratis)'
-    : 'Levering en installatie'
-
-  const hoursLabel = hours % 1 === 0 ? `${hours} u` : `${hours.toFixed(1)} u`
-  const description = freeTransport
-    ? `Inclusief plaatsing van de planten op locatie (${hoursLabel}). Het transport zelf is gratis vanaf €750 aan planten.`
-    : `Inclusief transport (€${(TRANSPORT_STANDARD_CENTS / 100).toFixed(0)}) en plaatsing van de planten op locatie (${hoursLabel}). Transport wordt gratis vanaf €750 aan planten.`
-
+  if (nonDeliverySubtotalCents >= DELIVERY_FREE_THRESHOLD_CENTS) {
+    return {
+      unitPriceCents: 0,
+      name: 'Gratis levering en installatie',
+      description:
+        'Inbegrepen vanaf €750 aan planten. Wij plaatsen alles bij u op locatie.',
+      tier: 'free',
+    }
+  }
+  if (nonDeliverySubtotalCents >= DELIVERY_LOW_THRESHOLD_CENTS) {
+    return {
+      unitPriceCents: DELIVERY_PRICE_MID_CENTS,
+      name: 'Levering en installatie',
+      description:
+        'Wij plaatsen alles bij u op locatie. Gratis vanaf €750 aan planten.',
+      tier: 'mid',
+    }
+  }
   return {
-    unitPriceCents,
-    name,
-    description,
-    hours,
-    transportCents,
-    labourCents,
-    freeTransport,
+    unitPriceCents: DELIVERY_PRICE_LOW_CENTS,
+    name: 'Levering en installatie',
+    description:
+      'Wij plaatsen alles bij u op locatie. Gratis vanaf €750 aan planten.',
+    tier: 'low',
   }
 }
