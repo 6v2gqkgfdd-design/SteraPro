@@ -500,31 +500,66 @@ export default async function CatalogPage({
   // Server-side fetch — alles in groep 275 met een foto. (is_stock_item
   // doen we in-memory zodat de optellingen ook items zonder voorraad
   // mee kunnen tellen wanneer de gebruiker dat vinkje uitzet.)
-  // item_variety_nl zit (nog) niet in de view — we halen het apart op
-  // uit nieuwkoop_products en mergen op itemcode.
-  let baseQuery = supabase
-    .from('v_nieuwkoop_with_margin')
-    .select(
-      'itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, is_stock_item'
-    )
-    .eq('product_group_code', GROUP_CODE)
-    .not('item_picture_name', 'is', null)
-    .neq('item_picture_name', '')
-    .order('description')
-    .limit(5000)
+  // item_variety_nl + width/depth/length zitten (nog) niet in de view —
+  // we halen ze apart op uit nieuwkoop_products en mergen op itemcode.
+  //
+  // Supabase PostgREST capt elke query op 1000 rijen, dus we pagineren
+  // beide queries met range() tot we alles binnen hebben.
+  async function fetchAll<T>(
+    build: () => ReturnType<typeof supabase.from>,
+    selectStr: string,
+    apply: (
+      q: ReturnType<ReturnType<typeof supabase.from>['select']>
+    ) => ReturnType<ReturnType<typeof supabase.from>['select']>
+  ): Promise<{ data: T[]; error: { message: string } | null }> {
+    const pageSize = 1000
+    let from = 0
+    const all: T[] = []
+    while (true) {
+      const q = apply(build().select(selectStr)).range(from, from + pageSize - 1)
+      const res = (await q) as { data: T[] | null; error: { message: string } | null }
+      if (res.error) return { data: all, error: res.error }
+      const batch = res.data ?? []
+      all.push(...batch)
+      if (batch.length < pageSize) break
+      from += pageSize
+      if (from > 20000) break // veiligheid
+    }
+    return { data: all, error: null }
+  }
 
-  if (inStock) baseQuery = baseQuery.eq('is_stock_item', true)
+  type BaseRow = Omit<Product, 'item_variety_nl' | 'width' | 'depth' | 'length'>
+  type NkRow = {
+    itemcode: string
+    item_variety_nl: string | null
+    has_image: boolean | null
+    width: number | null
+    depth: number | null
+    length: number | null
+  }
 
   const [
     { data: rawItems, error },
     { data: nieuwkoopRows, error: nkError },
   ] = await Promise.all([
-    baseQuery,
-    supabase
-      .from('nieuwkoop_products')
-      .select('itemcode, item_variety_nl, has_image, width, depth, length')
-      .eq('product_group_code', GROUP_CODE)
-      .limit(10000),
+    fetchAll<BaseRow>(
+      () => supabase.from('v_nieuwkoop_with_margin'),
+      'itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, is_stock_item',
+      (q) => {
+        let qq = q
+          .eq('product_group_code', GROUP_CODE)
+          .not('item_picture_name', 'is', null)
+          .neq('item_picture_name', '')
+          .order('description')
+        if (inStock) qq = qq.eq('is_stock_item', true)
+        return qq
+      }
+    ),
+    fetchAll<NkRow>(
+      () => supabase.from('nieuwkoop_products'),
+      'itemcode, item_variety_nl, has_image, width, depth, length',
+      (q) => q.eq('product_group_code', GROUP_CODE)
+    ),
   ])
 
   // varietyByCode = beplantingssysteem-info per item.
@@ -542,14 +577,7 @@ export default async function CatalogPage({
     }
   >()
   if (!nkError && nieuwkoopRows) {
-    for (const v of nieuwkoopRows as Array<{
-      itemcode: string
-      item_variety_nl: string | null
-      has_image: boolean | null
-      width: number | null
-      depth: number | null
-      length: number | null
-    }>) {
+    for (const v of nieuwkoopRows) {
       if (v.itemcode && v.item_variety_nl) {
         varietyByCode.set(v.itemcode, v.item_variety_nl)
       }
@@ -572,7 +600,7 @@ export default async function CatalogPage({
   // scherm.
   const photoFilterUsable = photoOkCodes.size > 0
 
-  const items = ((rawItems ?? []) as Omit<Product, 'item_variety_nl'>[])
+  const items = (rawItems ?? [])
     .filter(
       (it) =>
         it.item_picture_name &&
