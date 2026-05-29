@@ -1,24 +1,22 @@
 /**
  * Stera Pro — Catalogus pagina
  *
- * Toont enkel productgroep 275 "All-in-1 concepts" (combinaties van
- * plant + pot voorgekweekt met watermeter).
+ * Toont productgroep 275 "All-in-1 concepts" verdeeld over twee tabs:
+ *   - Combinaties: plant + pot voorgekweekt met watermeter
+ *   - Mosmuren: aluminium/MDF/Nova frames met bol/plat/rendiermos
  *
- * Filters:
- *  - Vrij zoeken op naam
- *  - Op voorraad (default aan)
- *  - Pot-vorm: 16 vormen als klikbare iconen-rij (multi-select)
- *  - Lichtbehoefte: zon / half-schaduw / schaduw (icoon-buttons)
- *  - Hoogte-bereik (dropdown met buckets)
- *  - Diameter (dropdown van voorkomende waardes)
- *  - Beplantingssysteem (multi-select checkboxes met aantallen)
- *  - Plantsoort (multi-select met aantallen — afgeleid uit description)
- *  - Merk (multi-select met aantallen — afgeleid uit description)
+ * Het onderscheid wordt afgeleid uit item_variety_nl (mos-woord =
+ * mosmuur, anders combinatie).
  *
- * Plantsoort en pot-merk worden uit de description afgeleid omdat
- * de leverancier ze niet als aparte velden teruggeeft voor combinaties.
- * Pot-vorm wordt heuristisch uit de pot-naam gehaald via een
- * keyword-mapping.
+ * Filters op de combinaties-tab:
+ *  - Vrij zoeken, voorraad, hoogte, diameter, lichtbehoefte
+ *  - Pot-vorm (iconen-rij), beplantingssysteem, plantsoort, pot-merk
+ *
+ * Filters op de mosmuren-tab:
+ *  - Vrij zoeken, voorraad, hoogte, breedte
+ *  - Frame-materiaal (Aluminium / MDF / Nova Frame)
+ *  - Mostype (Bolmos / Platmos / Rendiermos / Mix)
+ *  - Moskleur (Naturel / Oudgroen / Grasgroen / Lentegroen / ...)
  */
 
 import Link from 'next/link'
@@ -188,6 +186,60 @@ function extractMerk(potPart: string): string {
   // dat is goed genoeg om te groeperen.
   const first = potPart.split(/\s+/).filter(Boolean)[0] ?? ''
   return first
+}
+
+// --- Mosmuur-detectie ----------------------------------------------
+// Mosmuren in groep 275 worden herkend aan een mos-woord in
+// item_variety_nl ("Bolmos", "Platmos", "Rendiermos") of aan een
+// frame-materiaalwoord ("Aluminium", "MDF RAL", "Nova Frame").
+
+const MOS_WORDS = ['bolmos', 'platmos', 'rendiermos', 'bol- en']
+
+function isMosmuur(variety: string | null | undefined): boolean {
+  if (!variety) return false
+  const v = variety.toLowerCase()
+  return MOS_WORDS.some((w) => v.includes(w))
+}
+
+type FrameMateriaal = 'Aluminium' | 'MDF' | 'Nova Frame' | 'Overig'
+
+function extractFrameMateriaal(variety: string | null): FrameMateriaal {
+  if (!variety) return 'Overig'
+  const v = variety.toLowerCase()
+  if (v.startsWith('aluminium')) return 'Aluminium'
+  if (v.startsWith('mdf')) return 'MDF'
+  if (v.startsWith('nova frame')) return 'Nova Frame'
+  return 'Overig'
+}
+
+type Mostype = 'Bolmos' | 'Platmos' | 'Rendiermos' | 'Mix' | 'Overig'
+
+function extractMostype(variety: string | null): Mostype {
+  if (!variety) return 'Overig'
+  const v = variety.toLowerCase()
+  // Mix-varianten ("30% Bol- en 70% Platmos", "30% Bolmos 70% Rendiermos")
+  if (v.includes('bol- en') || (v.includes('bolmos') && v.includes('rendiermos'))) {
+    return 'Mix'
+  }
+  if (v.includes('rendiermos')) return 'Rendiermos'
+  if (v.includes('platmos')) return 'Platmos'
+  if (v.includes('bolmos')) return 'Bolmos'
+  return 'Overig'
+}
+
+function extractMoskleur(variety: string | null): string {
+  if (!variety) return ''
+  // Kleur staat tussen haakjes op het einde: "(Naturel)", "(Oudgroen)",
+  // "(Licht Grasgroen)", "(Mos groen)" — we nemen alles in de laatste
+  // haakjes-groep, en normaliseren spaties.
+  const m = variety.match(/\(([^()]+)\)\s*$/)
+  if (!m) return ''
+  return m[1]
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
 }
 
 // --- SVG icoontjes -------------------------------------------------
@@ -430,7 +482,13 @@ type Enriched = Product & {
   plantsoort: string
   merk: string
   shape: Shape
+  frameMateriaal: FrameMateriaal
+  mostype: Mostype
+  moskleur: string
+  isMos: boolean
 }
+
+type Tab = 'combinaties' | 'moswanden'
 
 // --- Helpers --------------------------------------------------------
 
@@ -480,6 +538,8 @@ export default async function CatalogPage({
   searchParams: SearchParams
 }) {
   const params = await searchParams
+  const tab: Tab =
+    params.tab === 'moswanden' ? 'moswanden' : 'combinaties'
   const q = typeof params.q === 'string' ? params.q.trim() : ''
   const light = typeof params.light === 'string' ? params.light : ''
   const diameter =
@@ -495,6 +555,10 @@ export default async function CatalogPage({
   const shapes = parseArray(params.shape) as Shape[]
   const plantsoorten = parseArray(params.plantsoort)
   const merken = parseArray(params.merk)
+  // Moswand-specifieke filters
+  const frames = parseArray(params.frame) as FrameMateriaal[]
+  const mostypes = parseArray(params.mostype) as Mostype[]
+  const moskleuren = parseArray(params.moskleur)
   const page = Math.max(1, Number(params.page) || 1)
 
   // Server-side fetch — alles in groep 275 met een foto. (is_stock_item
@@ -621,6 +685,7 @@ export default async function CatalogPage({
   // Verrijk met afgeleide velden.
   const enriched: Enriched[] = items.map((it) => {
     const { plantPart, potPart } = splitDescription(it.description || '')
+    const mos = isMosmuur(it.item_variety_nl)
     return {
       ...it,
       plantsoort: extractPlantsoort(plantPart),
@@ -632,29 +697,37 @@ export default async function CatalogPage({
         length: it.length,
         height: it.height,
       }),
+      frameMateriaal: extractFrameMateriaal(it.item_variety_nl),
+      mostype: extractMostype(it.item_variety_nl),
+      moskleur: extractMoskleur(it.item_variety_nl),
+      isMos: mos,
     }
   })
 
-  // Tellingen per filterblok — op de geënrichte set (vóór de overige
-  // filters). Zo zien de gebruiker steeds het volledige plaatje.
-  const plantsoortCounts = countBy(enriched, (x) => x.plantsoort)
-  const merkCounts = countBy(enriched, (x) => x.merk)
-  const systeemCounts = countBy(enriched, (x) => x.item_variety_nl ?? '')
-  const shapeCounts = countBy(enriched, (x) => x.shape)
+  // Splits op tab — een mosmuur kan nooit ook combinatie zijn.
+  const combinaties = enriched.filter((x) => !x.isMos)
+  const moswanden = enriched.filter((x) => x.isMos)
+  const tabSet = tab === 'moswanden' ? moswanden : combinaties
 
-  // In-memory filtering.
-  let filtered = enriched
+  // Tellingen per filterblok — op de tab-set vóór de overige filters,
+  // zodat de gebruiker steeds ziet hoeveel items er in welke categorie
+  // zitten binnen de huidige tab.
+  const plantsoortCounts = countBy(combinaties, (x) => x.plantsoort)
+  const merkCounts = countBy(combinaties, (x) => x.merk)
+  const systeemCounts = countBy(combinaties, (x) => x.item_variety_nl ?? '')
+  const shapeCounts = countBy(combinaties, (x) => x.shape)
+  const frameCounts = countBy(moswanden, (x) => x.frameMateriaal)
+  const mostypeCounts = countBy(moswanden, (x) => x.mostype)
+  const moskleurCounts = countBy(moswanden, (x) => x.moskleur)
+
+  // In-memory filtering — gemeenschappelijke filters eerst.
+  let filtered = tabSet
   if (q) {
     const ql = q.toLowerCase()
     filtered = filtered.filter((x) =>
       (x.description || '').toLowerCase().includes(ql)
     )
   }
-  if (light) filtered = filtered.filter((x) => x.location_icon_nl === light)
-  if (diameter)
-    filtered = filtered.filter(
-      (x) => Math.round(Number(x.diameter)) === Number(diameter)
-    )
   if (heightBucket?.min != null)
     filtered = filtered.filter(
       (x) => (x.height ?? 0) >= (heightBucket.min ?? 0)
@@ -663,16 +736,32 @@ export default async function CatalogPage({
     filtered = filtered.filter(
       (x) => (x.height ?? 0) <= (heightBucket.max ?? 0)
     )
-  if (systems.length > 0)
-    filtered = filtered.filter((x) =>
-      systems.includes(x.item_variety_nl ?? '')
-    )
-  if (shapes.length > 0)
-    filtered = filtered.filter((x) => shapes.includes(x.shape))
-  if (plantsoorten.length > 0)
-    filtered = filtered.filter((x) => plantsoorten.includes(x.plantsoort))
-  if (merken.length > 0)
-    filtered = filtered.filter((x) => merken.includes(x.merk))
+
+  // Tab-specifieke filters.
+  if (tab === 'combinaties') {
+    if (light) filtered = filtered.filter((x) => x.location_icon_nl === light)
+    if (diameter)
+      filtered = filtered.filter(
+        (x) => Math.round(Number(x.diameter)) === Number(diameter)
+      )
+    if (systems.length > 0)
+      filtered = filtered.filter((x) =>
+        systems.includes(x.item_variety_nl ?? '')
+      )
+    if (shapes.length > 0)
+      filtered = filtered.filter((x) => shapes.includes(x.shape))
+    if (plantsoorten.length > 0)
+      filtered = filtered.filter((x) => plantsoorten.includes(x.plantsoort))
+    if (merken.length > 0)
+      filtered = filtered.filter((x) => merken.includes(x.merk))
+  } else {
+    if (frames.length > 0)
+      filtered = filtered.filter((x) => frames.includes(x.frameMateriaal))
+    if (mostypes.length > 0)
+      filtered = filtered.filter((x) => mostypes.includes(x.mostype))
+    if (moskleuren.length > 0)
+      filtered = filtered.filter((x) => moskleuren.includes(x.moskleur))
+  }
 
   const totalCount = filtered.length
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -682,10 +771,10 @@ export default async function CatalogPage({
     safePage * PAGE_SIZE
   )
 
-  // Beschikbare pot-diameters (in de huidige stock-set).
+  // Beschikbare pot-diameters (alleen relevant op combinaties-tab).
   const allDiameters: number[] = Array.from(
     new Set(
-      enriched
+      combinaties
         .map((x) => Math.round(Number(x.diameter)))
         .filter((n) => Number.isFinite(n) && n > 0)
     )
@@ -701,19 +790,35 @@ export default async function CatalogPage({
   const sortedSystemen = Array.from(systeemCounts.entries())
     .filter(([k]) => k)
     .sort((a, b) => b[1] - a[1])
+  const sortedFrames = Array.from(frameCounts.entries())
+    .filter(([k]) => k && k !== 'Overig')
+    .sort((a, b) => b[1] - a[1])
+  const sortedMostypes = Array.from(mostypeCounts.entries())
+    .filter(([k]) => k && k !== 'Overig')
+    .sort((a, b) => b[1] - a[1])
+  const sortedMoskleuren = Array.from(moskleurCounts.entries())
+    .filter(([k]) => k)
+    .sort((a, b) => b[1] - a[1])
 
   function buildHref(overrides: Record<string, string | number | string[]>) {
     const usp = new URLSearchParams()
     usp.set('f', '1')
+    if (tab !== 'combinaties') usp.set('tab', tab)
     if (q) usp.set('q', q)
-    if (light) usp.set('light', light)
-    if (diameter) usp.set('diameter', diameter)
     if (height) usp.set('height', height)
     if (inStock) usp.set('inStock', '1')
-    for (const s of systems) usp.append('system', s)
-    for (const s of shapes) usp.append('shape', s)
-    for (const s of plantsoorten) usp.append('plantsoort', s)
-    for (const s of merken) usp.append('merk', s)
+    if (tab === 'combinaties') {
+      if (light) usp.set('light', light)
+      if (diameter) usp.set('diameter', diameter)
+      for (const s of systems) usp.append('system', s)
+      for (const s of shapes) usp.append('shape', s)
+      for (const s of plantsoorten) usp.append('plantsoort', s)
+      for (const s of merken) usp.append('merk', s)
+    } else {
+      for (const s of frames) usp.append('frame', s)
+      for (const s of mostypes) usp.append('mostype', s)
+      for (const s of moskleuren) usp.append('moskleur', s)
+    }
     if (safePage > 1) usp.set('page', String(safePage))
     for (const [k, v] of Object.entries(overrides)) {
       usp.delete(k)
@@ -727,54 +832,133 @@ export default async function CatalogPage({
     return '/catalog' + (s ? `?${s}` : '')
   }
 
+  // Een schone tab-link (geen filters uit andere tab meeslepen).
+  function tabHref(t: Tab): string {
+    return t === 'combinaties' ? '/catalog' : '/catalog?tab=moswanden'
+  }
+
+  const combinatiesCount = combinaties.length
+  const moswandenCount = moswanden.length
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-4">
         <h1 className="text-3xl font-serif text-stera-ink">Catalogus</h1>
         <p className="mt-1 text-sm text-stera-ink/70">
-          All-in-1 combinaties — plant in pot, voorgekweekt en met
-          watermeter, klaar om af te leveren.
+          {tab === 'combinaties'
+            ? 'All-in-1 combinaties — plant in pot, voorgekweekt en met watermeter, klaar om af te leveren.'
+            : 'Mosmuren — onderhoudsvrije wanddecoratie in aluminium, MDF of Nova-frames.'}
         </p>
       </header>
 
+      {/* Tabs */}
+      <nav className="mb-6 flex gap-1 border-b border-stera-ink/15">
+        {(['combinaties', 'moswanden'] as Tab[]).map((t) => {
+          const active = t === tab
+          const label = t === 'combinaties' ? 'Combinaties' : 'Moswanden'
+          const cnt = t === 'combinaties' ? combinatiesCount : moswandenCount
+          return (
+            <Link
+              key={t}
+              href={tabHref(t)}
+              className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition ${
+                active
+                  ? 'border-stera-green text-stera-green'
+                  : 'border-transparent text-stera-ink/60 hover:text-stera-ink'
+              }`}
+            >
+              {label}
+              <span className="ml-1.5 text-xs text-stera-ink/40">
+                ({cnt.toLocaleString('nl-BE')})
+              </span>
+            </Link>
+          )
+        })}
+      </nav>
+
       <AutoSubmitForm method="GET" action="/catalog">
         <input type="hidden" name="f" value="1" />
+        {tab !== 'combinaties' ? (
+          <input type="hidden" name="tab" value={tab} />
+        ) : null}
 
-        {/* Pot-vorm — iconen-rij bovenaan */}
-        <section className="mb-6">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-ink/60">
-            Pot-vorm
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SHAPES.map((shape) => {
-              const checked = shapes.includes(shape)
-              const count = shapeCounts.get(shape) ?? 0
-              return (
-                <label
-                  key={shape}
-                  className="cursor-pointer"
-                  title={`${shape} (${count})`}
-                >
-                  <input
-                    type="checkbox"
-                    name="shape"
-                    value={shape}
-                    defaultChecked={checked}
-                    className="peer sr-only"
-                  />
-                  <div className="flex min-w-[88px] items-center gap-2 rounded-full border border-stera-ink/20 bg-white px-3 py-2 text-sm text-stera-ink transition hover:border-stera-green peer-checked:border-stera-green peer-checked:bg-stera-green/10 peer-checked:text-stera-green">
-                    <span className="shrink-0 text-stera-green">
-                      <ShapeIcon name={shape} />
-                    </span>
-                    <span className="flex-1 truncate text-sm font-medium">
-                      {shape}
-                    </span>
-                  </div>
-                </label>
-              )
-            })}
-          </div>
-        </section>
+        {/* Pot-vorm — iconen-rij bovenaan, enkel op combinaties-tab */}
+        {tab === 'combinaties' ? (
+          <section className="mb-6">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-ink/60">
+              Pot-vorm
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {SHAPES.map((shape) => {
+                const checked = shapes.includes(shape)
+                const count = shapeCounts.get(shape) ?? 0
+                return (
+                  <label
+                    key={shape}
+                    className="cursor-pointer"
+                    title={`${shape} (${count})`}
+                  >
+                    <input
+                      type="checkbox"
+                      name="shape"
+                      value={shape}
+                      defaultChecked={checked}
+                      className="peer sr-only"
+                    />
+                    <div className="flex min-w-[88px] items-center gap-2 rounded-full border border-stera-ink/20 bg-white px-3 py-2 text-sm text-stera-ink transition hover:border-stera-green peer-checked:border-stera-green peer-checked:bg-stera-green/10 peer-checked:text-stera-green">
+                      <span className="shrink-0 text-stera-green">
+                        <ShapeIcon name={shape} />
+                      </span>
+                      <span className="flex-1 truncate text-sm font-medium">
+                        {shape}
+                      </span>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Mostype — iconen-rij bovenaan, enkel op moswanden-tab */}
+        {tab === 'moswanden' ? (
+          <section className="mb-6">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-ink/60">
+              Mostype
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(['Bolmos', 'Platmos', 'Rendiermos', 'Mix'] as Mostype[]).map(
+                (mt) => {
+                  const checked = mostypes.includes(mt)
+                  const count = mostypeCounts.get(mt) ?? 0
+                  return (
+                    <label
+                      key={mt}
+                      className="cursor-pointer"
+                      title={`${mt} (${count})`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="mostype"
+                        value={mt}
+                        defaultChecked={checked}
+                        className="peer sr-only"
+                      />
+                      <div className="flex min-w-[88px] items-center gap-2 rounded-full border border-stera-ink/20 bg-white px-4 py-2 text-sm text-stera-ink transition hover:border-stera-green peer-checked:border-stera-green peer-checked:bg-stera-green/10 peer-checked:text-stera-green">
+                        <span className="flex-1 text-sm font-medium">
+                          {mt}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">
+                          ({count})
+                        </span>
+                      </div>
+                    </label>
+                  )
+                }
+              )}
+            </div>
+          </section>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           {/* Sidebar */}
@@ -798,25 +982,31 @@ export default async function CatalogPage({
               Op voorraad
             </label>
 
-            <FilterSection title="Lichtbehoefte">
-              <fieldset className="flex flex-wrap items-center gap-1.5">
-                <legend className="sr-only">Lichtbehoefte</legend>
-                <LightOption value="" current={light} label="Alle" />
-                <LightOption value="zon" current={light} label="Zon">
-                  <SunIcon />
-                </LightOption>
-                <LightOption
-                  value="half-schaduw"
-                  current={light}
-                  label="Half-schaduw"
-                >
-                  <PartlyCloudyIcon />
-                </LightOption>
-                <LightOption value="schaduw" current={light} label="Schaduw">
-                  <CloudIcon />
-                </LightOption>
-              </fieldset>
-            </FilterSection>
+            {tab === 'combinaties' ? (
+              <FilterSection title="Lichtbehoefte">
+                <fieldset className="flex flex-wrap items-center gap-1.5">
+                  <legend className="sr-only">Lichtbehoefte</legend>
+                  <LightOption value="" current={light} label="Alle" />
+                  <LightOption value="zon" current={light} label="Zon">
+                    <SunIcon />
+                  </LightOption>
+                  <LightOption
+                    value="half-schaduw"
+                    current={light}
+                    label="Half-schaduw"
+                  >
+                    <PartlyCloudyIcon />
+                  </LightOption>
+                  <LightOption
+                    value="schaduw"
+                    current={light}
+                    label="Schaduw"
+                  >
+                    <CloudIcon />
+                  </LightOption>
+                </fieldset>
+              </FilterSection>
+            ) : null}
 
             <FilterSection title="Hoogte">
               <select
@@ -833,92 +1023,154 @@ export default async function CatalogPage({
               </select>
             </FilterSection>
 
-            <FilterSection title="Diameter">
-              <select
-                name="diameter"
-                defaultValue={diameter}
-                className="w-full rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
-              >
-                <option value="">Alle Ø</option>
-                {allDiameters.map((d) => (
-                  <option key={d} value={d}>
-                    Ø {d} cm
-                  </option>
-                ))}
-              </select>
-            </FilterSection>
+            {tab === 'combinaties' ? (
+              <FilterSection title="Diameter">
+                <select
+                  name="diameter"
+                  defaultValue={diameter}
+                  className="w-full rounded-lg border border-stera-ink/20 bg-white px-3 py-2"
+                >
+                  <option value="">Alle Ø</option>
+                  {allDiameters.map((d) => (
+                    <option key={d} value={d}>
+                      Ø {d} cm
+                    </option>
+                  ))}
+                </select>
+              </FilterSection>
+            ) : null}
 
-            <FilterSection title="Beplantingssysteem">
-              <ul className="space-y-1.5">
-                {sortedSystemen.map(([name, cnt]) => (
-                  <li key={name}>
-                    <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
-                      <span className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          name="system"
-                          value={name}
-                          defaultChecked={systems.includes(name)}
-                          className="h-4 w-4 accent-stera-green"
-                        />
-                        {name}
-                      </span>
-                      <span className="text-xs text-stera-ink/50">
-                        ({cnt})
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </FilterSection>
+            {tab === 'combinaties' ? (
+              <FilterSection title="Beplantingssysteem">
+                <ul className="space-y-1.5">
+                  {sortedSystemen.map(([name, cnt]) => (
+                    <li key={name}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="system"
+                            value={name}
+                            defaultChecked={systems.includes(name)}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {name}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">
+                          ({cnt})
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </FilterSection>
+            ) : null}
 
-            <FilterSection title="Plantsoort">
-              <ul className="max-h-72 space-y-1.5 overflow-auto pr-1">
-                {sortedPlantsoorten.map(([name, cnt]) => (
-                  <li key={name}>
-                    <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
-                      <span className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          name="plantsoort"
-                          value={name}
-                          defaultChecked={plantsoorten.includes(name)}
-                          className="h-4 w-4 accent-stera-green"
-                        />
-                        {name}
-                      </span>
-                      <span className="text-xs text-stera-ink/50">
-                        ({cnt})
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </FilterSection>
+            {tab === 'combinaties' ? (
+              <FilterSection title="Plantsoort">
+                <ul className="max-h-72 space-y-1.5 overflow-auto pr-1">
+                  {sortedPlantsoorten.map(([name, cnt]) => (
+                    <li key={name}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="plantsoort"
+                            value={name}
+                            defaultChecked={plantsoorten.includes(name)}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {name}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">
+                          ({cnt})
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </FilterSection>
+            ) : null}
 
-            <FilterSection title="Merk">
-              <ul className="max-h-72 space-y-1.5 overflow-auto pr-1">
-                {sortedMerken.map(([name, cnt]) => (
-                  <li key={name}>
-                    <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
-                      <span className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          name="merk"
-                          value={name}
-                          defaultChecked={merken.includes(name)}
-                          className="h-4 w-4 accent-stera-green"
-                        />
-                        {name}
-                      </span>
-                      <span className="text-xs text-stera-ink/50">
-                        ({cnt})
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </FilterSection>
+            {tab === 'combinaties' ? (
+              <FilterSection title="Merk">
+                <ul className="max-h-72 space-y-1.5 overflow-auto pr-1">
+                  {sortedMerken.map(([name, cnt]) => (
+                    <li key={name}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="merk"
+                            value={name}
+                            defaultChecked={merken.includes(name)}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {name}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">
+                          ({cnt})
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </FilterSection>
+            ) : null}
+
+            {tab === 'moswanden' ? (
+              <FilterSection title="Frame-materiaal">
+                <ul className="space-y-1.5">
+                  {sortedFrames.map(([name, cnt]) => (
+                    <li key={name}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="frame"
+                            value={name}
+                            defaultChecked={frames.includes(
+                              name as FrameMateriaal
+                            )}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {name}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">
+                          ({cnt})
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </FilterSection>
+            ) : null}
+
+            {tab === 'moswanden' ? (
+              <FilterSection title="Moskleur">
+                <ul className="max-h-72 space-y-1.5 overflow-auto pr-1">
+                  {sortedMoskleuren.map(([name, cnt]) => (
+                    <li key={name}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="moskleur"
+                            value={name}
+                            defaultChecked={moskleuren.includes(name)}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {name}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">
+                          ({cnt})
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </FilterSection>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               <button
@@ -928,7 +1180,7 @@ export default async function CatalogPage({
                 Filter toepassen
               </button>
               <Link
-                href="/catalog"
+                href={tabHref(tab)}
                 className="rounded-lg border border-stera-ink/20 px-4 py-2 font-medium transition hover:bg-white"
               >
                 Wis alles
@@ -948,7 +1200,9 @@ export default async function CatalogPage({
 
             {pageItems.length === 0 ? (
               <div className="rounded-xl border border-stera-ink/10 bg-white/40 py-16 text-center text-stera-ink/60">
-                Geen combinaties gevonden met deze filters.
+                {tab === 'combinaties'
+                  ? 'Geen combinaties gevonden met deze filters.'
+                  : 'Geen mosmuren gevonden met deze filters.'}
               </div>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
