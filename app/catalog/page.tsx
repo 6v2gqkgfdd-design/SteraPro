@@ -40,119 +40,33 @@ const HEIGHT_BUCKETS: Record<
 }
 
 // --- Pot-vorm-detectie ----------------------------------------------
-// Heuristiek: zoek bekende vorm-woorden in de pot-naam (het stuk van
-// de description ná "in "). Eerste match wint. Geen match → "Overig".
+//
+// De leverancier-API heeft geen vorm-veld, alleen afmetingen. We
+// hebben dus maar één betrouwbaar signaal: heeft de pot een diameter
+// of een length? Daarom houden we het simpel: Rond of Hoekig.
+//
+//   - diameter > 0 (en geen length)   → Rond
+//   - length > 0 (en geen diameter)   → Hoekig
+//   - alles erbuiten                  → Overig
+//
+// Subcategorieën (globe/cilinder/cube/rectangle/...) verschillen per
+// modellijn van de fabrikant en kunnen we niet automatisch afleiden
+// zonder een manuele mapping per modelnaam.
 
-const SHAPES = [
-  'Balloon',
-  'Barrel',
-  'Bowl',
-  'Couple',
-  'Cube',
-  'Cylinder',
-  'Darcy',
-  'Emperor',
-  'Globe',
-  'Kubis',
-  'Op Pootjes',
-  'Oval',
-  'Partner',
-  'Rectangle',
-  'Square',
-  'Overig',
-] as const
+const SHAPES = ['Rond', 'Hoekig', 'Overig'] as const
 type Shape = (typeof SHAPES)[number]
 
-const SHAPE_KEYWORDS: Record<Exclude<Shape, 'Overig'>, string[]> = {
-  Balloon: ['balloon', 'ballon'],
-  Barrel: ['barrel', 'vat'],
-  Bowl: ['bowl', 'kom', 'schaal', 'shallow'],
-  Couple: ['couple'],
-  Cube: ['cube', 'kubus'],
-  Cylinder: ['cylinder', 'cilinder'],
-  Darcy: ['darcy'],
-  Emperor: ['emperor'],
-  Globe: ['globe', 'bol ', ' ball ', 'ball '],
-  Kubis: ['kubis'],
-  'Op Pootjes': ['pootjes', 'pootje', 'op voet'],
-  Oval: ['oval', 'ovaal'],
-  Partner: ['partner'],
-  Rectangle: ['rectangle', 'rectangular', 'rechthoek'],
-  Square: ['square', 'vierkant'],
-}
-
-/**
- * Dimensies vertellen vaak meer dan de naam.
- *
- * Belangrijk: `depth` wordt door de leverancier óók voor ronde potten
- * ingevuld (het is de buitenmaat front-to-back, niet de korte zijde
- * van een rechthoek). We mogen depth dus NIET als signaal gebruiken
- * om Rectangle/Square te detecteren.
- *
- * Het échte signaal is `length`:
- *   - length ingevuld + geen diameter → rechthoekige/vierkante pot
- *   - length ≈ width → Square (of Cube als ook hoogte even groot)
- *   - length ≠ width → Rectangle
- *   - length zonder width → Rectangle (langwerpige bak)
- *
- * Alles met diameter > 0 (en geen length) blijft rond — daarvoor
- * leunen we op keywords (Globe/Balloon/Cylinder/...).
- */
-function detectShapeByDimensions(dims: {
+function detectShape(dims: {
   diameter: number | null
-  width: number | null
-  depth: number | null
   length: number | null
-  height: number | null
-}): Shape | null {
+}): Shape {
   const d = Number(dims.diameter ?? 0)
-  const w = Number(dims.width ?? 0)
   const len = Number(dims.length ?? 0)
-  const h = Number(dims.height ?? 0)
-
-  // Length is hét signaal voor een hoekige pot.
-  if (len > 0 && d <= 0) {
-    if (w > 0) {
-      const longSide = Math.max(len, w)
-      const shortSide = Math.min(len, w)
-      const diff = Math.abs(longSide - shortSide)
-      if (diff > 5) return 'Rectangle'
-      // Even lang als breed: vierkant. Als ook de hoogte ongeveer
-      // gelijk loopt → kubus.
-      if (h > 0 && Math.abs(longSide - h) <= 5) return 'Cube'
-      return 'Square'
-    }
-    // Length zonder width: langwerpige bak.
-    return 'Rectangle'
-  }
-  return null
-}
-
-function detectShapeByKeyword(potName: string): Shape {
-  const lower = ` ${potName.toLowerCase()} `
-  for (const shape of SHAPES) {
-    if (shape === 'Overig') continue
-    const keywords = SHAPE_KEYWORDS[shape as Exclude<Shape, 'Overig'>]
-    for (const kw of keywords) {
-      if (lower.includes(kw)) return shape
-    }
-  }
+  if (d > 0 && len <= 0) return 'Rond'
+  if (len > 0 && d <= 0) return 'Hoekig'
+  // Rare gevallen (beide of geen van beide ingevuld): de afbeelding
+  // toont de gebruiker zelf wel wat het is.
   return 'Overig'
-}
-
-function detectShape(
-  potName: string,
-  dims: {
-    diameter: number | null
-    width: number | null
-    depth: number | null
-    length: number | null
-    height: number | null
-  }
-): Shape {
-  // Dimensies eerst — als ze rechthoek/vierkant/kubus duidelijk
-  // aangeven, vertrouwen we daarop. Anders trefwoorden in de naam.
-  return detectShapeByDimensions(dims) ?? detectShapeByKeyword(potName)
 }
 
 // --- Description-parsing -------------------------------------------
@@ -339,102 +253,16 @@ function ShapeIcon({ name }: { name: Shape }) {
     strokeLinejoin: 'round' as const,
   }
   switch (name) {
-    case 'Balloon':
+    case 'Rond':
       return (
         <svg {...p}>
-          <path d="M16 6c-5 0-8 4-8 9 0 6 4 11 8 11s8-5 8-11c0-5-3-9-8-9z" />
+          <circle cx="16" cy="16" r="10" />
         </svg>
       )
-    case 'Barrel':
+    case 'Hoekig':
       return (
         <svg {...p}>
-          <path d="M9 8c0-1 14-1 14 0v17c0 1-14 1-14 0z" />
-          <path d="M7 14c2 0 16 0 18 0M7 22c2 0 16 0 18 0" />
-        </svg>
-      )
-    case 'Bowl':
-      return (
-        <svg {...p}>
-          <path d="M5 14h22c0 6-5 12-11 12S5 20 5 14z" />
-        </svg>
-      )
-    case 'Couple':
-      return (
-        <svg {...p}>
-          <rect x="6" y="9" width="9" height="18" rx="1.5" />
-          <rect x="17" y="9" width="9" height="18" rx="1.5" />
-        </svg>
-      )
-    case 'Cube':
-      return (
-        <svg {...p}>
-          <path d="M8 11l8-4 8 4-8 4-8-4z" />
-          <path d="M8 11v12l8 4 8-4V11" />
-          <path d="M16 15v12" />
-        </svg>
-      )
-    case 'Cylinder':
-      return (
-        <svg {...p}>
-          <ellipse cx="16" cy="8" rx="8" ry="2.5" />
-          <path d="M8 8v17c0 1.5 16 1.5 16 0V8" />
-        </svg>
-      )
-    case 'Darcy':
-      return (
-        <svg {...p}>
-          <path d="M10 8c0-2 12-2 12 0v17c0 2-12 2-12 0z" />
-        </svg>
-      )
-    case 'Emperor':
-      return (
-        <svg {...p}>
-          <path d="M9 9c0-1 14-1 14 0l-1 16c0 1-12 1-12 0z" />
-        </svg>
-      )
-    case 'Globe':
-      return (
-        <svg {...p}>
-          <circle cx="16" cy="17" r="9" />
-        </svg>
-      )
-    case 'Kubis':
-      return (
-        <svg {...p}>
-          <path d="M9 25l3-17h8l3 17z" />
-        </svg>
-      )
-    case 'Op Pootjes':
-      return (
-        <svg {...p}>
-          <ellipse cx="16" cy="10" rx="8" ry="2.5" />
-          <path d="M8 10v12c0 1.5 16 1.5 16 0V10" />
-          <path d="M11 25v3M21 25v3" />
-        </svg>
-      )
-    case 'Oval':
-      return (
-        <svg {...p}>
-          <ellipse cx="16" cy="17" rx="11" ry="8" />
-        </svg>
-      )
-    case 'Partner':
-      return (
-        <svg {...p}>
-          <ellipse cx="11" cy="17" rx="6" ry="9" />
-          <ellipse cx="21" cy="17" rx="6" ry="9" />
-        </svg>
-      )
-    case 'Rectangle':
-      return (
-        <svg {...p}>
-          <rect x="4" y="11" width="24" height="14" rx="1.5" />
-        </svg>
-      )
-    case 'Square':
-      return (
-        <svg {...p}>
-          <rect x="7" y="7" width="18" height="20" rx="1.5" />
+          <rect x="6" y="6" width="20" height="20" rx="1.5" />
         </svg>
       )
     case 'Overig':
@@ -690,13 +518,7 @@ export default async function CatalogPage({
       ...it,
       plantsoort: extractPlantsoort(plantPart),
       merk: extractMerk(potPart),
-      shape: detectShape(potPart, {
-        diameter: it.diameter,
-        width: it.width,
-        depth: it.depth,
-        length: it.length,
-        height: it.height,
-      }),
+      shape: detectShape({ diameter: it.diameter, length: it.length }),
       frameMateriaal: extractFrameMateriaal(it.item_variety_nl),
       mostype: extractMostype(it.item_variety_nl),
       moskleur: extractMoskleur(it.item_variety_nl),
