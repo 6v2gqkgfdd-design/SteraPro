@@ -84,10 +84,21 @@ const SHAPE_KEYWORDS: Record<Exclude<Shape, 'Overig'>, string[]> = {
 }
 
 /**
- * Dimensies vertellen vaak meer dan de naam: een echte rectangle-pot
- * heeft width != depth met diameter = 0. Een square pot heeft
- * width ≈ depth en geen diameter. Alles met diameter > 0 is rond
- * (Globe/Balloon/Cylinder/Bowl/Oval/Barrel/Emperor/...).
+ * Dimensies vertellen vaak meer dan de naam.
+ *
+ * Belangrijk: `depth` wordt door de leverancier óók voor ronde potten
+ * ingevuld (het is de buitenmaat front-to-back, niet de korte zijde
+ * van een rechthoek). We mogen depth dus NIET als signaal gebruiken
+ * om Rectangle/Square te detecteren.
+ *
+ * Het échte signaal is `length`:
+ *   - length ingevuld + geen diameter → rechthoekige/vierkante pot
+ *   - length ≈ width → Square (of Cube als ook hoogte even groot)
+ *   - length ≠ width → Rectangle
+ *   - length zonder width → Rectangle (langwerpige bak)
+ *
+ * Alles met diameter > 0 (en geen length) blijft rond — daarvoor
+ * leunen we op keywords (Globe/Balloon/Cylinder/...).
  */
 function detectShapeByDimensions(dims: {
   diameter: number | null
@@ -98,27 +109,23 @@ function detectShapeByDimensions(dims: {
 }): Shape | null {
   const d = Number(dims.diameter ?? 0)
   const w = Number(dims.width ?? 0)
-  const dep = Number(dims.depth ?? 0)
   const len = Number(dims.length ?? 0)
   const h = Number(dims.height ?? 0)
 
-  // Geen diameter en wel andere afmetingen → rechthoekige/vierkante
-  // pot. We gebruiken length, width, depth om te bepalen welke.
-  if (d <= 0 && (len > 0 || w > 0 || dep > 0)) {
-    // De lange en korte zijden van de basis.
-    const sides = [len, w, dep].filter((x) => x > 0)
-    if (sides.length >= 2) {
-      const longSide = Math.max(...sides)
-      const shortSide = Math.min(...sides)
+  // Length is hét signaal voor een hoekige pot.
+  if (len > 0 && d <= 0) {
+    if (w > 0) {
+      const longSide = Math.max(len, w)
+      const shortSide = Math.min(len, w)
       const diff = Math.abs(longSide - shortSide)
       if (diff > 5) return 'Rectangle'
-      // Width ≈ depth: square of cube (cube = ongeveer even hoog).
+      // Even lang als breed: vierkant. Als ook de hoogte ongeveer
+      // gelijk loopt → kubus.
       if (h > 0 && Math.abs(longSide - h) <= 5) return 'Cube'
       return 'Square'
     }
-    // Enkel length ingevuld zonder width/depth → vermoedelijk een
-    // langwerpige plantenbak.
-    if (len > 0) return 'Rectangle'
+    // Length zonder width: langwerpige bak.
+    return 'Rectangle'
   }
   return null
 }
