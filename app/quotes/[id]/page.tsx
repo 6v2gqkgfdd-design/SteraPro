@@ -5,6 +5,7 @@ import { woImage } from '@/lib/wo-image'
 import { updateQuoteStatusAction } from './actions'
 import ShareQuoteLink from './share-link'
 import DeleteQuoteButton from './delete-quote'
+import DeliveryIllustration from '@/components/delivery-illustration'
 
 type QuoteStatus =
   | 'draft'
@@ -291,7 +292,9 @@ export default async function QuoteDetailPage({
                     key={l.id as string}
                     className="flex flex-wrap gap-3 rounded-xl border border-stera-line bg-white p-3"
                   >
-                    {img ? (
+                    {l.line_type === 'transport' ? (
+                      <DeliveryIllustration className="h-16 w-20 shrink-0 rounded" />
+                    ) : img ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={img}

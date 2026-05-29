@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { PublicQuoteLine } from './page'
 import { submitQuoteDecision } from './actions'
+import DeliveryIllustration from '@/components/delivery-illustration'
 
 type Decision = 'accepted' | 'declined'
 
@@ -445,8 +446,9 @@ export default function QuoteDecisionForm({
           {transportLines.map((t) => (
             <div
               key={t.id}
-              className="flex flex-wrap items-baseline justify-between gap-3"
+              className="flex flex-wrap items-center gap-3"
             >
+              <DeliveryIllustration className="h-16 w-20 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold leading-tight">{t.name}</p>
                 {t.description ? (

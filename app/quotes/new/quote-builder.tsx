@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createQuote } from './actions'
 import { woImage } from '@/lib/wo-image'
 import { planDelivery } from '@/lib/transport'
+import DeliveryIllustration from '@/components/delivery-illustration'
 
 // Snelle keuze-knoppen voor de margefactor. Stera kan altijd zelf
 // een andere factor intypen.
@@ -1236,7 +1237,9 @@ function LineItem({
   return (
     <div className="rounded-xl border border-stera-line bg-white p-3">
       <div className="flex flex-wrap gap-3">
-        {line.imageUrl ? (
+        {line.lineType === 'transport' ? (
+          <DeliveryIllustration className="h-16 w-20 shrink-0 rounded" />
+        ) : line.imageUrl ? (
           line.itemcode ? (
             <Link
               href={`/catalog/${line.itemcode}`}
