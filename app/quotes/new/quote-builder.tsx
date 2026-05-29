@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createQuote } from './actions'
 import { woImage } from '@/lib/wo-image'
+import {
+  TRANSPORT_FREE_THRESHOLD_CENTS,
+  TRANSPORT_STANDARD_CENTS,
+} from '@/lib/transport'
 
 // Snelle keuze-knoppen voor de margefactor. Stera kan altijd zelf
 // een andere factor intypen.
@@ -86,7 +90,7 @@ export type VisitPrefill = {
 // voor wanneer een bestaande offerte wordt bewerkt.
 export type InitialLineInput = {
   slotId: string | null
-  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination'
+  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination' | 'transport'
   supplier: 'nieuwkoop' | 'stera' | null
   itemcode: string | null
   name: string
@@ -115,7 +119,7 @@ type CatalogItem = {
 type Line = {
   key: string
   slotId: string | null
-  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination'
+  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination' | 'transport'
   supplier: 'nieuwkoop' | 'stera' | null
   itemcode: string | null
   name: string
@@ -180,6 +184,7 @@ const LINE_TYPE_LABEL: Record<Line['lineType'], string> = {
   plant: 'Plant',
   outer_pot: 'Buitenpot',
   custom: 'Vrije regel',
+  transport: 'Transport',
 }
 
 const LIGHT_LABEL: Record<'high' | 'medium' | 'low', string> = {
@@ -272,6 +277,12 @@ export default function QuoteBuilder({
     })
   )
 
+  // Of de tech de transport-regel zelf bewerkt heeft. Zolang dit
+  // false is, herrekent useEffect hieronder de transport-prijs op
+  // basis van het subtotaal van de andere regels (gratis vanaf €750).
+  // Eens de tech aanpast, schakelt de auto-herrekening uit.
+  const [transportOverridden, setTransportOverridden] = useState(false)
+
   // Wanneer de marge wijzigt — voor alle regels met een gekende
   // inkoopprijs de verkoopprijs herrekenen. Custom regels (geen
   // supplier-prijs) blijven ongewijzigd. Sla de eerste mount over,
@@ -298,6 +309,49 @@ export default function QuoteBuilder({
       })
     )
   }, [marginFactor])
+
+  // Live transport-recalc: subtotaal van de niet-transport-regels
+  // bepaalt of we gratis levering geven. Stopt zodra de tech de
+  // transport-regel zelf heeft aangepast (override).
+  const nonTransportSubtotalCents = lines
+    .filter((l) => l.lineType !== 'transport')
+    .reduce(
+      (s, l) =>
+        s + euroToCents(l.unitPriceEuro) * Math.max(1, l.quantity),
+      0
+    )
+
+  useEffect(() => {
+    if (transportOverridden) return
+    const free = nonTransportSubtotalCents >= TRANSPORT_FREE_THRESHOLD_CENTS
+    const targetCents = free ? 0 : TRANSPORT_STANDARD_CENTS
+    const targetEuro = (targetCents / 100).toFixed(2)
+    const targetName = free ? 'Gratis levering' : 'Transport en levering'
+    const targetDescription = free
+      ? 'Vanaf €750 aan planten leveren we kosteloos bij u op locatie.'
+      : 'Levering aan huis met laadbrug. Wordt gratis vanaf €750 aan planten.'
+
+    setLines((prev) => {
+      const transportIdx = prev.findIndex((l) => l.lineType === 'transport')
+      if (transportIdx < 0) return prev
+      const current = prev[transportIdx]
+      if (
+        current.unitPriceEuro === targetEuro &&
+        current.name === targetName &&
+        current.description === targetDescription
+      ) {
+        return prev
+      }
+      const next = prev.slice()
+      next[transportIdx] = {
+        ...current,
+        unitPriceEuro: targetEuro,
+        name: targetName,
+        description: targetDescription,
+      }
+      return next
+    })
+  }, [nonTransportSubtotalCents, transportOverridden])
 
   // Catalogus-kiezer — werkt op de All-in-1 combinaties (groep 275).
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
@@ -547,12 +601,32 @@ export default function QuoteBuilder({
 
   function updateLine(key: string, patch: Partial<Line>) {
     setLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, ...patch } : l))
+      prev.map((l) => {
+        if (l.key !== key) return l
+        // Als de tech de transport-regel manueel aanpast, schakel de
+        // auto-recalc uit zodat zijn wijziging blijft staan.
+        if (
+          l.lineType === 'transport' &&
+          (patch.unitPriceEuro !== undefined ||
+            patch.name !== undefined ||
+            patch.quantity !== undefined)
+        ) {
+          setTransportOverridden(true)
+        }
+        return { ...l, ...patch }
+      })
     )
   }
 
   function removeLine(key: string) {
-    setLines((prev) => prev.filter((l) => l.key !== key))
+    setLines((prev) => {
+      const target = prev.find((l) => l.key === key)
+      if (target?.lineType === 'transport') {
+        // Tech verwijdert transport → niet meer auto-toevoegen.
+        setTransportOverridden(true)
+      }
+      return prev.filter((l) => l.key !== key)
+    })
   }
 
   async function handleSave() {

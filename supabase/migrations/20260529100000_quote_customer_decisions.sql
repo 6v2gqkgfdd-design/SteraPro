@@ -96,10 +96,23 @@ begin
           -- tonen 'Vervanging voor [oude plant naam] in [ruimte]'.
           'old_plant_name', p.nickname,
           'old_plant_species', p.species,
+          'old_plant_photo_url', coalesce(vp.photo_url, p.photo_url),
           'room_name', r.name,
           'room_floor', r.floor
         ) order by ql.position, ql.created_at
       )
+      from public.quote_lines ql
+        left join public.maintenance_visit_plants vp
+          on vp.id = ql.source_visit_plant_id
+        left join public.plants p on p.id = vp.plant_id
+        left join public.rooms r on r.id = p.room_id
+      where ql.quote_id = q.id
+    ), '[]'::jsonb),
+    'rooms', coalesce((
+      select jsonb_agg(distinct jsonb_build_object(
+        'name', r.name,
+        'floor', r.floor
+      )) filter (where r.id is not null)
       from public.quote_lines ql
         left join public.maintenance_visit_plants vp
           on vp.id = ql.source_visit_plant_id

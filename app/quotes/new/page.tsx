@@ -9,6 +9,7 @@ import QuoteBuilder, {
 } from './quote-builder'
 import { formatRoomLabel } from '@/lib/rooms'
 import { analyzeReplacementPhotos } from '@/lib/ai/photo-analysis'
+import { planTransport } from '@/lib/transport'
 
 const LIGHT_TO_CATALOG_MAP: Record<'high' | 'medium' | 'low', string> = {
   high: 'zon',
@@ -439,6 +440,27 @@ export default async function NewQuotePage({
       }
     }
   }
+
+  // Transport-regel altijd toevoegen — vast tarief, of gratis vanaf
+  // €750 aan andere regels. Tech kan hem manueel aanpassen.
+  const nonTransportSubtotalCents = initialLines.reduce(
+    (sum, l) => sum + l.unitPriceCents * Math.max(1, l.quantity),
+    0
+  )
+  const transportPlan = planTransport(nonTransportSubtotalCents)
+  initialLines.push({
+    slotId: null,
+    lineType: 'transport',
+    supplier: null,
+    itemcode: null,
+    name: transportPlan.name,
+    description: transportPlan.description,
+    spec: null,
+    imageUrl: null,
+    supplierUnitPriceCents: null,
+    unitPriceCents: transportPlan.unitPriceCents,
+    quantity: 1,
+  })
 
   return (
     <main className="bg-stera-cream p-6">

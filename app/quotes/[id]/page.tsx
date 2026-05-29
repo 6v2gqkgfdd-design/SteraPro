@@ -40,6 +40,7 @@ const LINE_TYPE_LABEL: Record<string, string> = {
   plant: 'Plant',
   outer_pot: 'Buitenpot',
   custom: 'Vrije regel',
+  transport: 'Transport',
 }
 
 function formatEuro(cents: number) {

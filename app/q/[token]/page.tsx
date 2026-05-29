@@ -11,6 +11,7 @@
  * consistent aanvoelt met de werkbon-goedkeuring.
  */
 
+import Link from 'next/link'
 import SteraLogo from '@/components/stera-logo'
 import { createClient } from '@/lib/supabase/server'
 import QuoteDecisionForm from './quote-decision-form'
@@ -54,6 +55,13 @@ function formatRoom(name: string | null, floor: string | null) {
   return `${name} · ${floor}`
 }
 
+function formatRoomLabelSafe(
+  name: string | null | undefined,
+  floor: string | null | undefined
+): string {
+  return formatRoom(name ?? null, floor ?? null)
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
@@ -68,6 +76,15 @@ function Shell({ children }: { children: React.ReactNode }) {
       </footer>
     </main>
   )
+}
+
+// Helper voor de "Bekijk plant"-link op het voorstel.
+function plantDetailHref(
+  token: string,
+  itemcode: string | null
+): string | null {
+  if (!itemcode) return null
+  return `/q/${encodeURIComponent(token)}/item/${encodeURIComponent(itemcode)}`
 }
 
 type Line = {
@@ -88,9 +105,12 @@ type Line = {
   source_visit_plant_id: string | null
   old_plant_name: string | null
   old_plant_species: string | null
+  old_plant_photo_url: string | null
   room_name: string | null
   room_floor: string | null
 }
+
+type RoomInfo = { name: string | null; floor: string | null }
 
 type QuoteData = {
   id: string
@@ -117,6 +137,7 @@ type QuoteData = {
     city: string | null
   } | null
   lines: Line[]
+  rooms: RoomInfo[]
 }
 
 export default async function PublicQuotePage({
@@ -156,6 +177,19 @@ export default async function PublicQuotePage({
     quote.status === 'accepted' ||
     quote.status === 'declined' ||
     quote.status === 'ordered'
+
+  // Unieke ruimtes (de RPC dedupliceert al via 'distinct' maar voor
+  // alle zekerheid hier nog eens, gesorteerd op label).
+  const roomLabelSet = new Set<string>()
+  const roomLabels: string[] = []
+  for (const r of quote.rooms ?? []) {
+    const label = formatRoomLabelSafe(r.name, r.floor)
+    if (label && !roomLabelSet.has(label)) {
+      roomLabelSet.add(label)
+      roomLabels.push(label)
+    }
+  }
+  roomLabels.sort((a, b) => a.localeCompare(b, 'nl-BE'))
 
   return (
     <Shell>
@@ -200,6 +234,24 @@ export default async function PublicQuotePage({
           ) : null}
         </div>
       </section>
+
+      {roomLabels.length > 0 ? (
+        <section>
+          <p className="stera-eyebrow text-stera-green mb-2">
+            Ruimtes in deze offerte
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {roomLabels.map((label) => (
+              <span
+                key={label}
+                className="inline-block rounded-full bg-stera-green/10 px-3 py-1 text-xs font-medium text-stera-green"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {quote.intro_note ? (
         <section className="rounded-xl border border-stera-line bg-white p-5 text-sm whitespace-pre-wrap">
@@ -249,7 +301,7 @@ export default async function PublicQuotePage({
 
       <section>
         <p className="stera-eyebrow text-stera-green mb-2">
-          Voorgestelde regels ({lines.length})
+          Voorgestelde regels ({lines.filter((l) => l.line_type !== 'transport').length})
         </p>
         <p className="mb-4 text-sm text-stera-ink-soft">
           {alreadyDecided
@@ -257,19 +309,32 @@ export default async function PublicQuotePage({
             : 'Standaard staan alle regels op akkoord. Zet onderstaande knop op "Niet akkoord" voor wat je niet wil.'}
         </p>
 
-        {/* Het formulier neemt de regels mee. Op de read-only weergave
-            tonen we de beslissingen passief. */}
+        {/* Het formulier neemt de planten- en pot-regels mee. Transport
+            wordt apart getoond — daar kan de klant niets aan weigeren. */}
         {alreadyDecided ? (
-          <ReadonlyLineList lines={lines} />
+          <ReadonlyLineList
+            lines={lines.filter((l) => l.line_type !== 'transport')}
+            token={token}
+          />
         ) : (
-          <QuoteDecisionForm token={token} initialLines={lines} />
+          <QuoteDecisionForm
+            token={token}
+            initialLines={lines.filter((l) => l.line_type !== 'transport')}
+            transportLines={lines.filter((l) => l.line_type === 'transport')}
+          />
         )}
       </section>
     </Shell>
   )
 }
 
-function ReadonlyLineList({ lines }: { lines: Line[] }) {
+function ReadonlyLineList({
+  lines,
+  token,
+}: {
+  lines: Line[]
+  token: string
+}) {
   return (
     <ul className="space-y-3">
       {lines.map((line) => {
@@ -287,7 +352,7 @@ function ReadonlyLineList({ lines }: { lines: Line[] }) {
                 : 'border-stera-line bg-white'
             }`}
           >
-            <LineSummary line={line} />
+            <LineSummary line={line} token={token} />
             {decided ? (
               <p
                 className={`mt-3 inline-block rounded-full px-3 py-1 text-xs font-medium ${
@@ -311,54 +376,126 @@ function ReadonlyLineList({ lines }: { lines: Line[] }) {
   )
 }
 
-function LineSummary({ line }: { line: Line }) {
+function LineSummary({ line, token }: { line: Line; token: string }) {
   const room = formatRoom(line.room_name, line.room_floor)
-  const oldPlant =
-    line.old_plant_name || line.old_plant_species
-      ? `Vervanging voor ${line.old_plant_name || line.old_plant_species}${
-          room ? ` (${room})` : ''
-        }`
-      : null
+  const oldPlantName =
+    line.old_plant_name || line.old_plant_species || null
+  const detailHref = plantDetailHref(token, line.nieuwkoop_itemcode)
   return (
-    <div className="flex flex-wrap gap-3">
-      {line.image_url ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          src={line.image_url}
-          alt={line.name}
-          loading="lazy"
-          className="h-24 w-24 shrink-0 rounded object-cover"
-        />
-      ) : (
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
-          geen foto
+    <div>
+      {oldPlantName ? (
+        <div className="mb-3 border-b border-stera-line/70 pb-3">
+          <p className="stera-eyebrow text-stera-green mb-1">
+            Vervangt
+          </p>
+          <div className="flex items-center gap-3">
+            {line.old_plant_photo_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={line.old_plant_photo_url}
+                alt={`Huidige plant: ${oldPlantName}`}
+                loading="lazy"
+                className="h-16 w-16 shrink-0 rounded object-cover"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
+                geen foto
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-stera-ink">{oldPlantName}</p>
+              {line.old_plant_species && line.old_plant_name ? (
+                <p className="text-xs italic text-stera-ink-soft">
+                  {line.old_plant_species}
+                </p>
+              ) : null}
+              {room ? (
+                <p className="mt-0.5 text-xs text-stera-ink-soft">
+                  📍 {room}
+                </p>
+              ) : null}
+            </div>
+            <span aria-hidden className="shrink-0 text-2xl text-stera-green/60">
+              →
+            </span>
+          </div>
         </div>
-      )}
-      <div className="min-w-0 flex-1">
-        {oldPlant ? (
+      ) : null}
+
+      <div className="flex flex-wrap gap-3">
+        {detailHref ? (
+          <Link
+            href={detailHref}
+            className="shrink-0 rounded transition hover:opacity-80"
+          >
+            {line.image_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={line.image_url}
+                alt={line.name}
+                loading="lazy"
+                className="h-24 w-24 rounded object-cover"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                geen foto
+              </div>
+            )}
+          </Link>
+        ) : line.image_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={line.image_url}
+            alt={line.name}
+            loading="lazy"
+            className="h-24 w-24 shrink-0 rounded object-cover"
+          />
+        ) : (
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+            geen foto
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
           <p className="stera-eyebrow text-stera-green mb-1 text-[10px]">
-            {oldPlant}
+            Voorstel
           </p>
-        ) : null}
-        <p className="font-semibold leading-tight">{line.name}</p>
-        {line.spec ? (
-          <p className="text-xs text-stera-ink-soft">{line.spec}</p>
-        ) : null}
-        {line.description ? (
-          <p className="mt-1 text-xs text-stera-ink-soft whitespace-pre-wrap">
-            {line.description}
+          {detailHref ? (
+            <Link
+              href={detailHref}
+              className="font-semibold leading-tight text-stera-ink hover:text-stera-green hover:underline"
+            >
+              {line.name}
+            </Link>
+          ) : (
+            <p className="font-semibold leading-tight">{line.name}</p>
+          )}
+          {line.spec ? (
+            <p className="text-xs text-stera-ink-soft">{line.spec}</p>
+          ) : null}
+          {line.description ? (
+            <p className="mt-1 text-xs text-stera-ink-soft whitespace-pre-wrap">
+              {line.description}
+            </p>
+          ) : null}
+          {detailHref ? (
+            <Link
+              href={detailHref}
+              className="mt-1 inline-block text-xs text-stera-green underline-offset-4 hover:underline"
+            >
+              Bekijk details →
+            </Link>
+          ) : null}
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-semibold tabular-nums">
+            {formatEur(line.line_total_cents)}
           </p>
-        ) : null}
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="font-semibold tabular-nums">
-          {formatEur(line.line_total_cents)}
-        </p>
-        {line.quantity > 1 ? (
-          <p className="text-xs text-stera-ink-soft">
-            {line.quantity} × {formatEur(line.unit_price_cents)}
-          </p>
-        ) : null}
+          {line.quantity > 1 ? (
+            <p className="text-xs text-stera-ink-soft">
+              {line.quantity} × {formatEur(line.unit_price_cents)}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   )

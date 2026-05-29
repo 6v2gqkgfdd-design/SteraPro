@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import type { PublicQuoteLine } from './page'
 import { submitQuoteDecision } from './actions'
 
@@ -34,9 +35,12 @@ function formatRoom(name: string | null, floor: string | null) {
 export default function QuoteDecisionForm({
   token,
   initialLines,
+  transportLines = [],
 }: {
   token: string
   initialLines: PublicQuoteLine[]
+  /** Niet-beslisbare transport-regels (worden altijd meegerekend). */
+  transportLines?: PublicQuoteLine[]
 }) {
   // Per regel: beslissing (default 'accepted') + commentaar.
   const [decisions, setDecisions] = useState<Record<string, Decision>>(() => {
@@ -64,7 +68,8 @@ export default function QuoteDecisionForm({
     declined: number
   }>(null)
 
-  // Aangepast totaal op basis van wat de klant heeft aangevinkt.
+  // Aangepast totaal op basis van wat de klant heeft aangevinkt +
+  // de transport-regel(s) die altijd meelopen.
   const liveTotalCents = useMemo(() => {
     let sum = 0
     for (const line of initialLines) {
@@ -72,8 +77,16 @@ export default function QuoteDecisionForm({
         sum += line.line_total_cents
       }
     }
+    for (const t of transportLines) {
+      sum += t.line_total_cents
+    }
     return sum
-  }, [decisions, initialLines])
+  }, [decisions, initialLines, transportLines])
+
+  const transportTotalCents = useMemo(
+    () => transportLines.reduce((s, t) => s + t.line_total_cents, 0),
+    [transportLines]
+  )
 
   const acceptedCount = useMemo(
     () => Object.values(decisions).filter((d) => d === 'accepted').length,
@@ -232,12 +245,11 @@ export default function QuoteDecisionForm({
         {initialLines.map((line) => {
           const decision = decisions[line.id] ?? 'accepted'
           const room = formatRoom(line.room_name, line.room_floor)
-          const oldPlant =
-            line.old_plant_name || line.old_plant_species
-              ? `Vervanging voor ${
-                  line.old_plant_name || line.old_plant_species
-                }${room ? ` (${room})` : ''}`
-              : null
+          const oldPlantName =
+            line.old_plant_name || line.old_plant_species || null
+          const detailHref = line.nieuwkoop_itemcode
+            ? `/q/${encodeURIComponent(token)}/item/${encodeURIComponent(line.nieuwkoop_itemcode)}`
+            : null
           return (
             <li
               key={line.id}
@@ -247,8 +259,71 @@ export default function QuoteDecisionForm({
                   : 'border-stera-line bg-white'
               }`}
             >
+              {oldPlantName ? (
+                <div className="mb-3 border-b border-stera-line/70 pb-3">
+                  <p className="stera-eyebrow text-stera-green mb-1">
+                    Vervangt
+                  </p>
+                  <div className="flex items-center gap-3">
+                    {line.old_plant_photo_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={line.old_plant_photo_url}
+                        alt={`Huidige plant: ${oldPlantName}`}
+                        loading="lazy"
+                        className="h-16 w-16 shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
+                        geen foto
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-stera-ink">
+                        {oldPlantName}
+                      </p>
+                      {line.old_plant_species && line.old_plant_name ? (
+                        <p className="text-xs italic text-stera-ink-soft">
+                          {line.old_plant_species}
+                        </p>
+                      ) : null}
+                      {room ? (
+                        <p className="mt-0.5 text-xs text-stera-ink-soft">
+                          📍 {room}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span
+                      aria-hidden
+                      className="shrink-0 text-2xl text-stera-green/60"
+                    >
+                      →
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap gap-3">
-                {line.image_url ? (
+                {detailHref ? (
+                  <Link
+                    href={detailHref}
+                    className="shrink-0 rounded transition hover:opacity-80"
+                  >
+                    {line.image_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={line.image_url}
+                        alt={line.name}
+                        loading="lazy"
+                        className="h-24 w-24 rounded object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-24 w-24 items-center justify-center rounded border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                        geen foto
+                      </div>
+                    )}
+                  </Link>
+                ) : line.image_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={line.image_url}
@@ -262,12 +337,19 @@ export default function QuoteDecisionForm({
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  {oldPlant ? (
-                    <p className="stera-eyebrow text-stera-green mb-1 text-[10px]">
-                      {oldPlant}
-                    </p>
-                  ) : null}
-                  <p className="font-semibold leading-tight">{line.name}</p>
+                  <p className="stera-eyebrow text-stera-green mb-1 text-[10px]">
+                    Voorstel
+                  </p>
+                  {detailHref ? (
+                    <Link
+                      href={detailHref}
+                      className="font-semibold leading-tight text-stera-ink hover:text-stera-green hover:underline"
+                    >
+                      {line.name}
+                    </Link>
+                  ) : (
+                    <p className="font-semibold leading-tight">{line.name}</p>
+                  )}
                   {line.spec ? (
                     <p className="text-xs text-stera-ink-soft">{line.spec}</p>
                   ) : null}
@@ -275,6 +357,14 @@ export default function QuoteDecisionForm({
                     <p className="mt-1 text-xs text-stera-ink-soft whitespace-pre-wrap">
                       {line.description}
                     </p>
+                  ) : null}
+                  {detailHref ? (
+                    <Link
+                      href={detailHref}
+                      className="mt-1 inline-block text-xs text-stera-green underline-offset-4 hover:underline"
+                    >
+                      Bekijk details →
+                    </Link>
                   ) : null}
                 </div>
                 <div className="shrink-0 text-right">
@@ -346,14 +436,48 @@ export default function QuoteDecisionForm({
         })}
       </ul>
 
+      {/* Transport — vaste regel, geen accept/decline. */}
+      {transportLines.length > 0 ? (
+        <div className="rounded-xl border border-stera-line bg-white p-4">
+          <p className="stera-eyebrow text-stera-green mb-2 text-[10px]">
+            Levering
+          </p>
+          {transportLines.map((t) => (
+            <div
+              key={t.id}
+              className="flex flex-wrap items-baseline justify-between gap-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold leading-tight">{t.name}</p>
+                {t.description ? (
+                  <p className="mt-0.5 text-xs text-stera-ink-soft">
+                    {t.description}
+                  </p>
+                ) : null}
+              </div>
+              <p className="font-semibold tabular-nums">
+                {t.line_total_cents === 0
+                  ? 'Gratis'
+                  : formatEur(t.line_total_cents)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {/* Live totaal */}
       <div className="rounded-xl border border-stera-green/30 bg-stera-green/5 p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <p className="stera-eyebrow text-stera-green">Aangepast totaal</p>
             <p className="text-xs text-stera-ink-soft">
-              {acceptedCount} van de {initialLines.length} regels akkoord ·
-              prijzen excl. btw
+              {acceptedCount} van de {initialLines.length} regels akkoord
+              {transportLines.length > 0 && transportTotalCents > 0
+                ? ` + levering`
+                : transportLines.length > 0
+                ? ` + gratis levering`
+                : ''}{' '}
+              · prijzen excl. btw
             </p>
           </div>
           <p className="text-2xl font-bold tabular-nums">

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 type QuoteLineInput = {
-  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination'
+  lineType: 'plant' | 'outer_pot' | 'custom' | 'combination' | 'transport'
   supplier: 'nieuwkoop' | 'stera' | null
   itemcode: string | null
   name: string
