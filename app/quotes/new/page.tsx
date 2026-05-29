@@ -9,7 +9,7 @@ import QuoteBuilder, {
 } from './quote-builder'
 import { formatRoomLabel } from '@/lib/rooms'
 import { analyzeReplacementPhotos } from '@/lib/ai/photo-analysis'
-import { planTransport } from '@/lib/transport'
+import { planDelivery } from '@/lib/transport'
 
 const LIGHT_TO_CATALOG_MAP: Record<'high' | 'medium' | 'low', string> = {
   high: 'zon',
@@ -441,24 +441,34 @@ export default async function NewQuotePage({
     }
   }
 
-  // Transport-regel altijd toevoegen — vast tarief, of gratis vanaf
-  // €750 aan andere regels. Tech kan hem manueel aanpassen.
-  const nonTransportSubtotalCents = initialLines.reduce(
+  // Levering-regel (transport + installatie-uren) automatisch
+  // toevoegen. Uren = 1u basis + 0,5u per plant; transport is gratis
+  // vanaf €750 aan andere regels. Tech kan altijd manueel aanpassen.
+  const nonDeliverySubtotalCents = initialLines.reduce(
     (sum, l) => sum + l.unitPriceCents * Math.max(1, l.quantity),
     0
   )
-  const transportPlan = planTransport(nonTransportSubtotalCents)
+  // Alleen vervangings-regels meetellen (planten/combinaties), niet
+  // de uitlegregels of latere extras zonder slot.
+  const plantCount = initialLines.filter(
+    (l) =>
+      (l.lineType === 'combination' ||
+        l.lineType === 'plant' ||
+        l.lineType === 'outer_pot') &&
+      l.unitPriceCents > 0
+  ).length
+  const delivery = planDelivery(nonDeliverySubtotalCents, plantCount)
   initialLines.push({
     slotId: null,
     lineType: 'transport',
     supplier: null,
     itemcode: null,
-    name: transportPlan.name,
-    description: transportPlan.description,
+    name: delivery.name,
+    description: delivery.description,
     spec: null,
     imageUrl: null,
     supplierUnitPriceCents: null,
-    unitPriceCents: transportPlan.unitPriceCents,
+    unitPriceCents: delivery.unitPriceCents,
     quantity: 1,
   })
 

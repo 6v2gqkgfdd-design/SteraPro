@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createQuote } from './actions'
 import { woImage } from '@/lib/wo-image'
-import {
-  TRANSPORT_FREE_THRESHOLD_CENTS,
-  TRANSPORT_STANDARD_CENTS,
-} from '@/lib/transport'
+import { planDelivery } from '@/lib/transport'
 
 // Snelle keuze-knoppen voor de margefactor. Stera kan altijd zelf
 // een andere factor intypen.
@@ -310,9 +307,10 @@ export default function QuoteBuilder({
     )
   }, [marginFactor])
 
-  // Live transport-recalc: subtotaal van de niet-transport-regels
-  // bepaalt of we gratis levering geven. Stopt zodra de tech de
-  // transport-regel zelf heeft aangepast (override).
+  // Live levering-recalc: subtotaal van de niet-transport-regels
+  // bepaalt of we gratis transport geven. Aantal plant-regels bepaalt
+  // de installatie-uren (1u + 0,5u per plant). Stopt zodra de tech de
+  // levering-regel zelf heeft aangepast (override).
   const nonTransportSubtotalCents = lines
     .filter((l) => l.lineType !== 'transport')
     .reduce(
@@ -320,16 +318,18 @@ export default function QuoteBuilder({
         s + euroToCents(l.unitPriceEuro) * Math.max(1, l.quantity),
       0
     )
+  const livePlantCount = lines.filter(
+    (l) =>
+      (l.lineType === 'combination' ||
+        l.lineType === 'plant' ||
+        l.lineType === 'outer_pot') &&
+      euroToCents(l.unitPriceEuro) > 0
+  ).length
 
   useEffect(() => {
     if (transportOverridden) return
-    const free = nonTransportSubtotalCents >= TRANSPORT_FREE_THRESHOLD_CENTS
-    const targetCents = free ? 0 : TRANSPORT_STANDARD_CENTS
-    const targetEuro = (targetCents / 100).toFixed(2)
-    const targetName = free ? 'Gratis levering' : 'Transport en levering'
-    const targetDescription = free
-      ? 'Vanaf €750 aan planten leveren we kosteloos bij u op locatie.'
-      : 'Levering aan huis met laadbrug. Wordt gratis vanaf €750 aan planten.'
+    const plan = planDelivery(nonTransportSubtotalCents, livePlantCount)
+    const targetEuro = (plan.unitPriceCents / 100).toFixed(2)
 
     setLines((prev) => {
       const transportIdx = prev.findIndex((l) => l.lineType === 'transport')
@@ -337,8 +337,8 @@ export default function QuoteBuilder({
       const current = prev[transportIdx]
       if (
         current.unitPriceEuro === targetEuro &&
-        current.name === targetName &&
-        current.description === targetDescription
+        current.name === plan.name &&
+        current.description === plan.description
       ) {
         return prev
       }
@@ -346,12 +346,12 @@ export default function QuoteBuilder({
       next[transportIdx] = {
         ...current,
         unitPriceEuro: targetEuro,
-        name: targetName,
-        description: targetDescription,
+        name: plan.name,
+        description: plan.description,
       }
       return next
     })
-  }, [nonTransportSubtotalCents, transportOverridden])
+  }, [nonTransportSubtotalCents, livePlantCount, transportOverridden])
 
   // Catalogus-kiezer — werkt op de All-in-1 combinaties (groep 275).
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
