@@ -22,6 +22,7 @@
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import AutoSubmitForm from '@/components/auto-submit-form'
+import ScrollRestorer from './ScrollRestorer'
 
 export const dynamic = 'force-dynamic'
 
@@ -690,6 +691,7 @@ export default async function CatalogPage({
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <ScrollRestorer />
       <header className="mb-4">
         <h1 className="text-3xl font-serif text-stera-ink">Catalogus</h1>
         <p className="mt-1 text-sm text-stera-ink/70">
@@ -809,8 +811,16 @@ export default async function CatalogPage({
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          {/* Sidebar */}
-          <aside className="space-y-5">
+          {/* Sidebar — op mobiel inklapbaar zodat producten meteen zichtbaar zijn */}
+          <aside>
+            <details className="overflow-hidden rounded-xl border border-stera-ink/10 bg-white/60 lg:rounded-none lg:border-0 lg:bg-transparent">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-stera-ink [&::-webkit-details-marker]:hidden lg:hidden">
+                <span>Filters tonen / verbergen</span>
+                <span aria-hidden className="text-stera-ink/40">
+                  ≡
+                </span>
+              </summary>
+              <div className="space-y-5 px-4 pb-4 lg:!block lg:px-0 lg:pb-0">
             <input
               type="search"
               name="q"
@@ -1083,6 +1093,8 @@ export default async function CatalogPage({
                 Wis alles
               </Link>
             </div>
+              </div>
+            </details>
           </aside>
 
           {/* Resultaten */}

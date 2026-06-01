@@ -14,6 +14,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import BackButton from '../BackButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -257,19 +258,22 @@ export default async function CatalogItemPage({
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-      {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="text-sm text-stera-ink/60">
-        <Link href="/catalog" className="hover:text-stera-green">
-          Catalogus
-        </Link>
-        <span className="mx-2">›</span>
-        <span className="text-stera-ink/80">{description}</span>
-      </nav>
+      {/* Terug + breadcrumb */}
+      <div className="flex items-center gap-3">
+        <BackButton />
+        <nav aria-label="Breadcrumb" className="text-sm text-stera-ink/60">
+          <Link href="/catalog" className="hover:text-stera-green">
+            Catalogus
+          </Link>
+          <span className="mx-2">›</span>
+          <span className="text-stera-ink/80">{description}</span>
+        </nav>
+      </div>
 
       {/* Kop: compacte foto + info */}
       <div className="mt-5 grid gap-8 md:grid-cols-[minmax(0,360px)_1fr]">
         <div>
-          <div className="aspect-square overflow-hidden rounded-2xl border border-stera-ink/10 bg-white p-4 shadow-sm">
+          <div className="mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-2xl border border-stera-ink/10 bg-white p-4 shadow-sm md:max-w-none">
             {photoSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
