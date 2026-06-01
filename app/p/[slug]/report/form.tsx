@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { prepareImage } from '@/lib/image'
 import { submitPlantReport, type ReportIssueType } from '../actions'
 
 const ISSUE_CHIPS: { value: ReportIssueType; label: string }[] = [
@@ -39,15 +40,23 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
     }
   }, [photoPreview])
 
-  function handlePhoto(f: File | null) {
+  async function handlePhoto(f: File | null) {
     if (photoPreview) URL.revokeObjectURL(photoPreview)
     if (!f) {
       setPhotoFile(null)
       setPhotoPreview('')
       return
     }
-    setPhotoFile(f)
-    setPhotoPreview(URL.createObjectURL(f))
+    // Verklein de foto in de browser vóór upload (max 1600px JPEG), zodat
+    // de storage niet volloopt. Valt terug op het origineel als het mislukt.
+    try {
+      const prepared = await prepareImage(f)
+      setPhotoFile(prepared.file)
+      setPhotoPreview(URL.createObjectURL(prepared.file))
+    } catch {
+      setPhotoFile(f)
+      setPhotoPreview(URL.createObjectURL(f))
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {

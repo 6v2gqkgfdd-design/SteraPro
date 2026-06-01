@@ -188,9 +188,9 @@ export default function NieuwkoopTestPage() {
               {result.error}
             </p>
             <p className="mt-3 text-stera-ink-soft">
-              Check of <code>NIEUWKOOP_USERNAME</code>,{' '}
-              <code>NIEUWKOOP_PASSWORD</code> en{' '}
-              <code>NIEUWKOOP_BASE_URL</code> correct in{' '}
+              Check of <code>NIEUWKOOP_API_USER</code>,{' '}
+              <code>NIEUWKOOP_API_PASSWORD</code> en{' '}
+              <code>NIEUWKOOP_API_BASE_URL</code> correct in{' '}
               <code>.env.local</code> staan (en op Vercel).
             </p>
           </div>

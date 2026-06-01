@@ -2,9 +2,12 @@
 /**
  * Sync Nieuwkoop /items endpoint naar Supabase nieuwkoop_products tabel.
  *
+ * Synct ENKEL combinaties (plant + pot, binnen + buiten) met substraat
+ * Grond/Hydrokorrels/Bims. Zie filter ALLOWED_SUBSTRATES hieronder.
+ *
  * Gebruik:
- *   node --env-file=.env.local sync-nieuwkoop-items.mjs              # default: dry-run 100 items
- *   node --env-file=.env.local sync-nieuwkoop-items.mjs --full       # volledige catalogus (~22k items)
+ *   node --env-file=.env.local sync-nieuwkoop-items.mjs              # dry-run: eerste 100 matches
+ *   node --env-file=.env.local sync-nieuwkoop-items.mjs --full       # alle matches (~1967)
  *   node --env-file=.env.local sync-nieuwkoop-items.mjs --since=2026-05-01   # alleen wijzigingen sinds datum
  *
  * Vereisten in .env.local:
@@ -60,20 +63,72 @@ console.log("\n[1] Items ophalen van Nieuwkoop...");
 const tStart = Date.now();
 
 const url = `${NK_BASE}/items?sysmodified=${sinceDate}`;
-const res = await fetch(url, {
-  headers: { Authorization: authHeader, Accept: "application/json" },
-});
-if (!res.ok) {
-  console.error(`❌ Nieuwkoop API gaf HTTP ${res.status}`);
-  console.error(await res.text());
-  process.exit(1);
+
+// De live-catalogus is groot (~18k items in één JSON-respons). Dat kan
+// traag zijn, dus: ruime time-out van 3 minuten + één automatische retry.
+const FETCH_TIMEOUT_MS = 180_000;
+
+async function fetchItems(attempt = 1) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: authHeader, Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      console.error(`❌ Nieuwkoop API gaf HTTP ${res.status}`);
+      console.error(await res.text());
+      process.exit(1);
+    }
+    return await res.json();
+  } catch (e) {
+    const reason = e?.name === "AbortError"
+      ? `time-out na ${FETCH_TIMEOUT_MS / 1000}s`
+      : (e?.message || "netwerkfout");
+    if (attempt < 2) {
+      console.warn(`    ⚠️  Ophalen mislukt (${reason}). Nog één poging...`);
+      return fetchItems(attempt + 1);
+    }
+    console.error(`❌ Ophalen definitief mislukt: ${reason}`);
+    process.exit(1);
+  } finally {
+    clearTimeout(timer);
+  }
 }
-const items = await res.json();
+
+const items = await fetchItems();
 const tFetch = ((Date.now() - tStart) / 1000).toFixed(1);
 console.log(`    ✅ ${items.length} items opgehaald in ${tFetch}s`);
 
+// ============================================================
+// 1b) Filter: enkel combinaties (plant + pot, met watermeter) voor
+//     buiten, met een substraat dat bij combinaties bestaat.
+//     Vulkaponic/Vulkastrat komen niet voor bij combinaties; het
+//     vulkanische substraat is hier 'Bims'.
+// ============================================================
+const ALLOWED_SUBSTRATES = ["Grond", "Hydrokorrels", "Bims"];
+const REQUIRE_OUTDOOR = false; // false = zowel binnen- als buiten-combinaties
+
+function tagValues(item, code) {
+  const tag = (item.Tags || []).find((t) => t?.Code === code);
+  return tag ? (tag.Values || []).map((v) => v?.Description_NL).filter(Boolean) : [];
+}
+
+function isWantedCombo(it) {
+  if ((it.GroupDescription_NL || "").trim() !== "Combinaties") return false;
+  const subs = tagValues(it, "SubstrateType");
+  if (!subs.some((s) => ALLOWED_SUBSTRATES.includes(s))) return false;
+  if (REQUIRE_OUTDOOR && !tagValues(it, "Location").includes("Buiten")) return false;
+  return true;
+}
+
+const combos = items.filter(isWantedCombo);
+console.log(`    Combinaties na filter: ${combos.length} van ${items.length} items`);
+console.log(`    (substraat ∈ ${ALLOWED_SUBSTRATES.join("/")}${REQUIRE_OUTDOOR ? ", Location bevat 'Buiten'" : ", binnen + buiten"})`);
+
 // Beperken in dry-run modus
-const toSync = isFull ? items : items.slice(0, 100);
+const toSync = isFull ? combos : combos.slice(0, 100);
 console.log(`    Te syncen: ${toSync.length} items`);
 
 // ============================================================

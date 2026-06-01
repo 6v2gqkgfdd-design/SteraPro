@@ -1,13 +1,13 @@
 /**
  * Nieuwkoop Europe Customer API — basic auth + typed helpers.
  *
- * Drie omgevingen, geconfigureerd via NIEUWKOOP_BASE_URL:
+ * Drie omgevingen, geconfigureerd via NIEUWKOOP_API_BASE_URL:
  *   - Playground: https://customerapi_playground.nieuwkoop-europe.com
  *   - Dev:        https://customerapi_dev.nieuwkoop-europe.com
  *   - Live:       https://customerapi.nieuwkoop-europe.com
  *
  * Authenticatie via Basic Auth — username/password in env vars
- * (NIEUWKOOP_USERNAME, NIEUWKOOP_PASSWORD).
+ * (NIEUWKOOP_API_USER, NIEUWKOOP_API_PASSWORD).
  *
  * Rate limits: gebruik /items?sysmodified=2000-01-01 max 1× per dag voor
  * de volledige catalogus, en daarna sysmodified=<laatste-fetch> voor
@@ -18,22 +18,41 @@
 const DEFAULT_BASE_URL = 'https://customerapi_playground.nieuwkoop-europe.com'
 
 function getBaseUrl(): string {
-  return process.env.NIEUWKOOP_BASE_URL || DEFAULT_BASE_URL
+  return process.env.NIEUWKOOP_API_BASE_URL || DEFAULT_BASE_URL
 }
 
 function authHeader(): string {
-  const username = process.env.NIEUWKOOP_USERNAME
-  const password = process.env.NIEUWKOOP_PASSWORD
+  const username = process.env.NIEUWKOOP_API_USER
+  const password = process.env.NIEUWKOOP_API_PASSWORD
   if (!username || !password) {
     throw new Error(
-      'NIEUWKOOP_USERNAME en NIEUWKOOP_PASSWORD ontbreken in de environment.'
+      'NIEUWKOOP_API_USER en NIEUWKOOP_API_PASSWORD ontbreken in de environment.'
     )
   }
   const token = Buffer.from(`${username}:${password}`).toString('base64')
   return `Basic ${token}`
 }
 
+/**
+ * VEILIGHEIDSGRENS — voorkomt dat er per ongeluk besteld wordt.
+ *
+ * Alle huidige Nieuwkoop-calls zijn lees-acties (GET). Schrijf-acties
+ * (POST/PUT/PATCH/DELETE) zoals het plaatsen van een bestelling worden
+ * hard geblokkeerd, tenzij NIEUWKOOP_ALLOW_ORDERS expliciet op 'true'
+ * staat. Zo kan een live-koppeling nooit ongewild een order versturen.
+ */
+function assertReadOnly(method: string | undefined): void {
+  const m = (method || 'GET').toUpperCase()
+  if (m === 'GET' || m === 'HEAD') return
+  if (process.env.NIEUWKOOP_ALLOW_ORDERS === 'true') return
+  throw new Error(
+    `Nieuwkoop schrijf-actie (${m}) geblokkeerd: order-guard staat aan. ` +
+      `Zet NIEUWKOOP_ALLOW_ORDERS=true om dit bewust toe te laten.`
+  )
+}
+
 async function nkFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  assertReadOnly(init?.method)
   const url = `${getBaseUrl()}${path}`
   const res = await fetch(url, {
     ...init,

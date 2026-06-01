@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# lokale backups (niet in repo)
+plant-photos-backup/
+stera-pro-backup-*.zip
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
