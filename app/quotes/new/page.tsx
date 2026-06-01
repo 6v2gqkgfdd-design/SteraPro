@@ -32,6 +32,18 @@ type Candidate = {
   // van de kandidaat te bepalen (Rond = enkel diameter, Hoekig =
   // length ingevuld).
   length?: number | null
+  // Pot-merk (Brand-tag) — gebruikt om dezelfde huisstijl voor te stellen.
+  brand?: string | null
+}
+
+// Pot-merk uit de Nieuwkoop Brand-tag halen.
+function brandFromTags(tags: unknown): string | null {
+  if (!Array.isArray(tags)) return null
+  const t = (
+    tags as Array<{ Code?: string; Values?: Array<{ Description_NL?: string }> }>
+  ).find((x) => x?.Code === 'Brand')
+  const b = t?.Values?.[0]?.Description_NL
+  return b ? b.trim() : null
 }
 
 function candidateShape(c: Candidate): 'Rond' | 'Hoekig' | null {
@@ -55,8 +67,22 @@ function buildCandidateSpec(c: Candidate): string {
 // Score van een combinatie voor een specifieke vervangingsslot. Hoger
 // = beter. We tellen: potmaat-nabijheid + lichtbehoefte-match +
 // soort-naam overlap (volledige soortnaam, anders genus).
-function scoreCandidate(c: Candidate, slot: ReplacementSlot): number {
+function scoreCandidate(
+  c: Candidate,
+  slot: ReplacementSlot,
+  companyBrand: string | null
+): number {
   let score = 0
+  // Huisstijl: stevige voorrang voor combinaties van hetzelfde pot-merk
+  // als het bedrijf gewoon is (visuele consistentie op locatie). Andere
+  // signalen (potmaat, soort) kunnen dit nog overstijgen → "voorkeur".
+  if (
+    companyBrand &&
+    c.brand &&
+    c.brand.toLowerCase() === companyBrand.toLowerCase()
+  ) {
+    score += 130
+  }
   // Voorkeur-volgorde voor de doelpotmaat:
   //   1. wat de tech expliciet ingaf in het condities-blok,
   //   2. de huidige pot van de plant (pot_size_code),
@@ -111,6 +137,63 @@ export const metadata = {
 function one<T>(value: T[] | T | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null
   return value ?? null
+}
+
+// Bepaalt het huisstijl-merk van een bedrijf:
+//  1. handmatig ingesteld op de bedrijfsfiche (companies.preferred_pot_brand),
+//  2. anders afgeleid uit het meest gebruikte merk in eerdere offertes.
+async function resolveCompanyBrand(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string | null
+): Promise<string | null> {
+  if (!companyId) return null
+  const { data: comp } = await supabase
+    .from('companies')
+    .select('preferred_pot_brand')
+    .eq('id', companyId)
+    .maybeSingle()
+  const pref = (comp as { preferred_pot_brand?: string | null } | null)
+    ?.preferred_pot_brand
+  if (pref && pref.trim()) return pref.trim()
+
+  // Historiek: itemcodes uit eerdere offerteregels van dit bedrijf.
+  const { data: q } = await supabase
+    .from('quotes')
+    .select('id')
+    .eq('company_id', companyId)
+  const ids = (q ?? []).map((x: { id: string }) => x.id)
+  if (ids.length === 0) return null
+  const { data: lines } = await supabase
+    .from('quote_lines')
+    .select('nieuwkoop_itemcode')
+    .in('quote_id', ids)
+    .not('nieuwkoop_itemcode', 'is', null)
+  const codes = Array.from(
+    new Set(
+      (lines ?? [])
+        .map((l: { nieuwkoop_itemcode: string | null }) => l.nieuwkoop_itemcode)
+        .filter((c): c is string => Boolean(c))
+    )
+  )
+  if (codes.length === 0) return null
+  const { data: prods } = await supabase
+    .from('nieuwkoop_products')
+    .select('itemcode, tags')
+    .in('itemcode', codes)
+  const counts = new Map<string, number>()
+  for (const p of (prods ?? []) as Array<{ tags: unknown }>) {
+    const b = brandFromTags(p.tags)
+    if (b) counts.set(b, (counts.get(b) ?? 0) + 1)
+  }
+  let bestBrand: string | null = null
+  let bestN = 0
+  for (const [b, n] of counts) {
+    if (n > bestN) {
+      bestN = n
+      bestBrand = b
+    }
+  }
+  return bestBrand
 }
 
 export default async function NewQuotePage({
@@ -373,7 +456,7 @@ export default async function NewQuotePage({
             .limit(5000),
           supabase
             .from('nieuwkoop_products')
-            .select('itemcode, has_image, item_variety_nl, length')
+            .select('itemcode, has_image, item_variety_nl, length, tags')
             .eq('product_group_code', '275'),
         ])
 
@@ -390,6 +473,7 @@ export default async function NewQuotePage({
         const photoOkSet = new Set<string>()
         const mosmuurSet = new Set<string>()
         const lengthByCode = new Map<string, number | null>()
+        const brandByCode = new Map<string, string | null>()
         const MOS_WORDS = ['bolmos', 'platmos', 'rendiermos', 'bol- en']
         if (!photoMetaError && photoMeta) {
           for (const r of photoMeta as Array<{
@@ -397,6 +481,7 @@ export default async function NewQuotePage({
             has_image: boolean | null
             item_variety_nl: string | null
             length: number | null
+            tags: unknown
           }>) {
             if (!r.itemcode) continue
             if (r.has_image !== false) photoOkSet.add(r.itemcode)
@@ -405,6 +490,7 @@ export default async function NewQuotePage({
               mosmuurSet.add(r.itemcode)
             }
             lengthByCode.set(r.itemcode, r.length)
+            brandByCode.set(r.itemcode, brandFromTags(r.tags))
           }
         }
         const photoFilterUsable = photoOkSet.size > 0
@@ -417,7 +503,16 @@ export default async function NewQuotePage({
           .map((c) => ({
             ...c,
             length: lengthByCode.get(c.itemcode) ?? null,
+            brand: brandByCode.get(c.itemcode) ?? null,
           }))
+
+        // Huisstijl-merk van dit bedrijf (fiche of historiek).
+        const companyBrand = await resolveCompanyBrand(
+          supabase,
+          (company?.id as string | undefined) ??
+            (visit.company_id as string | null) ??
+            null
+        )
 
         for (const slot of slots) {
           // "Nee, niet vervangen" → meteen een uitlegregel (€0) met
@@ -444,7 +539,7 @@ export default async function NewQuotePage({
           // enkel signaal raakt — de tech kan altijd "wijzig" klikken.
           let bestScore = -1
           for (const c of candidates) {
-            const s = scoreCandidate(c, slot)
+            const s = scoreCandidate(c, slot, companyBrand)
             if (s > bestScore) {
               bestScore = s
               best = c

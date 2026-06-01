@@ -229,8 +229,8 @@ export default async function CatalogItemPage({
   const depth = get('depth') as number | null
   const weight = get('weight') as number | null
 
-  const costPrice = get('cost_price') as number | null
-  const marginFactor = get('effective_margin_factor') as number | null
+  // Let op: inkoopprijs (cost_price) en marge worden hier BEWUST niet
+  // opgehaald of getoond — de catalogus(detail) mag de klant bekijken.
   const suggestedPrice = get('suggested_sale_price') as number | null
   const stockAvailable = Number(
     (stockItem as { stock_available?: number } | null)?.stock_available ?? 0
@@ -344,12 +344,6 @@ export default async function CatalogItemPage({
                 </span>
               )}
             </div>
-            <p className="mt-2 text-[11px] text-stera-ink/45">
-              Intern: inkoop {formatPrice(costPrice)}
-              {marginFactor != null
-                ? ` · marge ×${Number(marginFactor).toFixed(2)}`
-                : ''}
-            </p>
           </div>
         </div>
       </div>

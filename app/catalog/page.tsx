@@ -403,7 +403,8 @@ export default async function CatalogPage({
   ] = await Promise.all([
     fetchAll<BaseRow>(
       () => supabase.from('v_nieuwkoop_with_margin'),
-      'itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, is_stock_item',
+      // Inkoopprijs/marge bewust NIET ophalen — de catalogus is klant-zichtbaar.
+      'itemcode, description, item_picture_name, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, is_stock_item',
       (q) =>
         q
           .eq('product_group_code', GROUP_CODE)

@@ -18,6 +18,8 @@ export default function EditCompanyPage() {
   const [phone, setPhone] = useState('')
   const [notes, setNotes] = useState('')
   const [hasContract, setHasContract] = useState(false)
+  const [preferredBrand, setPreferredBrand] = useState('')
+  const [brandOptions, setBrandOptions] = useState<string[]>([])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -31,7 +33,9 @@ export default function EditCompanyPage() {
     async function load() {
       const { data, error } = await supabase
         .from('companies')
-        .select('name, contact_name, email, phone, notes, has_maintenance_contract')
+        .select(
+          'name, contact_name, email, phone, notes, has_maintenance_contract, preferred_pot_brand'
+        )
         .eq('id', companyId)
         .maybeSingle()
 
@@ -49,6 +53,10 @@ export default function EditCompanyPage() {
       setPhone(data.phone ?? '')
       setNotes(data.notes ?? '')
       setHasContract(Boolean(data.has_maintenance_contract))
+      setPreferredBrand(
+        (data as { preferred_pot_brand?: string | null }).preferred_pot_brand ??
+          ''
+      )
       setLoading(false)
     }
 
@@ -58,6 +66,20 @@ export default function EditCompanyPage() {
       cancelled = true
     }
   }, [companyId, supabase])
+
+  // Beschikbare pot-merken ophalen voor de keuzelijst.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/catalog/brands')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && Array.isArray(d?.brands)) setBrandOptions(d.brands)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -75,6 +97,7 @@ export default function EditCompanyPage() {
         phone: phone.trim() || null,
         notes: notes.trim() || null,
         has_maintenance_contract: hasContract,
+        preferred_pot_brand: preferredBrand || null,
       })
       .eq('id', companyId)
 
@@ -141,6 +164,33 @@ export default function EditCompanyPage() {
               className="w-full rounded-lg border border-stera-line bg-white p-3"
               rows={4}
             />
+
+            <div className="rounded-lg border border-stera-line bg-white p-3">
+              <label className="block text-sm font-medium">
+                Huisstijl — pot-merk
+              </label>
+              <p className="mt-0.5 text-sm text-stera-ink-soft">
+                Bij plantvoorstellen krijgen combinaties van dit merk voorrang,
+                zodat de stijl bij de klant consistent blijft. Laat op
+                &quot;automatisch&quot; om het merk uit eerdere offertes af te
+                leiden.
+              </p>
+              <select
+                value={preferredBrand}
+                onChange={(e) => setPreferredBrand(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-stera-line bg-white p-3"
+              >
+                <option value="">Automatisch (uit historiek)</option>
+                {brandOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+                {preferredBrand && !brandOptions.includes(preferredBrand) ? (
+                  <option value={preferredBrand}>{preferredBrand}</option>
+                ) : null}
+              </select>
+            </div>
 
             <label className="flex items-start gap-3 rounded-lg border border-stera-line bg-white p-3">
               <input

@@ -42,6 +42,7 @@ export async function GET(req: Request) {
   const potMax = numParam(url, 'potMax')
   const heightMin = numParam(url, 'heightMin')
   const heightMax = numParam(url, 'heightMax')
+  const brand = (url.searchParams.get('brand') || '').trim()
 
   let query = supabase
     .from('v_nieuwkoop_with_margin')
@@ -66,6 +67,24 @@ export async function GET(req: Request) {
   if (potMax != null) query = query.lte(potColumn, potMax)
   if (heightMin != null) query = query.gte('height', heightMin)
   if (heightMax != null) query = query.lte('height', heightMax)
+
+  // Merk-filter: combinaties met de gevraagde Brand-tag. We zoeken de
+  // matchende itemcodes op in nieuwkoop_products (de view bevat geen tags)
+  // en beperken de hoofdquery daartoe.
+  if (brand) {
+    const { data: brandRows } = await supabase
+      .from('nieuwkoop_products')
+      .select('itemcode')
+      .eq('product_group_code', group)
+      .contains('tags', [{ Code: 'Brand', Values: [{ Description_NL: brand }] }])
+    const codes = (brandRows ?? []).map(
+      (r: { itemcode: string }) => r.itemcode
+    )
+    if (codes.length === 0) {
+      return NextResponse.json({ items: [] })
+    }
+    query = query.in('itemcode', codes)
+  }
 
   const { data, error } = await query
   if (error) {
