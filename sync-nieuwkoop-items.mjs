@@ -110,12 +110,23 @@ console.log(`    ✅ ${items.length} items opgehaald in ${tFetch}s`);
 const ALLOWED_SUBSTRATES = ["Grond", "Hydrokorrels", "Bims"];
 const REQUIRE_OUTDOOR = false; // false = zowel binnen- als buiten-combinaties
 
+// Moswanden (ook groep 275) herkennen we — net als de catalogus-pagina —
+// aan een mos-woord in ItemVariety_NL. Die hebben geen substraat, maar
+// willen we wél aanbieden.
+const MOS_WORDS = ["bolmos", "platmos", "rendiermos", "bol- en"];
+
 function tagValues(item, code) {
   const tag = (item.Tags || []).find((t) => t?.Code === code);
   return tag ? (tag.Values || []).map((v) => v?.Description_NL).filter(Boolean) : [];
 }
 
-function isWantedCombo(it) {
+function isMoswand(it) {
+  if (String(it.ProductGroupCode) !== "275") return false;
+  const v = (it.ItemVariety_NL || "").toLowerCase();
+  return MOS_WORDS.some((w) => v.includes(w));
+}
+
+function isCombiWithSubstrate(it) {
   if ((it.GroupDescription_NL || "").trim() !== "Combinaties") return false;
   const subs = tagValues(it, "SubstrateType");
   if (!subs.some((s) => ALLOWED_SUBSTRATES.includes(s))) return false;
@@ -123,9 +134,15 @@ function isWantedCombo(it) {
   return true;
 }
 
+// We willen: combinaties met toegelaten substraat + alle moswanden.
+function isWantedCombo(it) {
+  return isCombiWithSubstrate(it) || isMoswand(it);
+}
+
 const combos = items.filter(isWantedCombo);
-console.log(`    Combinaties na filter: ${combos.length} van ${items.length} items`);
-console.log(`    (substraat ∈ ${ALLOWED_SUBSTRATES.join("/")}${REQUIRE_OUTDOOR ? ", Location bevat 'Buiten'" : ", binnen + buiten"})`);
+const moswandCount = combos.filter(isMoswand).length;
+console.log(`    Na filter: ${combos.length} van ${items.length} items`);
+console.log(`    (combinaties substraat ∈ ${ALLOWED_SUBSTRATES.join("/")} + ${moswandCount} moswanden)`);
 
 // Beperken in dry-run modus
 const toSync = isFull ? combos : combos.slice(0, 100);

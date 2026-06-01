@@ -158,88 +158,6 @@ function extractMoskleur(variety: string | null): string {
 
 // --- SVG icoontjes -------------------------------------------------
 
-function SunIcon() {
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-    </svg>
-  )
-}
-
-function PartlyCloudyIcon() {
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M13 4v1M19 8h1M16.95 5.05l.7.7M9.5 7.5a3 3 0 0 1 5.5 1.5" />
-      <path d="M5 17a4 4 0 0 0 4 4h7a4 4 0 0 0 0-8 5 5 0 0 0-9-2 4 4 0 0 0-2 6Z" />
-    </svg>
-  )
-}
-
-function CloudIcon() {
-  return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 17a4 4 0 0 0 4 4h7a4 4 0 0 0 0-8 5 5 0 0 0-9-2 4 4 0 0 0-2 6Z" />
-    </svg>
-  )
-}
-
-function LightOption({
-  value,
-  current,
-  label,
-  children,
-}: {
-  value: string
-  current: string
-  label: string
-  children?: React.ReactNode
-}) {
-  return (
-    <label
-      title={label}
-      aria-label={label}
-      className="relative flex h-11 min-w-[44px] cursor-pointer items-center justify-center rounded-lg border border-stera-ink/20 bg-white px-3 text-stera-ink transition hover:border-stera-green has-[:checked]:border-stera-green has-[:checked]:bg-stera-green/10 has-[:checked]:text-stera-green"
-    >
-      <input
-        type="radio"
-        name="light"
-        value={value}
-        defaultChecked={value === current}
-        className="sr-only"
-      />
-      {children ?? <span className="text-xs font-medium">{label}</span>}
-    </label>
-  )
-}
-
 // Pot-vorm iconen — eenvoudige geometrische schetsen.
 function ShapeIcon({ name }: { name: Shape }) {
   const p = {
@@ -304,6 +222,11 @@ type Product = {
   width: number | null
   depth: number | null
   length: number | null
+  substrate: string | null
+  locations: string[]
+  lightLux: number | null
+  tempMin: number | null
+  stockAvailable: number
 }
 
 type Enriched = Product & {
@@ -356,6 +279,41 @@ function countBy<T>(items: T[], key: (item: T) => string): Map<string, number> {
   return m
 }
 
+// --- Tag-helpers (substraat, locatie, licht, temperatuur) -----------
+// De Nieuwkoop-tags zitten als jsonb in nieuwkoop_products.tags:
+//   [{ Code: "SubstrateType", Values: [{ Description_NL: "Grond" }] }, ...]
+
+type TagValue = { Description_NL?: string | null }
+type TagEntry = { Code?: string | null; Values?: TagValue[] | null }
+
+function tagVals(tags: TagEntry[] | null | undefined, code: string): string[] {
+  if (!Array.isArray(tags)) return []
+  const t = tags.find((x) => x?.Code === code)
+  return (t?.Values ?? [])
+    .map((v) => (v?.Description_NL ?? '').trim())
+    .filter(Boolean)
+}
+
+function firstNum(vals: string[]): number | null {
+  for (const v of vals) {
+    const n = Number(String(v).replace(/[^\d.-]/g, ''))
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+// Lux-waarden van LocationLight → leesbaar label.
+const LIGHT_LABELS: Record<string, string> = {
+  '500': 'Weinig licht (500 lux)',
+  '750': 'Halfschaduw (750 lux)',
+  '1000': 'Veel licht (1000 lux)',
+  '1500': 'Vol zon (1500 lux)',
+}
+function lightLabel(lux: number | null): string {
+  if (lux == null) return ''
+  return LIGHT_LABELS[String(lux)] ?? `${lux} lux`
+}
+
 // --- Page -----------------------------------------------------------
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>
@@ -369,7 +327,6 @@ export default async function CatalogPage({
   const tab: Tab =
     params.tab === 'moswanden' ? 'moswanden' : 'combinaties'
   const q = typeof params.q === 'string' ? params.q.trim() : ''
-  const light = typeof params.light === 'string' ? params.light : ''
   const diameter =
     typeof params.diameter === 'string' ? params.diameter : ''
   const height = typeof params.height === 'string' ? params.height : ''
@@ -378,11 +335,17 @@ export default async function CatalogPage({
   // Standaard NIET filteren op voorraad — momenteel zijn de meeste
   // artikels niet als 'op voorraad' geregistreerd in de sync, dus dat
   // zou de lijst leeg maken. De gebruiker kan zelf aanvinken.
-  const inStock = formSubmitted ? params.inStock === '1' : false
+  // Voorraad: standaard AAN (enkel op voorraad), gebaseerd op
+  // nieuwkoop_stock.stock_available > 0. Bij een ingediend formulier
+  // respecteren we het vinkje (uitgevinkt = geen 'inStock' param).
+  const inStock = formSubmitted ? params.inStock === '1' : true
   const systems = parseArray(params.system)
   const shapes = parseArray(params.shape) as Shape[]
   const plantsoorten = parseArray(params.plantsoort)
   const merken = parseArray(params.merk)
+  const substraten = parseArray(params.substraat)
+  const locaties = parseArray(params.locatie)
+  const lichten = parseArray(params.licht)
   // Moswand-specifieke filters
   const frames = parseArray(params.frame) as FrameMateriaal[]
   const mostypes = parseArray(params.mostype) as Mostype[]
@@ -428,29 +391,35 @@ export default async function CatalogPage({
     width: number | null
     depth: number | null
     length: number | null
+    tags: TagEntry[] | null
   }
+  type StockRow = { itemcode: string; stock_available: number | null }
 
   const [
     { data: rawItems, error },
     { data: nieuwkoopRows, error: nkError },
+    { data: stockRows },
   ] = await Promise.all([
     fetchAll<BaseRow>(
       () => supabase.from('v_nieuwkoop_with_margin'),
       'itemcode, description, item_picture_name, cost_price, effective_margin_factor, suggested_sale_price, product_group_code, height, diameter, diameter_culture_pot, pot_size, location_icon_nl, is_stock_item',
-      (q) => {
-        let qq = q
+      (q) =>
+        q
           .eq('product_group_code', GROUP_CODE)
           .not('item_picture_name', 'is', null)
           .neq('item_picture_name', '')
           .order('description')
-        if (inStock) qq = qq.eq('is_stock_item', true)
-        return qq
-      }
+      // Voorraad-filter doen we in-memory (op nieuwkoop_stock), niet hier.
     ),
     fetchAll<NkRow>(
       () => supabase.from('nieuwkoop_products'),
-      'itemcode, item_variety_nl, has_image, width, depth, length',
+      'itemcode, item_variety_nl, has_image, width, depth, length, tags',
       (q) => q.eq('product_group_code', GROUP_CODE)
+    ),
+    fetchAll<StockRow>(
+      () => supabase.from('nieuwkoop_stock'),
+      'itemcode, stock_available',
+      (q) => q
     ),
   ])
 
@@ -468,6 +437,15 @@ export default async function CatalogPage({
       length: number | null
     }
   >()
+  const tagInfoByCode = new Map<
+    string,
+    {
+      substrate: string | null
+      locations: string[]
+      lightLux: number | null
+      tempMin: number | null
+    }
+  >()
   if (!nkError && nieuwkoopRows) {
     for (const v of nieuwkoopRows) {
       if (v.itemcode && v.item_variety_nl) {
@@ -482,7 +460,21 @@ export default async function CatalogPage({
           depth: v.depth,
           length: v.length,
         })
+        tagInfoByCode.set(v.itemcode, {
+          substrate: tagVals(v.tags, 'SubstrateType')[0] ?? null,
+          locations: tagVals(v.tags, 'Location'),
+          lightLux: firstNum(tagVals(v.tags, 'LocationLight')),
+          tempMin: firstNum(tagVals(v.tags, 'Temperature')),
+        })
       }
+    }
+  }
+
+  // Voorraad per itemcode (uit nieuwkoop_stock).
+  const stockByCode = new Map<string, number>()
+  if (stockRows) {
+    for (const s of stockRows) {
+      if (s.itemcode) stockByCode.set(s.itemcode, Number(s.stock_available ?? 0))
     }
   }
 
@@ -501,12 +493,18 @@ export default async function CatalogPage({
     )
     .map((it) => {
       const dims = dimsByCode.get(it.itemcode)
+      const tagInfo = tagInfoByCode.get(it.itemcode)
       return {
         ...it,
         item_variety_nl: varietyByCode.get(it.itemcode) ?? null,
         width: dims?.width ?? null,
         depth: dims?.depth ?? null,
         length: dims?.length ?? null,
+        substrate: tagInfo?.substrate ?? null,
+        locations: tagInfo?.locations ?? [],
+        lightLux: tagInfo?.lightLux ?? null,
+        tempMin: tagInfo?.tempMin ?? null,
+        stockAvailable: stockByCode.get(it.itemcode) ?? 0,
       } as Product
     })
 
@@ -538,6 +536,20 @@ export default async function CatalogPage({
   const merkCounts = countBy(combinaties, (x) => x.merk)
   const systeemCounts = countBy(combinaties, (x) => x.item_variety_nl ?? '')
   const shapeCounts = countBy(combinaties, (x) => x.shape)
+  const substraatCounts = countBy(combinaties, (x) => x.substrate ?? '')
+  const lichtCounts = countBy(combinaties, (x) =>
+    x.lightLux != null ? String(x.lightLux) : ''
+  )
+  const locatieCounts = new Map<string, number>()
+  for (const x of combinaties)
+    for (const l of x.locations)
+      locatieCounts.set(l, (locatieCounts.get(l) ?? 0) + 1)
+  const sortedSubstraten = Array.from(substraatCounts.entries())
+    .filter(([k]) => k)
+    .sort((a, b) => b[1] - a[1])
+  const sortedLichten = Array.from(lichtCounts.entries())
+    .filter(([k]) => k)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
   const frameCounts = countBy(moswanden, (x) => x.frameMateriaal)
   const mostypeCounts = countBy(moswanden, (x) => x.mostype)
   const moskleurCounts = countBy(moswanden, (x) => x.moskleur)
@@ -558,10 +570,22 @@ export default async function CatalogPage({
     filtered = filtered.filter(
       (x) => (x.height ?? 0) <= (heightBucket.max ?? 0)
     )
+  if (inStock) filtered = filtered.filter((x) => (x.stockAvailable ?? 0) > 0)
 
   // Tab-specifieke filters.
   if (tab === 'combinaties') {
-    if (light) filtered = filtered.filter((x) => x.location_icon_nl === light)
+    if (substraten.length > 0)
+      filtered = filtered.filter(
+        (x) => x.substrate != null && substraten.includes(x.substrate)
+      )
+    if (locaties.length > 0)
+      filtered = filtered.filter((x) =>
+        locaties.some((l) => x.locations.includes(l))
+      )
+    if (lichten.length > 0)
+      filtered = filtered.filter(
+        (x) => x.lightLux != null && lichten.includes(String(x.lightLux))
+      )
     if (diameter)
       filtered = filtered.filter(
         (x) => Math.round(Number(x.diameter)) === Number(diameter)
@@ -630,8 +654,10 @@ export default async function CatalogPage({
     if (height) usp.set('height', height)
     if (inStock) usp.set('inStock', '1')
     if (tab === 'combinaties') {
-      if (light) usp.set('light', light)
       if (diameter) usp.set('diameter', diameter)
+      for (const s of substraten) usp.append('substraat', s)
+      for (const s of locaties) usp.append('locatie', s)
+      for (const s of lichten) usp.append('licht', s)
       for (const s of systems) usp.append('system', s)
       for (const s of shapes) usp.append('shape', s)
       for (const s of plantsoorten) usp.append('plantsoort', s)
@@ -805,28 +831,77 @@ export default async function CatalogPage({
             </label>
 
             {tab === 'combinaties' ? (
+              <FilterSection title="Substraat">
+                <ul className="space-y-1.5">
+                  {sortedSubstraten.map(([name, cnt]) => (
+                    <li key={name}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="substraat"
+                            value={name}
+                            defaultChecked={substraten.includes(name)}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {name}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">({cnt})</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </FilterSection>
+            ) : null}
+
+            {tab === 'combinaties' ? (
+              <FilterSection title="Binnen / buiten">
+                <ul className="space-y-1.5">
+                  {(['Binnen', 'Buiten'] as const).map((loc) => {
+                    const cnt = locatieCounts.get(loc) ?? 0
+                    return (
+                      <li key={loc}>
+                        <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              name="locatie"
+                              value={loc}
+                              defaultChecked={locaties.includes(loc)}
+                              className="h-4 w-4 accent-stera-green"
+                            />
+                            {loc}
+                          </span>
+                          <span className="text-xs text-stera-ink/50">({cnt})</span>
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </FilterSection>
+            ) : null}
+
+            {tab === 'combinaties' ? (
               <FilterSection title="Lichtbehoefte">
-                <fieldset className="flex flex-wrap items-center gap-1.5">
-                  <legend className="sr-only">Lichtbehoefte</legend>
-                  <LightOption value="" current={light} label="Alle" />
-                  <LightOption value="zon" current={light} label="Zon">
-                    <SunIcon />
-                  </LightOption>
-                  <LightOption
-                    value="half-schaduw"
-                    current={light}
-                    label="Half-schaduw"
-                  >
-                    <PartlyCloudyIcon />
-                  </LightOption>
-                  <LightOption
-                    value="schaduw"
-                    current={light}
-                    label="Schaduw"
-                  >
-                    <CloudIcon />
-                  </LightOption>
-                </fieldset>
+                <ul className="space-y-1.5">
+                  {sortedLichten.map(([lux, cnt]) => (
+                    <li key={lux}>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            name="licht"
+                            value={lux}
+                            defaultChecked={lichten.includes(lux)}
+                            className="h-4 w-4 accent-stera-green"
+                          />
+                          {lightLabel(Number(lux))}
+                        </span>
+                        <span className="text-xs text-stera-ink/50">({cnt})</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
               </FilterSection>
             ) : null}
 
@@ -1097,17 +1172,47 @@ export default async function CatalogPage({
                             ) : null}
                           </div>
                         </div>
-                        <div className="mt-auto flex items-baseline justify-between gap-2 border-t border-stera-ink/10 pt-2">
+                        {/* Verzorging in één oogopslag */}
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {p.lightLux != null ? (
+                            <span
+                              title={lightLabel(p.lightLux)}
+                              className="rounded bg-stera-cream/60 px-1.5 py-0.5 text-[10px] text-stera-ink/70"
+                            >
+                              ☀ {p.lightLux} lux
+                            </span>
+                          ) : null}
+                          {p.locations.length > 0 ? (
+                            <span className="rounded bg-stera-cream/60 px-1.5 py-0.5 text-[10px] text-stera-ink/70">
+                              {p.locations.join(' / ')}
+                            </span>
+                          ) : null}
+                          {p.substrate ? (
+                            <span className="rounded bg-stera-cream/60 px-1.5 py-0.5 text-[10px] text-stera-ink/70">
+                              {p.substrate}
+                            </span>
+                          ) : null}
+                          {p.tempMin != null ? (
+                            <span className="rounded bg-stera-cream/60 px-1.5 py-0.5 text-[10px] text-stera-ink/70">
+                              ≥ {p.tempMin}°C
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-stera-ink/10 pt-2">
                           <span className="font-semibold text-stera-ink">
                             {formatPrice(
                               Number(p.suggested_sale_price ?? 0)
                             )}
                           </span>
-                          {p.location_icon_nl ? (
-                            <span className="truncate text-[10px] uppercase tracking-wider text-stera-ink/50">
-                              {p.location_icon_nl}
+                          {p.stockAvailable > 0 ? (
+                            <span className="shrink-0 rounded-full bg-stera-green/10 px-2 py-0.5 text-[10px] font-medium text-stera-green">
+                              op voorraad
                             </span>
-                          ) : null}
+                          ) : (
+                            <span className="shrink-0 rounded-full bg-stera-ink/5 px-2 py-0.5 text-[10px] text-stera-ink/50">
+                              op aanvraag
+                            </span>
+                          )}
                         </div>
                       </div>
                     </Link>

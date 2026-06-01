@@ -125,7 +125,22 @@ export default async function CatalogItemPage({
     ? `/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`
     : null
 
-  const tags = Array.isArray(r.tags) ? (r.tags as string[]) : []
+  // r.tags is een array van {Code, Values:[{Description_NL}]} — we slaan
+  // het plat tot een ontdubbelde lijst leesbare labels (geen objecten als
+  // React-key, anders krijg je dubbele/[object Object]-keys).
+  type RawTagValue = { Description_NL?: string | null }
+  type RawTag = { Code?: string | null; Values?: RawTagValue[] | null }
+  const tags: string[] = Array.isArray(r.tags)
+    ? Array.from(
+        new Set(
+          (r.tags as RawTag[]).flatMap((t) =>
+            (t?.Values ?? [])
+              .map((vv) => (vv?.Description_NL ?? '').trim())
+              .filter(Boolean)
+          )
+        )
+      )
+    : []
 
   const height = get('height') as number | null
   const diameter = get('diameter') as number | null
