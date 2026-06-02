@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import type { CatalogItem } from '@/lib/catalog-items'
 
 /**
  * Volledig client-side catalogus: alle combinaties worden één keer
@@ -11,28 +12,7 @@ import Link from 'next/link'
  * delen en terugkeren (scrollpositie) blijven werken.
  */
 
-export type CatalogItem = {
-  itemcode: string
-  description: string
-  hasImage: boolean
-  salePrice: number
-  height: number | null
-  diameter: number | null
-  diameterCulturePot: number | null
-  itemVariety: string | null
-  plantsoort: string
-  merk: string
-  shape: 'Rond' | 'Hoekig' | 'Overig'
-  substrate: string | null
-  locations: string[]
-  lightLux: number | null
-  tempMin: number | null
-  stockAvailable: number
-  isMos: boolean
-  frameMateriaal: string
-  mostype: string
-  moskleur: string
-}
+export type { CatalogItem }
 
 export type CatalogInitial = {
   tab: 'combinaties' | 'moswanden'
@@ -119,9 +99,13 @@ function countBy(items: CatalogItem[], key: (i: CatalogItem) => string): Map<str
 export default function CatalogClient({
   items,
   initial,
+  onSelect,
 }: {
   items: CatalogItem[]
   initial: CatalogInitial
+  /** Indien gezet: kaarten worden "kies"-knoppen i.p.v. links naar de
+   *  detailpagina (gebruikt als kies-venster in de offerte-builder). */
+  onSelect?: (item: CatalogItem) => void
 }) {
   const [tab, setTab] = useState(initial.tab)
   const [q, setQ] = useState(initial.q)
@@ -552,9 +536,9 @@ export default function CatalogClient({
             </div>
           ) : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
-              {pageItems.map((p) => (
-                <li key={p.itemcode} className="overflow-hidden rounded-xl border border-stera-ink/10 bg-white transition hover:border-stera-green hover:shadow-md">
-                  <Link href={`/catalog/${p.itemcode}`} className="flex h-full flex-col">
+              {pageItems.map((p) => {
+                const inner = (
+                  <>
                     <div className="relative aspect-square bg-stera-cream/40">
                       {p.hasImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -578,10 +562,32 @@ export default function CatalogClient({
                           <span className="shrink-0 rounded-full bg-stera-ink/5 px-2 py-0.5 text-[10px] text-stera-ink/50">op aanvraag</span>
                         )}
                       </div>
+                      {onSelect ? (
+                        <span className="mt-2 block rounded-lg bg-stera-green px-2 py-1.5 text-center text-xs font-medium text-white">
+                          Kies deze
+                        </span>
+                      ) : null}
                     </div>
-                  </Link>
-                </li>
-              ))}
+                  </>
+                )
+                return (
+                  <li key={p.itemcode} className="overflow-hidden rounded-xl border border-stera-ink/10 bg-white transition hover:border-stera-green hover:shadow-md">
+                    {onSelect ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelect(p)}
+                        className="flex h-full w-full flex-col text-left"
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <Link href={`/catalog/${p.itemcode}`} className="flex h-full flex-col">
+                        {inner}
+                      </Link>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
 

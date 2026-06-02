@@ -10,6 +10,7 @@ import QuoteBuilder, {
 import { formatRoomLabel } from '@/lib/rooms'
 import { analyzeReplacementPhotos } from '@/lib/ai/photo-analysis'
 import { planDelivery } from '@/lib/transport'
+import { loadCatalogItems } from '@/lib/catalog-items'
 
 const LIGHT_TO_CATALOG_MAP: Record<'high' | 'medium' | 'low', string> = {
   high: 'zon',
@@ -656,6 +657,9 @@ export default async function NewQuotePage({
     quantity: 1,
   })
 
+  // Volledige catalogus (met inkoop, intern) voor het kies-venster.
+  const catalogItems = await loadCatalogItems(supabase, { withCost: true })
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
@@ -675,6 +679,7 @@ export default async function NewQuotePage({
           visitPrefill={visitPrefill}
           initialLines={initialLines}
           companyBrand={companyBrand}
+          catalogItems={catalogItems}
         />
       </div>
     </main>

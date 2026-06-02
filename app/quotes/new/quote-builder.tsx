@@ -6,6 +6,29 @@ import { createQuote } from './actions'
 import { woImage } from '@/lib/wo-image'
 import { planDelivery } from '@/lib/transport'
 import DeliveryIllustration from '@/components/delivery-illustration'
+import CatalogClient, {
+  type CatalogInitial,
+} from '@/app/catalog/CatalogClient'
+import type { CatalogItem as CatalogPickItem } from '@/lib/catalog-items'
+
+// Standaard-filters waarmee het catalogus-kiesvenster opent.
+const CATALOG_PICKER_INITIAL: CatalogInitial = {
+  tab: 'combinaties',
+  q: '',
+  inStock: true,
+  height: '',
+  diameter: '',
+  substraten: [],
+  locaties: [],
+  lichten: [],
+  systems: [],
+  shapes: [],
+  plantsoorten: [],
+  merken: [],
+  frames: [],
+  mostypes: [],
+  moskleuren: [],
+}
 
 // Snelle keuze-knoppen voor de margefactor. Stera kan altijd zelf
 // een andere factor intypen.
@@ -217,10 +240,13 @@ export default function QuoteBuilder({
   existingQuoteId = null,
   initialHeader,
   companyBrand = null,
+  catalogItems = [],
 }: {
   locations: LocationOption[]
   visitPrefill?: VisitPrefill | null
   initialLines?: InitialLineInput[]
+  /** Volledige catalogus voor het kies-venster (incl. inkoop, intern). */
+  catalogItems?: CatalogPickItem[]
   /** Huisstijl-merk van het bedrijf (fiche of historiek) — standaard
    *  voorgeselecteerd in de catalogus-picker. */
   companyBrand?: string | null
@@ -370,6 +396,8 @@ export default function QuoteBuilder({
   const [pickerSizeFallback, setPickerSizeFallback] = useState(false)
   const [pickerBrand, setPickerBrand] = useState('')
   const [brandOptions, setBrandOptions] = useState<string[]>([])
+  // Eén stijl (pot-merk) over de hele offerte.
+  const [offerBrand, setOfferBrand] = useState(companyBrand ?? '')
 
   // Beschikbare pot-merken ophalen voor de merk-keuze in de picker.
   useEffect(() => {
@@ -603,6 +631,91 @@ export default function QuoteBuilder({
       })
     }
     setPickerTarget(null)
+  }
+
+  // Selectie uit het volledige catalogus-venster → omzetten naar het
+  // formaat dat chooseItem verwacht (prijs = inkoop × marge).
+  function handleCatalogSelect(it: CatalogPickItem) {
+    chooseItem({
+      itemcode: it.itemcode,
+      description: it.description,
+      item_picture_name: it.hasImage ? it.itemcode : null,
+      cost_price: it.costPrice ?? null,
+      suggested_sale_price: it.salePrice,
+      product_group_code: '275',
+      height: it.height,
+      diameter: it.diameter,
+      diameter_culture_pot: it.diameterCulturePot,
+      pot_size: null,
+      location_icon_nl: null,
+    })
+  }
+
+  // Bouwt de regel-velden uit een catalogus-item (prijs = inkoop × marge).
+  function makeBaseFromPick(it: CatalogPickItem) {
+    const cost = it.costPrice ?? null
+    const priceFromMargin =
+      cost != null && cost > 0 ? (cost * marginFactor).toFixed(2) : ''
+    const specParts: string[] = []
+    if (it.height && it.height > 0) specParts.push(`H ${Math.round(it.height)} cm`)
+    if (it.diameter && it.diameter > 0) specParts.push(`Ø ${Math.round(it.diameter)} cm`)
+    return {
+      lineType: 'combination' as const,
+      supplier: 'nieuwkoop' as const,
+      itemcode: it.itemcode,
+      name: it.description || it.itemcode,
+      description: null,
+      spec: specParts.join(' · ') || null,
+      imageUrl: it.hasImage
+        ? `/api/nieuwkoop/image/${encodeURIComponent(it.itemcode)}`
+        : null,
+      supplierUnitPriceCents: cost != null ? Math.round(cost * 100) : null,
+      unitPriceEuro: priceFromMargin || (it.salePrice > 0 ? it.salePrice.toFixed(2) : ''),
+      quantity: 1,
+    }
+  }
+
+  // Eén stijl over de hele offerte: per te-vervangen plant de best
+  // passende combinatie van dat merk kiezen (potmaat + vorm + hoogte).
+  function applyOfferStyle(brand: string) {
+    setOfferBrand(brand)
+    if (!brand) return
+    const pool = catalogItems.filter(
+      (c) => !c.isMos && c.brand && c.brand.toLowerCase() === brand.toLowerCase()
+    )
+    if (pool.length === 0) return
+    setLines((prev) => {
+      let next = prev
+      for (const slot of slots) {
+        if (!slot.wantsReplacement) continue
+        const target = slot.potDiameterCm ?? slot.currentPotDiameterCm ?? null
+        let best: CatalogPickItem | null = null
+        let bestScore = -Infinity
+        for (const c of pool) {
+          let s = 0
+          if (target && c.diameter && c.diameter > 0)
+            s -= Math.abs(c.diameter - target) * 3
+          if (slot.potShape && c.shape === slot.potShape) s += 30
+          if (slot.heightCm && c.height && c.height > 0)
+            s -= Math.abs(c.height - slot.heightCm) * 0.2
+          if (s > bestScore) {
+            bestScore = s
+            best = c
+          }
+        }
+        if (!best) continue
+        const base = makeBaseFromPick(best)
+        const idx = next.findIndex((l) => l.slotId === slot.visitPlantId)
+        if (idx >= 0) {
+          const copy = [...next]
+          copy[idx] = { ...copy[idx], ...base }
+          next = copy
+        } else {
+          next = [...next, { key: nextKey(), slotId: slot.visitPlantId, ...base }]
+        }
+      }
+      return next
+    })
   }
 
   function addSkipLine(slotId: string, oldPlantName: string) {
@@ -906,6 +1019,30 @@ export default function QuoteBuilder({
             </p>
           </div>
 
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stera-line bg-white p-2">
+            <span className="text-sm font-medium text-stera-ink">
+              Stijl voor deze offerte
+            </span>
+            <select
+              value={offerBrand}
+              onChange={(e) => applyOfferStyle(e.target.value)}
+              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+            >
+              <option value="">— geen voorkeur —</option>
+              {brandOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+              {offerBrand && !brandOptions.includes(offerBrand) ? (
+                <option value={offerBrand}>{offerBrand}</option>
+              ) : null}
+            </select>
+            <span className="text-xs text-stera-ink-soft">
+              past alle voorstellen in één keer aan naar dit merk
+            </span>
+          </div>
+
           {Array.from(slotsByRoom.entries())
             .sort((a, b) => a[0].localeCompare(b[0], 'nl-BE'))
             .map(([roomLabel, roomSlots]) => (
@@ -1079,195 +1216,26 @@ export default function QuoteBuilder({
           onClick={() => setPickerTarget(null)}
         >
           <section
-            className="my-4 w-full max-w-2xl space-y-3 rounded-2xl bg-white p-4 shadow-xl sm:my-8"
+            className="my-4 max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-stera-cream shadow-xl sm:my-8"
             onClick={(e) => e.stopPropagation()}
           >
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-stera-ink">
-              {pickerTitle}
-            </p>
-            <button
-              type="button"
-              onClick={() => setPickerTarget(null)}
-              className="text-xs text-stera-ink-soft hover:text-stera-ink"
-            >
-              sluiten
-            </button>
-          </div>
-
-          {pickerSlot && pickerTarget.kind === 'slot' ? (
-            <p className="text-xs text-stera-ink-soft">
-              Het voorstel houdt rekening met de potmaat en lichtbehoefte
-              uit het onderhoud. Pas de filters gerust aan.
-            </p>
-          ) : null}
-
-          {pickerLightFallback ? (
-            <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              Geen combinaties met exact die lichtbehoefte. Hieronder alle
-              combinaties die in de potmaat passen — kies er zelf een
-              geschikte uit of pas de filters aan.
-            </p>
-          ) : null}
-
-          {pickerSizeFallback ? (
-            <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
-              Geen combinaties in dat maatbereik. Hieronder alle resultaten
-              — let op de Ø-maat per combinatie.
-            </p>
-          ) : null}
-
-          {/* Filters */}
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input
-              type="text"
-              value={pickerQuery}
-              onChange={(e) => setPickerQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  runSearch()
-                }
-              }}
-              placeholder="Zoek op naam (bv. Kentia)..."
-              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-stera-line bg-stera-cream px-4 py-3">
+              <p className="text-sm font-semibold text-stera-ink">
+                Kies een combinatie uit de catalogus
+              </p>
+              <button
+                type="button"
+                onClick={() => setPickerTarget(null)}
+                className="rounded-lg px-3 py-1.5 text-sm text-stera-ink-soft hover:bg-white hover:text-stera-ink"
+              >
+                Sluiten
+              </button>
+            </div>
+            <CatalogClient
+              items={catalogItems}
+              initial={CATALOG_PICKER_INITIAL}
+              onSelect={handleCatalogSelect}
             />
-            <select
-              value={pickerLight}
-              onChange={(e) => setPickerLight(e.target.value)}
-              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
-            >
-              <option value="">Alle lichtbehoeften</option>
-              <option value="zon">Zon</option>
-              <option value="half-schaduw">Half-schaduw</option>
-              <option value="schaduw">Schaduw</option>
-            </select>
-            <select
-              value={pickerBrand}
-              onChange={(e) => {
-                const b = e.target.value
-                setPickerBrand(b)
-                setPickerLightFallback(false)
-                setPickerSizeFallback(false)
-                performSearch({
-                  group: '275',
-                  q: pickerQuery,
-                  light: pickerLight,
-                  potMin: pickerPotMin,
-                  potMax: pickerPotMax,
-                  brand: b,
-                })
-              }}
-              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
-              title="Pot-merk (huisstijl van het bedrijf is standaard gekozen)"
-            >
-              <option value="">Alle merken</option>
-              {brandOptions.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-              {pickerBrand && !brandOptions.includes(pickerBrand) ? (
-                <option value={pickerBrand}>{pickerBrand}</option>
-              ) : null}
-            </select>
-            <label className="flex items-center gap-2 text-xs text-stera-ink-soft">
-              <span className="shrink-0">Pot Ø van</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={pickerPotMin}
-                onChange={(e) => setPickerPotMin(e.target.value)}
-                className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
-                placeholder="cm"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-stera-ink-soft">
-              <span className="shrink-0">tot</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={pickerPotMax}
-                onChange={(e) => setPickerPotMax(e.target.value)}
-                className="w-full rounded-lg border border-stera-line bg-white p-2 text-sm"
-                placeholder="cm"
-              />
-            </label>
-          </div>
-          <div>
-            <button
-              type="button"
-              onClick={runSearch}
-              disabled={pickerLoading}
-              className="stera-cta stera-cta-primary disabled:opacity-50"
-            >
-              {pickerLoading ? 'Zoeken…' : 'Zoeken'}
-            </button>
-          </div>
-
-          {pickerError ? (
-            <p className="text-xs text-red-600">{pickerError}</p>
-          ) : null}
-
-          {pickerTouched &&
-          !pickerLoading &&
-          !pickerError &&
-          pickerResults.length === 0 ? (
-            <p className="text-xs text-stera-ink-soft">
-              Geen resultaten. Verruim de potmaat of zoek op naam.
-            </p>
-          ) : null}
-
-          {pickerResults.length > 0 ? (
-            <ul className="grid max-h-96 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
-              {pickerResults.map((item) => {
-                const cost = item.cost_price ?? 0
-                const displayCents =
-                  cost > 0
-                    ? Math.round(cost * marginFactor * 100)
-                    : (item.suggested_sale_price ?? 0) > 0
-                      ? Math.round((item.suggested_sale_price ?? 0) * 100)
-                      : 0
-                return (
-                  <li key={item.itemcode}>
-                    <button
-                      type="button"
-                      onClick={() => chooseItem(item)}
-                      className="flex w-full gap-2 rounded-lg border border-stera-line bg-white p-2 text-left transition hover:border-stera-green"
-                    >
-                      {item.item_picture_name ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/nieuwkoop/image/${encodeURIComponent(
-                            item.itemcode
-                          )}`}
-                          alt={item.description || item.itemcode}
-                          className="h-14 w-14 shrink-0 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded border border-dashed border-stera-line text-[9px] text-stera-ink-soft">
-                          geen foto
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-stera-ink">
-                          {item.description || item.itemcode}
-                        </p>
-                        <p className="text-[11px] text-stera-ink-soft">
-                          {buildSpec(item)}
-                        </p>
-                        <p className="text-xs font-semibold text-stera-green">
-                          {displayCents > 0
-                            ? formatEuro(displayCents)
-                            : 'prijs onbekend'}
-                        </p>
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
           </section>
         </div>
       ) : null}
