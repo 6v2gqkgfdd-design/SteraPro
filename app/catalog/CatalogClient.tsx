@@ -27,6 +27,7 @@ export type CatalogInitial = {
   shapes: string[]
   plantsoorten: string[]
   merken: string[]
+  collecties: string[]
   frames: string[]
   mostypes: string[]
   moskleuren: string[]
@@ -119,10 +120,12 @@ export default function CatalogClient({
   const [shapes, setShapes] = useState<string[]>(initial.shapes)
   const [plantsoorten, setPlantsoorten] = useState<string[]>(initial.plantsoorten)
   const [merken, setMerken] = useState<string[]>(initial.merken)
+  const [collecties, setCollecties] = useState<string[]>(initial.collecties)
   const [frames, setFrames] = useState<string[]>(initial.frames)
   const [mostypes, setMostypes] = useState<string[]>(initial.mostypes)
   const [moskleuren, setMoskleuren] = useState<string[]>(initial.moskleuren)
   const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const combinaties = useMemo(() => items.filter((x) => !x.isMos), [items])
   const moswanden = useMemo(() => items.filter((x) => x.isMos), [items])
@@ -131,6 +134,7 @@ export default function CatalogClient({
   // Facet-tellingen (op de volledige tab-set).
   const plantsoortCounts = useMemo(() => countBy(combinaties, (x) => x.plantsoort), [combinaties])
   const merkCounts = useMemo(() => countBy(combinaties, (x) => x.merk), [combinaties])
+  const collectieCounts = useMemo(() => countBy(combinaties, (x) => x.collection ?? ''), [combinaties])
   const systeemCounts = useMemo(() => countBy(combinaties, (x) => x.itemVariety ?? ''), [combinaties])
   const shapeCounts = useMemo(() => countBy(combinaties, (x) => x.shape), [combinaties])
   const substraatCounts = useMemo(() => countBy(combinaties, (x) => x.substrate ?? ''), [combinaties])
@@ -170,13 +174,15 @@ export default function CatalogClient({
       if (shapes.length) f = f.filter((x) => shapes.includes(x.shape))
       if (plantsoorten.length) f = f.filter((x) => plantsoorten.includes(x.plantsoort))
       if (merken.length) f = f.filter((x) => merken.includes(x.merk))
+      if (collecties.length)
+        f = f.filter((x) => x.collection != null && collecties.includes(x.collection))
     } else {
       if (frames.length) f = f.filter((x) => frames.includes(x.frameMateriaal))
       if (mostypes.length) f = f.filter((x) => mostypes.includes(x.mostype))
       if (moskleuren.length) f = f.filter((x) => moskleuren.includes(x.moskleur))
     }
     return f
-  }, [tabSet, tab, q, height, inStock, substraten, locaties, lichten, diameter, systems, shapes, plantsoorten, merken, frames, mostypes, moskleuren])
+  }, [tabSet, tab, q, height, inStock, substraten, locaties, lichten, diameter, systems, shapes, plantsoorten, merken, collecties, frames, mostypes, moskleuren])
 
   const totalCount = filtered.length
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -186,7 +192,7 @@ export default function CatalogClient({
   // Reset naar pagina 1 zodra een filter wijzigt.
   useEffect(() => {
     setPage(1)
-  }, [tab, q, height, inStock, substraten, locaties, lichten, diameter, systems, shapes, plantsoorten, merken, frames, mostypes, moskleuren])
+  }, [tab, q, height, inStock, substraten, locaties, lichten, diameter, systems, shapes, plantsoorten, merken, collecties, frames, mostypes, moskleuren])
 
   // Filters in de URL bijhouden (zonder herladen) — voor delen + terugkeer.
   const firstSync = useRef(true)
@@ -206,6 +212,7 @@ export default function CatalogClient({
       for (const s of shapes) usp.append('shape', s)
       for (const s of plantsoorten) usp.append('plantsoort', s)
       for (const s of merken) usp.append('merk', s)
+      for (const s of collecties) usp.append('collectie', s)
     } else {
       for (const s of frames) usp.append('frame', s)
       for (const s of mostypes) usp.append('mostype', s)
@@ -217,7 +224,7 @@ export default function CatalogClient({
     // Eerste render niet pushen (voorkomt dubbele history-entry).
     window.history.replaceState(window.history.state, '', url)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, q, inStock, height, diameter, substraten, locaties, lichten, systems, shapes, plantsoorten, merken, frames, mostypes, moskleuren, safePage])
+  }, [tab, q, inStock, height, diameter, substraten, locaties, lichten, systems, shapes, plantsoorten, merken, collecties, frames, mostypes, moskleuren, safePage])
 
   function clearAll() {
     setQ('')
@@ -231,6 +238,7 @@ export default function CatalogClient({
     setShapes([])
     setPlantsoorten([])
     setMerken([])
+    setCollecties([])
     setFrames([])
     setMostypes([])
     setMoskleuren([])
@@ -241,6 +249,7 @@ export default function CatalogClient({
     [plantsoortCounts]
   )
   const sortedMerken = useMemo(() => Array.from(merkCounts.entries()).filter(([k]) => k).sort((a, b) => b[1] - a[1]), [merkCounts])
+  const sortedCollecties = useMemo(() => Array.from(collectieCounts.entries()).filter(([k]) => k).sort((a, b) => b[1] - a[1]), [collectieCounts])
   const sortedSystemen = useMemo(() => Array.from(systeemCounts.entries()).filter(([k]) => k).sort((a, b) => b[1] - a[1]), [systeemCounts])
   const sortedSubstraten = useMemo(() => Array.from(substraatCounts.entries()).filter(([k]) => k).sort((a, b) => b[1] - a[1]), [substraatCounts])
   const sortedLichten = useMemo(() => Array.from(lichtCounts.entries()).filter(([k]) => k).sort((a, b) => Number(a[0]) - Number(b[0])), [lichtCounts])
@@ -253,7 +262,7 @@ export default function CatalogClient({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-4">
-        <h1 className="text-3xl font-serif text-stera-ink">Catalogus</h1>
+        <h1 className="text-3xl font-serif text-stera-ink">Webshop</h1>
         <p className="mt-1 text-sm text-stera-ink/70">
           {tab === 'combinaties'
             ? 'All-in-1 combinaties — plant in pot, voorgekweekt en met watermeter, klaar om af te leveren.'
@@ -331,15 +340,26 @@ export default function CatalogClient({
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        {/* Sidebar — inklapbaar op mobiel */}
-        <aside>
-          <details className="overflow-hidden rounded-xl border border-stera-ink/10 bg-white/60 lg:rounded-none lg:border-0 lg:bg-transparent">
-            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-stera-ink [&::-webkit-details-marker]:hidden lg:hidden">
-              <span>Filters tonen / verbergen</span>
-              <span aria-hidden className="text-stera-ink/40">≡</span>
-            </summary>
-            <div className="space-y-5 px-4 pb-4 lg:!block lg:px-0 lg:pb-0">
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        {/* Filters: vaste zijbalk op desktop, zijpaneel (drawer) op mobiel */}
+        <aside
+          className={`${
+            filtersOpen
+              ? 'fixed inset-0 z-50 overflow-y-auto bg-stera-cream p-4'
+              : 'hidden'
+          } lg:sticky lg:top-4 lg:z-auto lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:bg-transparent lg:p-0`}
+        >
+          <div className="mb-4 flex items-center justify-between lg:hidden">
+            <span className="text-base font-semibold text-stera-ink">Filters</span>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(false)}
+              className="rounded-lg px-3 py-1.5 text-sm text-stera-ink/60 hover:bg-white"
+            >
+              Sluiten ✕
+            </button>
+          </div>
+            <div className="space-y-5">
               <input
                 type="search"
                 value={q}
@@ -479,6 +499,24 @@ export default function CatalogClient({
                 </FilterSection>
               ) : null}
 
+              {tab === 'combinaties' ? (
+                <FilterSection title="Collectie / serie">
+                  <ul className="max-h-72 space-y-1.5 overflow-auto pr-1">
+                    {sortedCollecties.map(([name, cnt]) => (
+                      <li key={name}>
+                        <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-stera-ink hover:text-stera-green">
+                          <span className="flex items-center gap-2">
+                            <input type="checkbox" checked={collecties.includes(name)} onChange={() => setCollecties((p) => toggle(p, name))} className="h-4 w-4 accent-stera-green" />
+                            {name}
+                          </span>
+                          <span className="text-xs text-stera-ink/50">({cnt})</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </FilterSection>
+              ) : null}
+
               {tab === 'moswanden' ? (
                 <FilterSection title="Frame-materiaal">
                   <ul className="space-y-1.5">
@@ -521,13 +559,26 @@ export default function CatalogClient({
                 </button>
               </div>
             </div>
-          </details>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(false)}
+            className="mt-5 w-full rounded-lg bg-stera-ink px-4 py-2.5 font-medium text-white lg:hidden"
+          >
+            Toon {totalCount.toLocaleString('nl-BE')} resultaten
+          </button>
         </aside>
 
         {/* Resultaten */}
         <div>
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-sm text-stera-ink/70">{totalCount.toLocaleString('nl-BE')} resultaten</p>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              className="rounded-lg border border-stera-ink/20 bg-white px-3 py-1.5 text-sm font-medium text-stera-ink lg:hidden"
+            >
+              Filters
+            </button>
           </div>
 
           {pageItems.length === 0 ? (
@@ -539,10 +590,10 @@ export default function CatalogClient({
               {pageItems.map((p) => {
                 const inner = (
                   <>
-                    <div className="relative aspect-square bg-stera-cream/40">
+                    <div className="relative aspect-square border-b border-stera-ink/5 bg-stera-cream">
                       {p.hasImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={`/api/nieuwkoop/image/${p.itemcode}`} alt={p.description} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                        <img src={`/api/nieuwkoop/image/${p.itemcode}`} alt={p.description} loading="lazy" className="absolute inset-0 h-full w-full object-contain p-3" />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-xs text-stera-ink/30">Geen foto</div>
                       )}

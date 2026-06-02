@@ -263,7 +263,7 @@ export default async function CatalogItemPage({
         <BackButton />
         <nav aria-label="Breadcrumb" className="text-sm text-stera-ink/60">
           <Link href="/catalog" className="hover:text-stera-green">
-            Catalogus
+            Webshop
           </Link>
           <span className="mx-2">›</span>
           <span className="text-stera-ink/80">{description}</span>

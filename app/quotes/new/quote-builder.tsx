@@ -25,6 +25,7 @@ const CATALOG_PICKER_INITIAL: CatalogInitial = {
   shapes: [],
   plantsoorten: [],
   merken: [],
+  collecties: [],
   frames: [],
   mostypes: [],
   moskleuren: [],
@@ -693,8 +694,21 @@ export default function QuoteBuilder({
         let bestScore = -Infinity
         for (const c of pool) {
           let s = 0
-          if (target && c.diameter && c.diameter > 0)
-            s -= Math.abs(c.diameter - target) * 3
+          // Soort van de dode plant is leidend — zo krijgt élke plant een
+          // gelijkaardige terug i.p.v. allemaal dezelfde.
+          if (slot.oldPlantSpecies && c.description) {
+            const sp = slot.oldPlantSpecies.toLowerCase()
+            const desc = c.description.toLowerCase()
+            if (desc.includes(sp)) s += 200
+            else {
+              const genus = sp.split(/\s+/)[0]
+              if (genus && genus.length > 2 && desc.includes(genus)) s += 150
+            }
+          }
+          if (target && c.diameter && c.diameter > 0) {
+            const diff = Math.abs(c.diameter - target)
+            s += diff === 0 ? 80 : Math.max(0, 60 - diff * 6)
+          }
           if (slot.potShape && c.shape === slot.potShape) s += 30
           if (slot.heightCm && c.height && c.height > 0)
             s -= Math.abs(c.height - slot.heightCm) * 0.2
@@ -1221,7 +1235,7 @@ export default function QuoteBuilder({
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-stera-line bg-stera-cream px-4 py-3">
               <p className="text-sm font-semibold text-stera-ink">
-                Kies een combinatie uit de catalogus
+                Kies een combinatie uit de webshop
               </p>
               <button
                 type="button"

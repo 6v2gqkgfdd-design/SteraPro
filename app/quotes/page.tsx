@@ -172,7 +172,7 @@ export default async function QuotesPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/catalog" className="stera-cta stera-cta-ghost">
-              Catalogus
+              Webshop
             </Link>
             <Link href="/quotes/new" className="stera-cta stera-cta-primary">
               + Nieuwe offerte

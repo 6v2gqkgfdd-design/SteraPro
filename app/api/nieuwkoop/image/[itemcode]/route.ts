@@ -113,6 +113,9 @@ async function ensureImageCached(itemcode: string, supabase: any, publicUrl: str
       toStore = await sharp(result)
         .rotate()
         .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+        // Transparante PNG → JPEG zou zwart worden; vul de achtergrond met
+        // de cream-kleur van de app (#FFFDF7) zodat foto's mooi inpassen.
+        .flatten({ background: { r: 255, g: 253, b: 247 } })
         .jpeg({ quality: 72, mozjpeg: true })
         .toBuffer();
     } catch (e: any) {

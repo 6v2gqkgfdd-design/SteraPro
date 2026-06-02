@@ -48,6 +48,7 @@ export default async function CatalogPage({
     shapes: parseArray(params.shape),
     plantsoorten: parseArray(params.plantsoort),
     merken: parseArray(params.merk),
+    collecties: parseArray(params.collectie),
     frames: parseArray(params.frame),
     mostypes: parseArray(params.mostype),
     moskleuren: parseArray(params.moskleur),

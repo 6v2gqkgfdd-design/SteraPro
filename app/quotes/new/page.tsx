@@ -671,7 +671,7 @@ export default async function NewQuotePage({
           <p className="mt-2 text-sm text-stera-ink-soft">
             {visitPrefill
               ? 'Kies per te vervangen plant een nieuwe hydrocultuur-plant en een passende buitenpot. De condities uit het onderhoud sturen het voorstel.'
-              : 'Kies de klant, voeg een combinatie toe uit de catalogus, en bewaar de offerte.'}
+              : 'Kies de klant, voeg een combinatie toe uit de webshop, en bewaar de offerte.'}
           </p>
         </div>
         <QuoteBuilder

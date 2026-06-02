@@ -27,6 +27,8 @@ export type CatalogItem = {
   merk: string
   /** Pot-merk uit de Brand-tag (huisstijl). */
   brand: string | null
+  /** Collectie/serie van de pot (Collection-tag), bv. Atlas, Seren. */
+  collection: string | null
   shape: 'Rond' | 'Hoekig' | 'Overig'
   substrate: string | null
   locations: string[]
@@ -202,6 +204,7 @@ export async function loadCatalogItems(
       plantsoort: extractPlantsoort(plantPart),
       merk: extractMerk(potPart),
       brand: tagVals(nk?.tags, 'Brand')[0] ?? null,
+      collection: tagVals(nk?.tags, 'Collection')[0] ?? null,
       shape: detectShape(row.diameter, nk?.length ?? null),
       substrate: tagVals(nk?.tags, 'SubstrateType')[0] ?? null,
       locations: tagVals(nk?.tags, 'Location'),
