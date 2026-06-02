@@ -58,6 +58,8 @@ export type ReplacementSlot = {
   currentPotDiameterCm: number | null
   roomId: string | null
   roomLabel: string | null
+  locationId?: string | null
+  locationLabel?: string | null
   // false = dode plant waar de tech "Nee" antwoordde op "moet ze
   // vervangen worden?". Verschijnt nog steeds in de offerte, maar
   // initieel als uitlegregel zonder voorgestelde plant.
@@ -78,7 +80,7 @@ export type ReplacementSlot = {
 }
 
 export type VisitPrefill = {
-  visitId: string
+  visitId: string | null
   companyId: string | null
   locationId: string | null
   customerName: string
@@ -399,9 +401,14 @@ export default function QuoteBuilder({
   // Slots groeperen per ruimte zodat de offerte logisch geordend
   // wordt (alle planten van de inkom samen, alle planten van bureau 1
   // samen, enz.).
+  // Groeperen per locatie → ruimte, zodat een verzameloffer (meerdere
+  // locaties) overzichtelijk geordend blijft.
   const slotsByRoom = new Map<string, ReplacementSlot[]>()
   for (const slot of slots) {
-    const key = slot.roomLabel || 'Zonder ruimte'
+    const roomPart = slot.roomLabel || 'Zonder ruimte'
+    const key = slot.locationLabel
+      ? `${slot.locationLabel} — ${roomPart}`
+      : roomPart
     if (!slotsByRoom.has(key)) slotsByRoom.set(key, [])
     slotsByRoom.get(key)!.push(slot)
   }
@@ -899,8 +906,9 @@ export default function QuoteBuilder({
             </p>
           </div>
 
-          {Array.from(slotsByRoom.entries()).map(
-            ([roomLabel, roomSlots]) => (
+          {Array.from(slotsByRoom.entries())
+            .sort((a, b) => a[0].localeCompare(b[0], 'nl-BE'))
+            .map(([roomLabel, roomSlots]) => (
               <div key={roomLabel} className="space-y-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-stera-green">
                   {roomLabel}

@@ -93,6 +93,13 @@ export default async function CompanyDetailPage({
           </div>
         </div>
 
+        <Link
+          href={`/quotes/new?company=${company.id}`}
+          className="stera-cta stera-cta-primary w-full justify-center sm:w-auto"
+        >
+          Verzamelofferte voor openstaande vervangingen →
+        </Link>
+
         <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Locaties

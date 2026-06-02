@@ -199,7 +199,7 @@ async function resolveCompanyBrand(
 export default async function NewQuotePage({
   searchParams,
 }: {
-  searchParams?: Promise<{ visit?: string }>
+  searchParams?: Promise<{ visit?: string; company?: string }>
 }) {
   const supabase = await createClient()
   const {
@@ -243,44 +243,110 @@ export default async function NewQuotePage({
   let companyBrand: string | null = null
   const params = searchParams ? await searchParams : {}
   const visitId = params?.visit
+  const companyParam =
+    typeof params?.company === 'string' ? params.company : null
+
+  // Het vervangingsvoorstel komt uit "flagged" planten — uit één beurt
+  // (?visit=) of uit ALLE openstaande vervangingen van een klant
+  // (?company=, alle beurten samen in één offerte).
+  const FLAGGED_SELECT = `
+        id, plant_id, photo_url,
+        followup_replace, health_status,
+        replacement_light_level, replacement_height_cm,
+        replacement_pot_diameter_cm, replacement_is_hanging,
+        replacement_care_level, replacement_needs_outer_pot,
+        replacement_notes,
+        plants (
+          nickname, species, pot_size_code, photo_url,
+          locations ( id, name ),
+          rooms ( id, name, floor )
+        )
+      `
+  // Te vervangen (followup_replace=true) + dode planten waar "Nee" op
+  // geantwoord is (verschijnen als "niet voorgesteld" met reden).
+  const FLAGGED_FILTER =
+    'followup_replace.eq.true,and(health_status.eq.dead,followup_replace.eq.false)'
+
+  type CompanyLite = {
+    id?: string
+    name?: string | null
+    contact_name?: string | null
+    email?: string | null
+  }
+  let flagged: Array<Record<string, unknown>> = []
+  let company: CompanyLite | null = null
+  let prefillLocationId: string | null = null
+  let prefillSourceVisitId: string | null = null
+  let hasContext = false
 
   if (visitId) {
     const { data: visit } = await supabase
       .from('maintenance_visits')
       .select(
-        `
-        id, location_id, company_id,
-        companies ( id, name, contact_name, email ),
-        locations ( id, name )
-      `
+        `id, location_id, company_id, companies ( id, name, contact_name, email ), locations ( id, name )`
       )
       .eq('id', visitId)
       .maybeSingle()
-
     if (visit) {
-      const { data: flagged } = await supabase
+      const { data } = await supabase
         .from('maintenance_visit_plants')
-        .select(
-          `
-          id, plant_id, photo_url,
-          followup_replace, health_status,
-          replacement_light_level, replacement_height_cm,
-          replacement_pot_diameter_cm, replacement_is_hanging,
-          replacement_care_level, replacement_needs_outer_pot,
-          replacement_notes,
-          plants (
-            nickname, species, pot_size_code, photo_url,
-            rooms ( id, name, floor )
+        .select(FLAGGED_SELECT)
+        .eq('visit_id', visitId as string)
+        .or(FLAGGED_FILTER)
+      flagged = (data ?? []) as Array<Record<string, unknown>>
+      company = one(visit.companies) as CompanyLite | null
+      prefillLocationId = (visit.location_id as string | null) ?? null
+      prefillSourceVisitId = (visit.id as string) ?? null
+      hasContext = true
+    }
+  } else if (companyParam) {
+    const { data: comp } = await supabase
+      .from('companies')
+      .select('id, name, contact_name, email')
+      .eq('id', companyParam)
+      .maybeSingle()
+    if (comp) {
+      company = comp as unknown as CompanyLite
+      const { data: visits } = await supabase
+        .from('maintenance_visits')
+        .select('id')
+        .eq('company_id', companyParam)
+      const visitIds = (visits ?? []).map((v: { id: string }) => v.id)
+      if (visitIds.length > 0) {
+        const { data } = await supabase
+          .from('maintenance_visit_plants')
+          .select(FLAGGED_SELECT)
+          .in('visit_id', visitIds)
+          .or(FLAGGED_FILTER)
+        let rows = (data ?? []) as Array<Record<string, unknown>>
+        // Dubbels vermijden: planten die al op een lopende offerte staan.
+        const { data: existingQuotes } = await supabase
+          .from('quotes')
+          .select('id')
+          .eq('company_id', companyParam)
+          .not('status', 'in', '(declined,cancelled,expired)')
+        const qIds = (existingQuotes ?? []).map((x: { id: string }) => x.id)
+        if (qIds.length > 0) {
+          const { data: usedLines } = await supabase
+            .from('quote_lines')
+            .select('source_visit_plant_id')
+            .in('quote_id', qIds)
+            .not('source_visit_plant_id', 'is', null)
+          const used = new Set(
+            (usedLines ?? []).map(
+              (l: { source_visit_plant_id: string | null }) =>
+                l.source_visit_plant_id
+            )
           )
-        `
-        )
-        .eq('visit_id', visitId)
-        // Zowel planten die vervangen worden (followup_replace=true) als
-        // dode planten waar de tech expliciet "Nee" antwoordde — die laatste
-        // verschijnen in de offerte als "niet voorgesteld" met de reden.
-        .or(
-          'followup_replace.eq.true,and(health_status.eq.dead,followup_replace.eq.false)'
-        )
+          rows = rows.filter((r) => !used.has(r.id as string))
+        }
+        flagged = rows
+      }
+      hasContext = true
+    }
+  }
+
+  if (hasContext) {
 
       // Voor de meeste planten is er op de "dood"-rij geen foto
       // ge-upload (de plant is via standaard onderhoud of SQL gemarkeerd).
@@ -312,18 +378,9 @@ export default async function NewQuotePage({
         }
       }
 
-      const company = one(visit.companies) as {
-        id?: string
-        contact_name?: string | null
-        email?: string | null
-      } | null
-
       // Huisstijl-merk van dit bedrijf (fiche of historiek) — voor de
       // suggestie-score én als standaard in de catalogus-picker.
-      companyBrand = await resolveCompanyBrand(
-        supabase,
-        company?.id ?? (visit.company_id as string | null) ?? null
-      )
+      companyBrand = await resolveCompanyBrand(supabase, company?.id ?? null)
 
       const slots: ReplacementSlot[] = (flagged ?? []).map(
         (row: Record<string, unknown>) => {
@@ -333,6 +390,7 @@ export default async function NewQuotePage({
             pot_size_code?: string | null
             photo_url?: string | null
             rooms?: unknown
+            locations?: unknown
           } | null
           const room = one(plant?.rooms) as {
             id?: string | null
@@ -342,6 +400,11 @@ export default async function NewQuotePage({
           const roomLabel = room?.name
             ? formatRoomLabel(room.name, room.floor ?? null)
             : null
+          const loc = one(plant?.locations) as {
+            id?: string | null
+            name?: string | null
+          } | null
+          const locationLabel = loc?.name ?? null
           const plantId = (row.plant_id as string | null) ?? null
           const lightRaw = row.replacement_light_level
           const light =
@@ -375,6 +438,8 @@ export default async function NewQuotePage({
             currentPotDiameterCm,
             roomId: (room?.id as string | null) ?? null,
             roomLabel,
+            locationId: (loc?.id as string | null) ?? null,
+            locationLabel,
             wantsReplacement,
             oldPlantName:
               plant?.nickname || plant?.species || 'Plant',
@@ -434,9 +499,9 @@ export default async function NewQuotePage({
       }
 
       visitPrefill = {
-        visitId: visit.id,
-        companyId: company?.id ?? visit.company_id ?? null,
-        locationId: visit.location_id ?? null,
+        visitId: prefillSourceVisitId,
+        companyId: company?.id ?? null,
+        locationId: prefillLocationId,
         customerName: company?.contact_name ?? '',
         customerEmail: company?.email ?? '',
         slots,
@@ -568,7 +633,6 @@ export default async function NewQuotePage({
         }
       }
     }
-  }
 
   // Levering-regel automatisch toevoegen. Drie vaste tarieven op
   // basis van het plantsubtotaal: €99 onder €300, €49 tussen
