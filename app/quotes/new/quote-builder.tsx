@@ -214,10 +214,14 @@ export default function QuoteBuilder({
   initialLines = [],
   existingQuoteId = null,
   initialHeader,
+  companyBrand = null,
 }: {
   locations: LocationOption[]
   visitPrefill?: VisitPrefill | null
   initialLines?: InitialLineInput[]
+  /** Huisstijl-merk van het bedrijf (fiche of historiek) — standaard
+   *  voorgeselecteerd in de catalogus-picker. */
+  companyBrand?: string | null
   /** In edit-modus: id van de bestaande draft-offerte. */
   existingQuoteId?: string | null
   /** In edit-modus: bestaande waarden voor de header. */
@@ -362,6 +366,22 @@ export default function QuoteBuilder({
   const [pickerTouched, setPickerTouched] = useState(false)
   const [pickerLightFallback, setPickerLightFallback] = useState(false)
   const [pickerSizeFallback, setPickerSizeFallback] = useState(false)
+  const [pickerBrand, setPickerBrand] = useState('')
+  const [brandOptions, setBrandOptions] = useState<string[]>([])
+
+  // Beschikbare pot-merken ophalen voor de merk-keuze in de picker.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/catalog/brands')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && Array.isArray(d?.brands)) setBrandOptions(d.brands)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -392,6 +412,7 @@ export default function QuoteBuilder({
     light: string
     potMin: string
     potMax: string
+    brand?: string
   }): Promise<CatalogItem[]> {
     setPickerLoading(true)
     setPickerError('')
@@ -402,6 +423,7 @@ export default function QuoteBuilder({
       if (opts.light) params.set('light', opts.light)
       if (opts.potMin) params.set('potMin', opts.potMin)
       if (opts.potMax) params.set('potMax', opts.potMax)
+      if (opts.brand) params.set('brand', opts.brand)
       const res = await fetch(`/api/catalog/search?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) {
@@ -430,14 +452,17 @@ export default function QuoteBuilder({
       light: pickerLight,
       potMin: pickerPotMin,
       potMax: pickerPotMax,
+      brand: pickerBrand,
     })
   }
 
   function openPickerExtra() {
+    const brand = companyBrand ?? ''
     setPickerQuery('')
     setPickerLight('')
     setPickerPotMin('')
     setPickerPotMax('')
+    setPickerBrand(brand)
     setPickerResults([])
     setPickerError('')
     setPickerTouched(false)
@@ -450,6 +475,7 @@ export default function QuoteBuilder({
       light: '',
       potMin: '',
       potMax: '',
+      brand,
     })
   }
 
@@ -467,29 +493,48 @@ export default function QuoteBuilder({
     const p = slot.potDiameterCm
     const potMin = p ? String(Math.max(1, p - 2)) : ''
     const potMax = p ? String(p + 2) : ''
+    const brand = companyBrand ?? ''
     setPickerLight(light)
     setPickerPotMin(potMin)
     setPickerPotMax(potMax)
+    setPickerBrand(brand)
     setPickerTarget({ kind: 'slot', slotId })
 
-    const items = await performSearch({
+    let curLight = light
+    let items = await performSearch({
       group: '275',
       q: '',
-      light,
+      light: curLight,
       potMin,
       potMax,
+      brand,
     })
     // Geen exacte match op lichtbehoefte? Toon dan alle combinaties
     // in de juiste potmaat zodat het voorstel nooit leeg blijft.
-    if (items.length === 0 && light) {
+    if (items.length === 0 && curLight) {
+      curLight = ''
       setPickerLight('')
       setPickerLightFallback(true)
-      await performSearch({
+      items = await performSearch({
         group: '275',
         q: '',
         light: '',
         potMin,
         potMax,
+        brand,
+      })
+    }
+    // Nog niets met het huisstijl-merk? Val terug op alle merken (voorkeur,
+    // geen harde filter) zodat er altijd een keuze is.
+    if (items.length === 0 && brand) {
+      setPickerBrand('')
+      await performSearch({
+        group: '275',
+        q: '',
+        light: curLight,
+        potMin,
+        potMax,
+        brand: '',
       })
     }
   }
@@ -1088,6 +1133,35 @@ export default function QuoteBuilder({
               <option value="zon">Zon</option>
               <option value="half-schaduw">Half-schaduw</option>
               <option value="schaduw">Schaduw</option>
+            </select>
+            <select
+              value={pickerBrand}
+              onChange={(e) => {
+                const b = e.target.value
+                setPickerBrand(b)
+                setPickerLightFallback(false)
+                setPickerSizeFallback(false)
+                performSearch({
+                  group: '275',
+                  q: pickerQuery,
+                  light: pickerLight,
+                  potMin: pickerPotMin,
+                  potMax: pickerPotMax,
+                  brand: b,
+                })
+              }}
+              className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+              title="Pot-merk (huisstijl van het bedrijf is standaard gekozen)"
+            >
+              <option value="">Alle merken</option>
+              {brandOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+              {pickerBrand && !brandOptions.includes(pickerBrand) ? (
+                <option value={pickerBrand}>{pickerBrand}</option>
+              ) : null}
             </select>
             <label className="flex items-center gap-2 text-xs text-stera-ink-soft">
               <span className="shrink-0">Pot Ø van</span>

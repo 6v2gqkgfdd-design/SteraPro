@@ -240,6 +240,7 @@ export default async function NewQuotePage({
   // Optionele prefill vanuit een onderhoudsbeurt (?visit=<id>).
   let visitPrefill: VisitPrefill | null = null
   let initialLines: InitialLineInput[] = []
+  let companyBrand: string | null = null
   const params = searchParams ? await searchParams : {}
   const visitId = params?.visit
 
@@ -316,6 +317,13 @@ export default async function NewQuotePage({
         contact_name?: string | null
         email?: string | null
       } | null
+
+      // Huisstijl-merk van dit bedrijf (fiche of historiek) — voor de
+      // suggestie-score én als standaard in de catalogus-picker.
+      companyBrand = await resolveCompanyBrand(
+        supabase,
+        company?.id ?? (visit.company_id as string | null) ?? null
+      )
 
       const slots: ReplacementSlot[] = (flagged ?? []).map(
         (row: Record<string, unknown>) => {
@@ -506,14 +514,6 @@ export default async function NewQuotePage({
             brand: brandByCode.get(c.itemcode) ?? null,
           }))
 
-        // Huisstijl-merk van dit bedrijf (fiche of historiek).
-        const companyBrand = await resolveCompanyBrand(
-          supabase,
-          (company?.id as string | undefined) ??
-            (visit.company_id as string | null) ??
-            null
-        )
-
         for (const slot of slots) {
           // "Nee, niet vervangen" → meteen een uitlegregel (€0) met
           // de reden uit de onderhoud-notitie als beschrijving.
@@ -610,6 +610,7 @@ export default async function NewQuotePage({
           locations={locationOptions}
           visitPrefill={visitPrefill}
           initialLines={initialLines}
+          companyBrand={companyBrand}
         />
       </div>
     </main>
