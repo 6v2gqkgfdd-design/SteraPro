@@ -38,7 +38,7 @@ export default async function CatalogPage({
   const initial: CatalogInitial = {
     tab: params.tab === 'moswanden' ? 'moswanden' : 'combinaties',
     q: typeof params.q === 'string' ? params.q : '',
-    inStock: params.inStock === '0' ? false : true,
+    inStock: true,
     height: typeof params.height === 'string' ? params.height : '',
     diameter: typeof params.diameter === 'string' ? params.diameter : '',
     substraten: parseArray(params.substraat),

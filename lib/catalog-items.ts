@@ -15,6 +15,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type CatalogItem = {
   itemcode: string
   description: string
+  /** Plant-deel (voor "in"), bv. "Dracaena fragrans 'Janet Lind'". */
+  plantName: string
+  /** Pot-deel (na "in"), bv. "Cinnamon". */
+  potName: string
   hasImage: boolean
   salePrice: number
   /** Alleen ingevuld wanneer withCost = true (offerte-builder, intern). */
@@ -194,6 +198,8 @@ export async function loadCatalogItems(
     items.push({
       itemcode: row.itemcode,
       description: row.description || row.itemcode,
+      plantName: plantPart || row.description || row.itemcode,
+      potName: potPart,
       hasImage,
       salePrice: Number(row.suggested_sale_price ?? 0),
       costPrice: withCost ? (row.cost_price ?? null) : null,
