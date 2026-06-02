@@ -20,6 +20,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 
 const BUCKET = "nieuwkoop-images";
 const NK_BASE = process.env.NIEUWKOOP_API_BASE_URL!;
@@ -104,11 +105,23 @@ async function ensureImageCached(itemcode: string, supabase: any, publicUrl: str
   const promise = (async () => {
     const result = await fetchFromNieuwkoop(itemcode);
     if (result === "404" || result === "error") return null;
-    const buffer = result;
+    // Verklein vóór cachen (max 800px JPEG) — anders loopt de Storage vol
+    // met foto's op volle resolutie. Valt terug op de originele buffer als
+    // verkleinen onverwacht faalt.
+    let toStore: Buffer = result;
+    try {
+      toStore = await sharp(result)
+        .rotate()
+        .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 72, mozjpeg: true })
+        .toBuffer();
+    } catch (e: any) {
+      console.error(`[nieuwkoop image] ${itemcode}: resize fout`, e?.message);
+    }
     const { error } = await supabase.storage
       .from(BUCKET)
-      .upload(`${itemcode}.png`, buffer, {
-        contentType: "image/png",
+      .upload(`${itemcode}.jpg`, toStore, {
+        contentType: "image/jpeg",
         upsert: true,
         cacheControl: "31536000",
       });
@@ -141,7 +154,7 @@ export async function GET(_request: Request, context: any) {
     auth: { persistSession: false },
   });
 
-  const fileName = `${itemcode}.png`;
+  const fileName = `${itemcode}.jpg`;
   const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
   const publicUrl = publicUrlData.publicUrl;
 

@@ -16,6 +16,16 @@ import Link from 'next/link'
 import type { PublicQuoteLine } from './page'
 import { submitQuoteDecision } from './actions'
 import DeliveryIllustration from '@/components/delivery-illustration'
+import { createClient } from '@/lib/supabase/client'
+
+type ComboResult = {
+  itemcode: string
+  description: string | null
+  suggested_sale_price: number | null
+  height: number | null
+  diameter: number | null
+  has_image: boolean | null
+}
 
 type Decision = 'accepted' | 'declined'
 
@@ -59,6 +69,105 @@ export default function QuoteDecisionForm({
     return map
   })
 
+  // De regels staan in state zodat een gewijzigd voorstel (en de prijs)
+  // meteen zichtbaar wordt.
+  const [lines, setLines] = useState<PublicQuoteLine[]>(initialLines)
+
+  // --- Catalogus-picker (klant kiest zelf een ander voorstel/merk) ---
+  const supabase = useMemo(() => createClient(), [])
+  const [pickerLineId, setPickerLineId] = useState<string | null>(null)
+  const [pq, setPq] = useState('')
+  const [pbrand, setPbrand] = useState('')
+  const [presults, setPresults] = useState<ComboResult[]>([])
+  const [ploading, setPloading] = useState(false)
+  const [perror, setPerror] = useState('')
+  const [savingItemcode, setSavingItemcode] = useState<string | null>(null)
+  const [brandOptions, setBrandOptions] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    supabase
+      .rpc('list_catalog_brands')
+      .then(({ data }: { data: unknown }) => {
+        if (cancelled) return
+        if (Array.isArray(data)) setBrandOptions(data as string[])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
+
+  async function runPickerSearch(q: string, brand: string) {
+    setPloading(true)
+    setPerror('')
+    const { data, error } = await supabase.rpc('search_catalog_combinations', {
+      _q: q.trim(),
+      _light: '',
+      _pot_min: null,
+      _pot_max: null,
+      _brand: brand,
+    })
+    setPloading(false)
+    if (error) {
+      setPresults([])
+      setPerror('Zoeken mislukt. Probeer opnieuw.')
+      return
+    }
+    setPresults((data as ComboResult[]) ?? [])
+  }
+
+  function openPicker(lineId: string) {
+    setPickerLineId(lineId)
+    setPq('')
+    setPbrand('')
+    setPresults([])
+    setPerror('')
+    runPickerSearch('', '')
+  }
+
+  async function chooseCombo(item: ComboResult) {
+    if (!pickerLineId) return
+    setSavingItemcode(item.itemcode)
+    setPerror('')
+    const { data, error } = await supabase.rpc('update_quote_line_item', {
+      _token: token,
+      _line_id: pickerLineId,
+      _itemcode: item.itemcode,
+    })
+    setSavingItemcode(null)
+    if (error || !data) {
+      setPerror('Wijzigen mislukt. Mogelijk is de offerte al beantwoord.')
+      return
+    }
+    const updated = data as {
+      id: string
+      name: string
+      spec: string | null
+      image_url: string | null
+      unit_price_cents: number
+      quantity: number
+      line_total_cents: number
+      nieuwkoop_itemcode: string | null
+    }
+    setLines((prev) =>
+      prev.map((l) =>
+        l.id === updated.id
+          ? {
+              ...l,
+              name: updated.name,
+              spec: updated.spec,
+              image_url: updated.image_url,
+              unit_price_cents: updated.unit_price_cents,
+              line_total_cents: updated.line_total_cents,
+              nieuwkoop_itemcode: updated.nieuwkoop_itemcode,
+              description: null,
+            }
+          : l
+      )
+    )
+    setPickerLineId(null)
+  }
+
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -73,7 +182,7 @@ export default function QuoteDecisionForm({
   // de transport-regel(s) die altijd meelopen.
   const liveTotalCents = useMemo(() => {
     let sum = 0
-    for (const line of initialLines) {
+    for (const line of lines) {
       if (decisions[line.id] === 'accepted') {
         sum += line.line_total_cents
       }
@@ -82,7 +191,7 @@ export default function QuoteDecisionForm({
       sum += t.line_total_cents
     }
     return sum
-  }, [decisions, initialLines, transportLines])
+  }, [decisions, lines, transportLines])
 
   const transportTotalCents = useMemo(
     () => transportLines.reduce((s, t) => s + t.line_total_cents, 0),
@@ -177,7 +286,7 @@ export default function QuoteDecisionForm({
     const comma = dataUrl.indexOf(',')
     const signature = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl
 
-    const payload = initialLines.map((line) => ({
+    const payload = lines.map((line) => ({
       id: line.id,
       decision: decisions[line.id] ?? 'accepted',
       comment: (comments[line.id] ?? '').trim(),
@@ -243,7 +352,7 @@ export default function QuoteDecisionForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <ul className="space-y-3">
-        {initialLines.map((line) => {
+        {lines.map((line) => {
           const decision = decisions[line.id] ?? 'accepted'
           const room = formatRoom(line.room_name, line.room_floor)
           const oldPlantName =
@@ -418,6 +527,122 @@ export default function QuoteDecisionForm({
                   ✗ Niet akkoord
                 </label>
               </div>
+
+              {line.nieuwkoop_itemcode ? (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      pickerLineId === line.id
+                        ? setPickerLineId(null)
+                        : openPicker(line.id)
+                    }
+                    className="text-xs font-medium text-stera-green underline-offset-4 hover:underline"
+                  >
+                    {pickerLineId === line.id
+                      ? 'Sluit keuzelijst'
+                      : 'Liever een ander voorstel? Kies zelf →'}
+                  </button>
+
+                  {pickerLineId === line.id ? (
+                    <div className="mt-3 rounded-lg border border-stera-line bg-stera-cream/40 p-3">
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          value={pq}
+                          onChange={(e) => setPq(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              runPickerSearch(pq, pbrand)
+                            }
+                          }}
+                          placeholder="Zoek op naam..."
+                          className="min-w-0 flex-1 rounded-lg border border-stera-line bg-white p-2 text-sm"
+                        />
+                        <select
+                          value={pbrand}
+                          onChange={(e) => {
+                            setPbrand(e.target.value)
+                            runPickerSearch(pq, e.target.value)
+                          }}
+                          className="rounded-lg border border-stera-line bg-white p-2 text-sm"
+                          title="Stijl / merk van de pot"
+                        >
+                          <option value="">Alle stijlen</option>
+                          {brandOptions.map((b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => runPickerSearch(pq, pbrand)}
+                          className="rounded-lg border border-stera-line bg-white px-3 py-2 text-sm hover:bg-stera-cream"
+                        >
+                          Zoek
+                        </button>
+                      </div>
+
+                      {perror ? (
+                        <p className="mt-2 text-xs text-red-600">{perror}</p>
+                      ) : null}
+
+                      {ploading ? (
+                        <p className="mt-3 text-xs text-stera-ink-soft">Laden…</p>
+                      ) : (
+                        <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {presults.map((it) => (
+                            <li
+                              key={it.itemcode}
+                              className="overflow-hidden rounded-lg border border-stera-line bg-white"
+                            >
+                              <div className="aspect-square bg-stera-cream/40">
+                                {it.has_image ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={`/api/nieuwkoop/image/${it.itemcode}`}
+                                    alt={it.description ?? ''}
+                                    loading="lazy"
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : null}
+                              </div>
+                              <div className="p-2">
+                                <p className="line-clamp-2 text-xs font-medium text-stera-ink">
+                                  {it.description}
+                                </p>
+                                <p className="mt-0.5 text-xs text-stera-ink-soft">
+                                  {formatEur(
+                                    Math.round(
+                                      (it.suggested_sale_price ?? 0) * 100
+                                    )
+                                  )}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => chooseCombo(it)}
+                                  disabled={savingItemcode === it.itemcode}
+                                  className="mt-1 w-full rounded-md bg-stera-green px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                                >
+                                  {savingItemcode === it.itemcode
+                                    ? 'Bezig…'
+                                    : 'Kies deze'}
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                          {!ploading && presults.length === 0 ? (
+                            <li className="col-span-full text-xs text-stera-ink-soft">
+                              Geen resultaten.
+                            </li>
+                          ) : null}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <textarea
                 value={comments[line.id] ?? ''}
