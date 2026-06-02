@@ -92,6 +92,16 @@ export default function LoginPage() {
               </p>
             )}
           </form>
+
+          <p className="mt-8 border-t border-stera-line pt-6 text-sm text-stera-ink-soft">
+            Ben je een klant van Stera?{' '}
+            <a
+              href="/portal/login"
+              className="text-stera-green underline-offset-4 hover:underline"
+            >
+              Ga naar het klantenportaal →
+            </a>
+          </p>
         </div>
       </div>
 

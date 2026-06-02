@@ -43,11 +43,14 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getUser()
 
   const inPortal = path === '/portal' || path.startsWith('/portal/')
-  const isPortalLogin = path === '/portal/login'
+  // Login én de auth-callback (waar de sessie pas wordt gezet) hebben nog
+  // geen sessie nodig.
+  const isPortalAuth =
+    path === '/portal/login' || path.startsWith('/portal/auth')
 
   // Portaal-zone: enkel inloggen vereist (toegang tot een bedrijf checkt
   // de portaalpagina zelf).
-  if (inPortal && !isPortalLogin) {
+  if (inPortal && !isPortalAuth) {
     if (!user) {
       return NextResponse.redirect(new URL('/portal/login', req.url))
     }

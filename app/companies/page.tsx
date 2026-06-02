@@ -21,6 +21,11 @@ export default async function CompaniesPage() {
 
   const count = companies?.length ?? 0
 
+  const { count: pendingPortal } = await supabase
+    .from('portal_contacts')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending')
+
   return (
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-6 sm:pt-6">
       <div className="mx-auto max-w-4xl space-y-5">
@@ -28,9 +33,22 @@ export default async function CompaniesPage() {
           <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
             Klanten<span className="ml-2 opacity-70">{count}</span>
           </span>
-          <Link href="/companies/new" className="stera-cta stera-cta-primary">
-            + Nieuwe klant
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/portal-aanvragen"
+              className="stera-cta stera-cta-ghost relative"
+            >
+              Klantenportaal
+              {pendingPortal && pendingPortal > 0 ? (
+                <span className="ml-2 rounded-full bg-stera-green px-1.5 text-xs font-semibold text-white">
+                  {pendingPortal}
+                </span>
+              ) : null}
+            </Link>
+            <Link href="/companies/new" className="stera-cta stera-cta-primary">
+              + Nieuwe klant
+            </Link>
+          </div>
         </div>
 
         {error ? (

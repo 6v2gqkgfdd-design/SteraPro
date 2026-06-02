@@ -48,7 +48,9 @@ const TABS: Tab[] = [
   },
 ]
 
-const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/', '/q/']
+// Beheerders-navigatie verbergen op publieke/klant-schermen. Het
+// klantenportaal (/portal) heeft een eigen menu.
+const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/', '/q/', '/portal']
 
 export default function AppNav() {
   const pathname = usePathname() || ''
