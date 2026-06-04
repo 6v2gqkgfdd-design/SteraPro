@@ -187,11 +187,12 @@ export async function POST() {
         else if (p.image) input.files = [{ originalSource: p.image, contentType: 'IMAGE' }]
         let d = await gql(PRODUCT_SET, { input })
         let errs = d?.productSet?.userErrors || []
-        // Faalt het mét categorie? Probeer opnieuw zonder (categorie kan een
-        // ongeldige taxonomie-id zijn) — zo blijft het product tóch pushen.
-        if (errs.length && input.category) {
-          const { category, ...rest } = input
-          void category
+        // Faalt het? Probeer opnieuw zonder categorie én zonder foto. Op een
+        // Shopify-trial kunnen geen afbeeldingen worden geüpload; zo blijft het
+        // product tóch pushen (foto's volgen automatisch zodra er een plan is).
+        if (errs.length && (input.category || input.files)) {
+          const { category, files, ...rest } = input
+          void category; void files
           d = await gql(PRODUCT_SET, { input: rest })
           errs = d?.productSet?.userErrors || []
         }
