@@ -97,6 +97,9 @@ export async function POST() {
       return NextResponse.json({ ok: false, error: `Shopify-token mislukt (app geïnstalleerd? scopes?).` }, { status: 502 })
     }
     TOKEN = tok.access_token
+    const grantedScopes = String(tok.scope || '')
+    const trackInv = /write_inventory/.test(grantedScopes)   // voorraad-tracking enkel als toegestaan
+    const canPublish = /write_publications/.test(grantedScopes)
 
     // Data.
     const [priceRows, prodRows, offeredRows] = await Promise.all([
@@ -142,7 +145,7 @@ export async function POST() {
           ? [{ optionName: 'Hoogte', name: x.label }, { optionName: 'Teelt', name: x.teelt }]
           : [{ optionName: 'Hoogte', name: x.label }],
         inventoryPolicy: 'CONTINUE',
-        inventoryItem: { sku: x.itemcode, tracked: true },
+        inventoryItem: { sku: x.itemcode, tracked: trackInv },
       }))
       const imgItem = chosen.find((x) => x.hasImage) || rows.find((r) => r.item_picture_name)
       return {
@@ -170,6 +173,7 @@ export async function POST() {
     // Pushen.
     const PRODUCT_SET = `mutation P($input: ProductSetInput!){ productSet(synchronous:true, input:$input){ product { id } userErrors { message } } }`
     let ok = 0, failed = 0
+    const errors: string[] = []
     for (const p of products) {
       try {
         const found = await gql(`query($q:String!){ products(first:1, query:$q){ nodes { id } } }`, { q: `handle:${p.handle}` })
@@ -181,15 +185,23 @@ export async function POST() {
         if (CATEGORY_ID) input.category = CATEGORY_ID
         if (id) input.id = id
         else if (p.image) input.files = [{ originalSource: p.image, contentType: 'IMAGE' }]
-        const d = await gql(PRODUCT_SET, { input })
-        const errs = d?.productSet?.userErrors || []
-        if (errs.length) { failed++; continue }
+        let d = await gql(PRODUCT_SET, { input })
+        let errs = d?.productSet?.userErrors || []
+        // Faalt het mét categorie? Probeer opnieuw zonder (categorie kan een
+        // ongeldige taxonomie-id zijn) — zo blijft het product tóch pushen.
+        if (errs.length && input.category) {
+          const { category, ...rest } = input
+          void category
+          d = await gql(PRODUCT_SET, { input: rest })
+          errs = d?.productSet?.userErrors || []
+        }
+        if (errs.length) { failed++; errors.push(`${p.title}: ${errs.map((e: any) => e.message).join('; ')}`); continue }
         ok++
         const pid = d?.productSet?.product?.id
-        if (pid && PUBLICATION_ID) {
+        if (pid && PUBLICATION_ID && canPublish) {
           try { await gql(`mutation($id:ID!,$pubs:[PublicationInput!]!){ publishablePublish(id:$id, input:$pubs){ userErrors { message } } }`, { id: pid, pubs: [{ publicationId: PUBLICATION_ID }] }) } catch {}
         }
-      } catch { failed++ }
+      } catch (e: any) { failed++; errors.push(`${p.title}: ${e?.message || 'fout'}`) }
       await sleep(120)
     }
 
@@ -208,7 +220,7 @@ export async function POST() {
       cursor = d.products.pageInfo.endCursor
     }
 
-    return NextResponse.json({ ok: true, pushed: ok, failed, removed, selected: products.length })
+    return NextResponse.json({ ok: true, pushed: ok, failed, removed, selected: products.length, errors: errors.slice(0, 3), scopes: grantedScopes })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Onbekende fout' }, { status: 500 })
   }

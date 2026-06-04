@@ -39,7 +39,10 @@ export default function CatalogSelectionClient({
       const res = await fetch('/api/shopify/sync', { method: 'POST' })
       const data = await res.json()
       if (!data.ok) setMsg(`Sync-fout: ${data.error}`)
-      else setMsg(`Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd${data.failed ? `, ${data.failed} fout` : ''}.`)
+      else setMsg(
+        `Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd${data.failed ? `, ${data.failed} fout` : ''}.` +
+        (data.failed && data.errors?.length ? ` Eerste fout: ${data.errors[0]}` : '')
+      )
     } catch (e) {
       setMsg(`Sync-fout: ${e instanceof Error ? e.message : 'onbekend'}`)
     } finally {
