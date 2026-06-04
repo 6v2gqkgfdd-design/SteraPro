@@ -228,7 +228,8 @@ export default function NewPlantInRoomPage() {
       }
 
       const baseValue = nickname.trim() || species.trim() || referenceCode
-      const qrSlug = slugify(baseValue)
+      // Leesbare basis + cryptografisch sterke token → niet raadbaar/afloopbaar.
+      const qrSlug = `${slugify(baseValue)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
 
       const { data: insertedPlant, error: plantError } = await supabase
         .from('plants')

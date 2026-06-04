@@ -229,7 +229,8 @@ export default function NewPlantPage() {
 
       const baseValue =
         nickname.trim() || species.trim() || referenceCode
-      const qrSlug = slugify(baseValue)
+      // Leesbare basis + cryptografisch sterke token → niet raadbaar/afloopbaar.
+      const qrSlug = `${slugify(baseValue)}-${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
 
       const { data: inserted, error } = await supabase
         .from('plants')
