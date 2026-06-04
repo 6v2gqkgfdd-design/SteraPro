@@ -61,6 +61,11 @@ export async function middleware(req: NextRequest) {
 
   // Beheer-zone.
   if (!user) {
+    // Kale start-URL → standaard naar het klantenportaal (publieke ingang).
+    // Medewerkers gebruiken /login (kruislink op het portaal-inlogscherm).
+    if (path === '/') {
+      return NextResponse.redirect(new URL('/portal/login', req.url))
+    }
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
