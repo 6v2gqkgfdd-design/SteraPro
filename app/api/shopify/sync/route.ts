@@ -213,7 +213,9 @@ export async function POST() {
     for (;;) {
       const d: any = await gql(`query($c:String){ products(first:100, after:$c){ nodes { id handle vendor } pageInfo { hasNextPage endCursor } } }`, { c: cursor })
       for (const n of d.products.nodes) {
-        if (keep.has(n.handle) || n.vendor !== VENDOR) continue
+        // Onze producten = vendor 'SteraPro' (nieuw) of 'Stera' (oude testdata).
+        const managed = n.vendor === VENDOR || n.vendor === 'Stera'
+        if (keep.has(n.handle) || !managed) continue
         try { await gql(`mutation($id:ID!){ productDelete(input:{id:$id}){ deletedProductId } }`, { id: n.id }); removed++ } catch {}
         await sleep(100)
       }
@@ -221,7 +223,43 @@ export async function POST() {
       cursor = d.products.pageInfo.endCursor
     }
 
-    return NextResponse.json({ ok: true, pushed: ok, failed, removed, selected: products.length, errors: errors.slice(0, 3), scopes: grantedScopes })
+    // Voorraad bijwerken vanuit nieuwkoop_stock (enkel met write_inventory).
+    let stockUpdated = 0
+    if (trackInv) {
+      try {
+        const locD = await gql(`{ locations(first:1){ nodes { id } } }`, {})
+        const locationId = locD?.locations?.nodes?.[0]?.id
+        if (locationId) {
+          // SKU → inventoryItem-id (enkel getrackte varianten).
+          const invByCode = new Map<string, string>()
+          let c: string | null = null
+          for (;;) {
+            const vd: any = await gql(`query($c:String){ productVariants(first:200, after:$c){ nodes { sku inventoryItem { id tracked } } pageInfo { hasNextPage endCursor } } }`, { c })
+            for (const v of vd.productVariants.nodes) {
+              if (v.sku && v.inventoryItem?.tracked) invByCode.set(v.sku, v.inventoryItem.id)
+            }
+            if (!vd.productVariants.pageInfo.hasNextPage) break
+            c = vd.productVariants.pageInfo.endCursor
+          }
+          const stockRows = await fetchAll('nieuwkoop_stock', 'itemcode, stock_available', (q) => q)
+          const quantities: any[] = []
+          for (const r of stockRows as any[]) {
+            const invId = invByCode.get(r.itemcode)
+            if (invId) quantities.push({ inventoryItemId: invId, locationId, quantity: Math.max(0, Math.floor(Number(r.stock_available ?? 0))) })
+          }
+          for (let i = 0; i < quantities.length; i += 200) {
+            const batch = quantities.slice(i, i + 200)
+            try {
+              await gql(`mutation($input: InventorySetQuantitiesInput!){ inventorySetQuantities(input:$input){ userErrors { message } } }`, { input: { name: 'available', reason: 'correction', ignoreCompareQuantity: true, quantities: batch } })
+              stockUpdated += batch.length
+            } catch {}
+            await sleep(150)
+          }
+        }
+      } catch {}
+    }
+
+    return NextResponse.json({ ok: true, pushed: ok, failed, removed, selected: products.length, stockUpdated, errors: errors.slice(0, 3), scopes: grantedScopes })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Onbekende fout' }, { status: 500 })
   }

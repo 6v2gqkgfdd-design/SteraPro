@@ -40,7 +40,9 @@ export default function CatalogSelectionClient({
       const data = await res.json()
       if (!data.ok) setMsg(`Sync-fout: ${data.error}`)
       else setMsg(
-        `Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd${data.failed ? `, ${data.failed} fout` : ''}.` +
+        `Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd` +
+        (data.stockUpdated ? `, ${data.stockUpdated} voorraad bijgewerkt` : '') +
+        (data.failed ? `, ${data.failed} fout` : '') + '.' +
         (data.failed && data.errors?.length ? ` Eerste fout: ${data.errors[0]}` : '')
       )
     } catch (e) {
