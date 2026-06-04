@@ -12,7 +12,7 @@ import { createServerClient } from '@supabase/ssr'
  */
 
 function isPublic(path: string): boolean {
-  if (path === '/login' || path === '/portal/login') return true
+  if (path === '/login' || path === '/portal/login' || path === '/logout') return true
   return (
     path.startsWith('/q/') ||
     path.startsWith('/sign/') ||
@@ -77,6 +77,15 @@ export async function middleware(req: NextRequest) {
     if (!path.startsWith('/catalog')) {
       return NextResponse.redirect(new URL('/portal', req.url))
     }
+    return res
+  }
+
+  // Beheer-zone: enkel beheerders (staff-allowlist). Een ingelogd account dat
+  // géén portaal-klant én géén beheerder is (bv. een oud/zwerf-account) hoort
+  // hier niet — meteen uitloggen. Dit is de routing-laag bovenop de RLS.
+  const { data: staff } = await supabase.rpc('is_staff')
+  if (!staff) {
+    return NextResponse.redirect(new URL('/logout', req.url))
   }
 
   return res

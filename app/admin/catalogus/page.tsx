@@ -35,7 +35,22 @@ export default async function CatalogusSelectiePage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
   const { data: staff } = await supabase.rpc('is_staff')
-  if (!staff) redirect('/dashboard')
+  if (!staff) {
+    return (
+      <main className="bg-stera-cream p-6">
+        <div className="mx-auto max-w-md">
+          <div className="stera-card text-sm">
+            <p className="font-semibold text-stera-ink">Geen toegang</p>
+            <p className="mt-1 text-stera-ink-soft">
+              Je bent ingelogd als <code>{user.email}</code>, maar dit is geen
+              beheerder-account. Log uit en log in met je beheerder-account om
+              het assortiment te beheren.
+            </p>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   // 1) Prijzen (view) + structuur (nieuwkoop_products), gepagineerd ophalen.
   async function fetchAll<T>(

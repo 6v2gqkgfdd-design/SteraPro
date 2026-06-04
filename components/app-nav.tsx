@@ -94,6 +94,15 @@ export default function AppNav() {
               </li>
             )
           })}
+          <li className="flex-1">
+            <a
+              href="/logout"
+              className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2.5 text-stera-ink/70 transition hover:text-stera-ink"
+            >
+              <LogoutIcon />
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Uit</span>
+            </a>
+          </li>
         </ul>
       </nav>
 
@@ -135,8 +144,27 @@ export default function AppNav() {
             )
           })}
         </ul>
+
+        <a
+          href="/logout"
+          title="Uitloggen"
+          className="mt-auto flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-3 text-stera-ink/65 transition hover:text-stera-ink"
+        >
+          <LogoutIcon />
+          <span className="text-[11px] font-semibold uppercase tracking-wider">Uit</span>
+        </a>
       </aside>
     </>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
   )
 }
 
