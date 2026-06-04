@@ -269,12 +269,6 @@ async function findIdByHandle(handle) {
   return d?.products?.nodes?.[0]?.id || null;
 }
 
-// Zet een product op 'concept'. Probeert beide productUpdate-vormen (de
-// argument-naam verschilde per API-versie), zodat het robuust blijft.
-async function setDraft(id) {
-  try { await gql(`mutation($id:ID!){ productUpdate(product:{id:$id, status:DRAFT}){ userErrors{ message } } }`, { id }); }
-  catch { await gql(`mutation($id:ID!){ productUpdate(input:{id:$id, status:DRAFT}){ userErrors{ message } } }`, { id }); }
-}
 
 const PRODUCT_SET = `
 mutation ProductSet($input: ProductSetInput!) {
@@ -379,34 +373,34 @@ for (let i = 0; i < toSync.length; i++) {
 }
 console.log("");
 
-// ----- Reconcile: niet-geselecteerde producten verbergen (concept + uit webshop) -----
-console.log("\n[4] Niet-geselecteerde producten verbergen...");
+// ----- Reconcile: niet-geselecteerde producten VERWIJDEREN (echte spiegel) -----
+// Veiligheid: enkel producten die deze sync zelf beheert (vendor === VENDOR),
+// zodat een eventueel handmatig toegevoegd product nooit sneuvelt.
+console.log("\n[4] Niet-geselecteerde producten verwijderen...");
 const keep = new Set(products.map((p) => p.handle));
-let hidden = 0, cursor = null;
+let removed = 0, cursor = null;
 for (;;) {
   const d = await gql(
-    `query($c:String){ products(first:100, after:$c){ nodes { id handle status } pageInfo { hasNextPage endCursor } } }`,
+    `query($c:String){ products(first:100, after:$c){ nodes { id handle vendor } pageInfo { hasNextPage endCursor } } }`,
     { c: cursor }
   );
   for (const n of d.products.nodes) {
-    if (keep.has(n.handle) || n.status === "DRAFT") continue;
+    if (keep.has(n.handle)) continue;
+    if (n.vendor !== VENDOR) continue; // enkel onze eigen producten
     try {
-      await setDraft(n.id);
-      if (PUBLICATION_ID) {
-        await gql(
-          `mutation($id:ID!,$pubs:[PublicationInput!]!){ publishableUnpublish(id:$id, input:$pubs){ userErrors{ message } } }`,
-          { id: n.id, pubs: [{ publicationId: PUBLICATION_ID }] }
-        );
-      }
-      hidden++; process.stdout.write(`\r    Verborgen: ${hidden}`);
-    } catch (e) { console.warn(`\n    ⚠️  ${n.handle} verbergen mislukt: ${e.message}`); }
+      await gql(
+        `mutation($id:ID!){ productDelete(input:{id:$id}){ deletedProductId userErrors{ message } } }`,
+        { id: n.id }
+      );
+      removed++; process.stdout.write(`\r    Verwijderd: ${removed}`);
+    } catch (e) { console.warn(`\n    ⚠️  ${n.handle} verwijderen mislukt: ${e.message}`); }
     await sleep(120);
   }
   if (!d.products.pageInfo.hasNextPage) break;
   cursor = d.products.pageInfo.endCursor;
 }
-console.log(hidden ? "" : "    (niets te verbergen)");
+console.log(removed ? "" : "    (niets te verwijderen)");
 
 console.log("\n" + "=".repeat(60));
-console.log(`✅ Klaar. Producten: ${ok} ok, ${failed} fout. Verborgen: ${hidden}`);
+console.log(`✅ Klaar. Producten: ${ok} ok, ${failed} fout. Verwijderd: ${removed}`);
 console.log("=".repeat(60));

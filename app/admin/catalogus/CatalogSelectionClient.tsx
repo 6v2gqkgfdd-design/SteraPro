@@ -30,6 +30,22 @@ export default function CatalogSelectionClient({
   const [expanded, setExpanded] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  async function runSync() {
+    setSyncing(true)
+    setMsg('Bezig met synchroniseren naar Shopify… dit kan even duren.')
+    try {
+      const res = await fetch('/api/shopify/sync', { method: 'POST' })
+      const data = await res.json()
+      if (!data.ok) setMsg(`Sync-fout: ${data.error}`)
+      else setMsg(`Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd${data.failed ? `, ${data.failed} fout` : ''}.`)
+    } catch (e) {
+      setMsg(`Sync-fout: ${e instanceof Error ? e.message : 'onbekend'}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const categories = useMemo(
     () => [...new Set(groups.map((g) => g.category))].sort(),
@@ -148,6 +164,19 @@ export default function CatalogSelectionClient({
                 Alle getoonde uitzetten
               </button>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-stera-line/60 pt-3">
+            <button
+              type="button"
+              onClick={runSync}
+              disabled={syncing || pending}
+              className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+            >
+              {syncing ? 'Bezig met synchroniseren…' : '↑ Sync naar Shopify'}
+            </button>
+            <span className="text-xs text-stera-ink-soft">
+              Zet de webshop gelijk aan je selectie ({offeredCount} aangeboden).
+            </span>
           </div>
           {msg ? <p className="text-xs text-stera-ink-soft">{msg}</p> : null}
         </div>
