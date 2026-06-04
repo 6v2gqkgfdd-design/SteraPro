@@ -41,13 +41,15 @@ export default async function CatalogusSelectiePage() {
   async function fetchAll<T>(
     table: string,
     select: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     filter: (q: any) => any
   ): Promise<T[]> {
     const PAGE = 1000
     let out: T[] = []
     let from = 0
     for (;;) {
-      let q = supabase.from(table).select(select).range(from, from + PAGE - 1)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase.from(table).select(select).range(from, from + PAGE - 1)
       q = filter(q)
       const { data, error } = await q
       if (error) throw new Error(`${table}: ${error.message}`)
@@ -58,9 +60,8 @@ export default async function CatalogusSelectiePage() {
     return out
   }
 
-  let groups: ProductGroup[] = []
+  const groups: ProductGroup[] = []
   let loadError: string | null = null
-  let offeredCount = 0
 
   try {
     const [priceRows, prodRows, offeredRows] = await Promise.all([
@@ -120,7 +121,6 @@ export default async function CatalogusSelectiePage() {
       })
     }
     groups.sort((a, b) => a.name.localeCompare(b.name))
-    offeredCount = groups.filter((g) => g.offered).length
   } catch (e) {
     loadError = e instanceof Error ? e.message : 'Onbekende fout'
   }
@@ -142,5 +142,5 @@ export default async function CatalogusSelectiePage() {
     )
   }
 
-  return <CatalogSelectionClient groups={groups} initialOfferedCount={offeredCount} />
+  return <CatalogSelectionClient groups={groups} />
 }

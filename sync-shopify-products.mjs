@@ -220,10 +220,12 @@ const offeredSet = new Set((offeredRows || []).map((r) => r.group_name));
 const beforeSel = products.length;
 products = products.filter((p) => offeredSet.has(p.title));
 console.log(`    Selectie: ${products.length} van ${beforeSel} producten staan aan in de webshop`);
-if (products.length === 0) {
+if (products.length === 0 && !isLive) {
   console.log("\nℹ️  Nog niets geselecteerd. Zet producten aan op /admin/catalogus en draai opnieuw.");
   process.exit(0);
 }
+// In live-modus draaien we wél door bij 0 selectie: dan worden alle bestaande
+// producten verborgen (de webshop wordt leeggemaakt).
 
 const toSync = products.slice(0, limit === Infinity ? products.length : limit);
 
@@ -265,6 +267,13 @@ async function gql(query, variables, attempt = 1) {
 async function findIdByHandle(handle) {
   const d = await gql(`query($q:String!){ products(first:1, query:$q){ nodes { id } } }`, { q: `handle:${handle}` });
   return d?.products?.nodes?.[0]?.id || null;
+}
+
+// Zet een product op 'concept'. Probeert beide productUpdate-vormen (de
+// argument-naam verschilde per API-versie), zodat het robuust blijft.
+async function setDraft(id) {
+  try { await gql(`mutation($id:ID!){ productUpdate(product:{id:$id, status:DRAFT}){ userErrors{ message } } }`, { id }); }
+  catch { await gql(`mutation($id:ID!){ productUpdate(input:{id:$id, status:DRAFT}){ userErrors{ message } } }`, { id }); }
 }
 
 const PRODUCT_SET = `
@@ -369,6 +378,35 @@ for (let i = 0; i < toSync.length; i++) {
   await sleep(150);
 }
 console.log("");
+
+// ----- Reconcile: niet-geselecteerde producten verbergen (concept + uit webshop) -----
+console.log("\n[4] Niet-geselecteerde producten verbergen...");
+const keep = new Set(products.map((p) => p.handle));
+let hidden = 0, cursor = null;
+for (;;) {
+  const d = await gql(
+    `query($c:String){ products(first:100, after:$c){ nodes { id handle status } pageInfo { hasNextPage endCursor } } }`,
+    { c: cursor }
+  );
+  for (const n of d.products.nodes) {
+    if (keep.has(n.handle) || n.status === "DRAFT") continue;
+    try {
+      await setDraft(n.id);
+      if (PUBLICATION_ID) {
+        await gql(
+          `mutation($id:ID!,$pubs:[PublicationInput!]!){ publishableUnpublish(id:$id, input:$pubs){ userErrors{ message } } }`,
+          { id: n.id, pubs: [{ publicationId: PUBLICATION_ID }] }
+        );
+      }
+      hidden++; process.stdout.write(`\r    Verborgen: ${hidden}`);
+    } catch (e) { console.warn(`\n    ⚠️  ${n.handle} verbergen mislukt: ${e.message}`); }
+    await sleep(120);
+  }
+  if (!d.products.pageInfo.hasNextPage) break;
+  cursor = d.products.pageInfo.endCursor;
+}
+console.log(hidden ? "" : "    (niets te verbergen)");
+
 console.log("\n" + "=".repeat(60));
-console.log(`✅ Klaar. Producten: ${ok} ok, ${failed} fout`);
+console.log(`✅ Klaar. Producten: ${ok} ok, ${failed} fout. Verborgen: ${hidden}`);
 console.log("=".repeat(60));

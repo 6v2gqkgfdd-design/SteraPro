@@ -18,10 +18,8 @@ const euro = (n: number) => `€ ${n.toFixed(2)}`
 
 export default function CatalogSelectionClient({
   groups,
-  initialOfferedCount,
 }: {
   groups: ProductGroup[]
-  initialOfferedCount: number
 }) {
   const [offeredMap, setOfferedMap] = useState<Record<string, boolean>>(
     () => Object.fromEntries(groups.map((g) => [g.name, g.offered]))
