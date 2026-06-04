@@ -1,9 +1,39 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DeleteCompanyButton from '@/components/delete-company-button'
 import { RowMenu, RowMenuItem } from '@/components/row-menu'
 import { Breadcrumbs } from '@/components/breadcrumbs'
+
+function OverviewCard({
+  label,
+  value,
+  href,
+  hint,
+}: {
+  label: string
+  value: number | string
+  href?: string
+  hint?: string
+}) {
+  const inner = (
+    <div className="rounded-xl border border-stera-line bg-white p-3 h-full">
+      <p className="text-2xl font-semibold text-stera-ink">{value}</p>
+      <p className="text-xs font-medium text-stera-ink-soft">{label}</p>
+      {hint ? (
+        <p className="mt-0.5 text-[10px] text-stera-ink-soft/70">{hint}</p>
+      ) : null}
+    </div>
+  )
+  return href ? (
+    <Link href={href} className="block transition hover:opacity-80">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  )
+}
 
 export default async function CompanyDetailPage({
   params,
@@ -47,6 +77,33 @@ export default async function CompanyDetailPage({
     .eq('company_id', id)
     .eq('status', 'dead')
     .order('updated_at', { ascending: false })
+
+  // ── 360°-klantbeeld: tellingen + offertes ──────────────────────────
+  const { data: visits } = await supabase
+    .from('maintenance_visits')
+    .select('id, status, scheduled_start, ended_at')
+    .eq('company_id', id)
+  const visitIds = (visits ?? []).map((v: any) => v.id)
+
+  const { count: plantsCount } = await supabase
+    .from('plants')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', id)
+
+  let workOrdersCount = 0
+  if (visitIds.length > 0) {
+    const { count } = await supabase
+      .from('work_orders')
+      .select('id', { count: 'exact', head: true })
+      .in('visit_id', visitIds)
+    workOrdersCount = count ?? 0
+  }
+
+  const { data: quotes } = await supabase
+    .from('quotes')
+    .select('id, status, created_at')
+    .eq('company_id', id)
+    .order('created_at', { ascending: false })
 
   return (
     <main className="stera-page-pb bg-stera-cream p-6">
@@ -166,6 +223,56 @@ export default async function CompanyDetailPage({
             ))}
           </ul>
         )}
+
+        {/* 360°-klantbeeld */}
+        <section className="space-y-3">
+          <p className="stera-eyebrow text-stera-green">Klantoverzicht</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <OverviewCard label="Onderhoudsbeurten" value={visits?.length ?? 0} href="/maintenance" />
+            <OverviewCard label="Planten" value={plantsCount ?? 0} />
+            <OverviewCard label="Werkbonnen" value={workOrdersCount} href="/work-orders" />
+            <OverviewCard label="Offertes" value={quotes?.length ?? 0} />
+            <OverviewCard label="Bestellingen" value="—" hint="via Shopify (binnenkort)" />
+            <OverviewCard label="Facturen" value="—" hint="via Shopify (binnenkort)" />
+            <OverviewCard label="Leveringen" value="—" hint="module volgt" />
+          </div>
+        </section>
+
+        {/* Offertes & prijsaanvragen */}
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="stera-eyebrow text-stera-green">Offertes &amp; prijsaanvragen</p>
+            <Link
+              href={`/quotes/new?company=${company.id}`}
+              className="text-sm text-stera-green underline-offset-4 hover:underline"
+            >
+              + Nieuwe offerte
+            </Link>
+          </div>
+          {!quotes || quotes.length === 0 ? (
+            <p className="text-sm text-stera-ink-soft">Nog geen offertes voor deze klant.</p>
+          ) : (
+            <ul className="space-y-2">
+              {quotes.map((q: any) => (
+                <li key={q.id}>
+                  <Link
+                    href={`/quotes/${q.id}`}
+                    className="flex items-center justify-between rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
+                  >
+                    <span className="text-sm text-stera-ink">
+                      {q.created_at
+                        ? new Date(q.created_at).toLocaleDateString('nl-BE')
+                        : '—'}
+                    </span>
+                    <span className="rounded-full bg-stera-green/10 px-2.5 py-0.5 text-xs font-semibold text-stera-green">
+                      {q.status ?? 'concept'}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {deadPlants && deadPlants.length > 0 ? (
           <section className="space-y-3">
