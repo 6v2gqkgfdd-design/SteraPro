@@ -134,6 +134,7 @@ export default function CatalogSelectionClient({ groups }: { groups: ProductGrou
       else setMsg(
         `Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd` +
         (data.stockUpdated ? `, ${data.stockUpdated} voorraad bijgewerkt` : '') +
+        (data.aiGenerated ? `, ${data.aiGenerated} beschrijving(en) gegenereerd` : '') +
         (data.failed ? `, ${data.failed} fout` : '') + '.' +
         (data.failed && data.errors?.length ? ` Eerste fout: ${data.errors[0]}` : '')
       )

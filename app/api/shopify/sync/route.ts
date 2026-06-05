@@ -27,8 +27,69 @@ const slug = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const descHtml = (s: string | null) =>
-  s && s.trim() ? `<p>${escapeHtml(s.trim()).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br/>')}</p>` : ''
+function tagVals(tags: any, code: string): string[] {
+  if (!Array.isArray(tags)) return []
+  const t = tags.find((x: any) => x?.Code === code)
+  return (t?.Values ?? []).map((v: any) => (v?.Description_NL ?? '').trim()).filter(Boolean)
+}
+function specLines(rows: any[]): string[] {
+  const r0 = rows[0]
+  const heights = [...new Set(rows.map((r) => r.height).filter((h: any) => h && h > 0).map((h: any) => Math.round(h)))].sort((a: number, b: number) => a - b)
+  const diam = rows.map((r) => r.diameter).find((x: any) => x && x > 0)
+  const loc = r0.location_icon_nl || tagVals(r0.tags, 'Location').join(', ')
+  const light = tagVals(r0.tags, 'LocationLight').join(', ')
+  const substrate = tagVals(r0.tags, 'SubstrateType')[0]
+  const li: string[] = []
+  if (heights.length) li.push(`Beschikbare hoogtes: ${heights.length > 1 ? `${heights[0]}–${heights[heights.length - 1]} cm` : `${heights[0]} cm`}`)
+  if (diam) li.push(`Pot-Ø: ${Math.round(Number(diam))} cm`)
+  if (loc) li.push(`Standplaats: ${loc}`)
+  if (light) li.push(`Lichtbehoefte: ${light}`)
+  if (substrate) li.push(`Substraat: ${substrate}`)
+  return li
+}
+// Terugval-beschrijving uit structuurgegevens (als er nog geen AI-tekst is).
+function buildDesc(rows: any[]): string {
+  const r0 = rows[0]
+  const d = String(r0.description || '')
+  const idx = d.toLowerCase().indexOf(' in ')
+  const plant = idx > 0 ? d.slice(0, idx).trim() : d
+  const pot = idx > 0 ? d.slice(idx + 4).trim() : ''
+  const li = specLines(rows)
+  const intro = r0.item_description_nl && r0.item_description_nl.trim() && r0.item_description_nl.trim().toLowerCase() !== d.trim().toLowerCase()
+    ? r0.item_description_nl.trim()
+    : `${plant}${pot ? ` in een ${pot}` : ''}.`
+  const list = li.length ? `<ul>${li.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>` : ''
+  return `<p>${escapeHtml(intro)}</p>${list}`
+}
+// AI-beschrijving: wervende plant+pot-tekst + verzorgingstips (Anthropic).
+async function generateDesc(title: string, specs: string, apiKey: string): Promise<string | null> {
+  const system = [
+    'Je bent een plantenexpert die wervende, beknopte productbeschrijvingen schrijft',
+    'voor een webshop van professionele kamerbeplanting. Schrijf in het Nederlands.',
+    'Geef enkel geldige HTML terug (geen markdown, geen code-fences): eerst één korte',
+    'wervende alinea (<p>) over de plant én de sierpot, daarna',
+    '"<p><strong>Verzorging</strong></p>" gevolgd door een <ul> met 3-4 korte',
+    'verzorgingstips (licht, water, standplaats, voeding).',
+    'Noem nooit een leverancier of groothandel. Maximaal ~120 woorden.',
+  ].join(' ')
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system,
+        messages: [{ role: 'user', content: [{ type: 'text', text: `Product: ${title}. Kenmerken: ${specs || 'onbekend'}.` }] }],
+      }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = Array.isArray(data?.content) ? data.content.find((p: any) => p?.type === 'text')?.text : null
+    if (!text) return null
+    return String(text).replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/i, '').trim() || null
+  } catch { return null }
+}
 
 export async function POST() {
   // 1) Auth: enkel beheerders.
@@ -109,7 +170,7 @@ export async function POST() {
       fetchAll('v_nieuwkoop_with_margin', 'itemcode, suggested_sale_price',
         (q) => q.not('suggested_sale_price', 'is', null).eq('show_on_website', true)),
       fetchAll('nieuwkoop_products',
-        'itemcode, description, item_description_nl, item_variety_nl, height, product_group_description_nl, item_picture_name',
+        'itemcode, description, item_description_nl, item_variety_nl, height, diameter, location_icon_nl, tags, product_group_description_nl, item_picture_name',
         (q) => q.eq('show_on_website', true)),
       fetchAll('shopify_offered_products', 'group_name, offered', (q) => q.eq('offered', true)),
     ])
@@ -154,7 +215,8 @@ export async function POST() {
       return {
         handle: slug(name), title: name, vendor: VENDOR,
         productType: rows[0].product_group_description_nl || '',
-        descriptionHtml: descHtml(rows[0].item_description_nl),
+        descriptionHtml: buildDesc(rows),
+        specs: specLines(rows).join('; '),
         productOptions: options, variants,
         image: imgItem ? imageUrlFor(imgItem.itemcode) : null,
       }
@@ -176,15 +238,33 @@ export async function POST() {
 
     // Pushen.
     const PRODUCT_SET = `mutation P($input: ProductSetInput!){ productSet(synchronous:true, input:$input){ product { id } userErrors { message } } }`
+
+    // AI-beschrijvingen: gecached, en per run beperkt om time-outs te vermijden.
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    const AI_CAP = 15
+    let aiGenerated = 0
+    const { data: descRows } = await admin.from('shopify_product_descriptions').select('group_name, body_html')
+    const cacheByName = new Map<string, string>((descRows ?? []).map((r: any) => [r.group_name, r.body_html]))
+
     let ok = 0, failed = 0
     const errors: string[] = []
     for (const p of products) {
       try {
         const found = await gql(`query($q:String!){ products(first:1, query:$q){ nodes { id } } }`, { q: `handle:${p.handle}` })
         const id = found?.products?.nodes?.[0]?.id || null
+        let body: string | undefined = cacheByName.get(p.title)
+        if (!body && apiKey && aiGenerated < AI_CAP) {
+          body = (await generateDesc(p.title, p.specs, apiKey)) || undefined
+          if (body) {
+            aiGenerated++
+            try {
+              await admin.from('shopify_product_descriptions').upsert({ group_name: p.title, body_html: body, generated_at: new Date().toISOString() })
+            } catch {}
+          }
+        }
         const input: any = {
           title: p.title, handle: p.handle, vendor: p.vendor, productType: p.productType,
-          descriptionHtml: p.descriptionHtml,
+          descriptionHtml: body || p.descriptionHtml,
           status: 'ACTIVE', productOptions: p.productOptions, variants: p.variants,
         }
         if (CATEGORY_ID) input.category = CATEGORY_ID
@@ -264,7 +344,7 @@ export async function POST() {
       } catch {}
     }
 
-    return NextResponse.json({ ok: true, pushed: ok, failed, removed, selected: products.length, stockUpdated, errors: errors.slice(0, 3), scopes: grantedScopes })
+    return NextResponse.json({ ok: true, pushed: ok, failed, removed, stockUpdated, aiGenerated, selected: products.length, errors: errors.slice(0, 3), scopes: grantedScopes })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Onbekende fout' }, { status: 500 })
   }
