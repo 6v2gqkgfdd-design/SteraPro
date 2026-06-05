@@ -162,7 +162,6 @@ export async function POST() {
     }
     TOKEN = tok.access_token
     const grantedScopes = String(tok.scope || '')
-    const trackInv = /write_inventory/.test(grantedScopes)   // voorraad-tracking enkel als toegestaan
     const canPublish = /write_publications/.test(grantedScopes)
 
     // Data.
@@ -170,7 +169,7 @@ export async function POST() {
       fetchAll('v_nieuwkoop_with_margin', 'itemcode, suggested_sale_price',
         (q) => q.not('suggested_sale_price', 'is', null).eq('show_on_website', true)),
       fetchAll('nieuwkoop_products',
-        'itemcode, description, item_description_nl, item_variety_nl, height, diameter, location_icon_nl, tags, product_group_description_nl, item_picture_name',
+        'itemcode, description, item_description_nl, item_variety_nl, height, diameter, location_icon_nl, tags, delivery_time_in_days, product_group_description_nl, item_picture_name',
         (q) => q.eq('show_on_website', true)),
       fetchAll('shopify_offered_products', 'group_name, offered', (q) => q.eq('offered', true)),
     ])
@@ -208,8 +207,8 @@ export async function POST() {
         optionValues: multiTeelt
           ? [{ optionName: 'Hoogte', name: x.label }, { optionName: 'Teelt', name: x.teelt }]
           : [{ optionName: 'Hoogte', name: x.label }],
-        inventoryPolicy: 'CONTINUE',
-        inventoryItem: { sku: x.itemcode, tracked: trackInv },
+        // Geen voorraad-tracking: combinaties zijn op bestelling.
+        inventoryItem: { sku: x.itemcode, tracked: false },
       }))
       const imgItem = chosen.find((x) => x.hasImage) || rows.find((r) => r.item_picture_name)
       return {
@@ -217,6 +216,7 @@ export async function POST() {
         productType: rows[0].product_group_description_nl || '',
         descriptionHtml: buildDesc(rows),
         specs: specLines(rows).join('; '),
+        leadDays: Math.max(0, ...rows.map((r: any) => Number(r.delivery_time_in_days) || 0)),
         productOptions: options, variants,
         image: imgItem ? imageUrlFor(imgItem.itemcode) : null,
       }
@@ -262,9 +262,12 @@ export async function POST() {
             } catch {}
           }
         }
+        const lead = p.leadDays > 0
+          ? `<p><em>Op bestelling — levertijd ± ${p.leadDays} werkdagen.</em></p>`
+          : '<p><em>Op bestelling.</em></p>'
         const input: any = {
           title: p.title, handle: p.handle, vendor: p.vendor, productType: p.productType,
-          descriptionHtml: body || p.descriptionHtml,
+          descriptionHtml: (body || p.descriptionHtml) + lead,
           status: 'ACTIVE', productOptions: p.productOptions, variants: p.variants,
         }
         if (CATEGORY_ID) input.category = CATEGORY_ID
@@ -308,41 +311,10 @@ export async function POST() {
       cursor = d.products.pageInfo.endCursor
     }
 
-    // Voorraad bijwerken vanuit nieuwkoop_stock (enkel met write_inventory).
-    let stockUpdated = 0
-    if (trackInv) {
-      try {
-        const locD = await gql(`{ locations(first:1){ nodes { id } } }`, {})
-        const locationId = locD?.locations?.nodes?.[0]?.id
-        if (locationId) {
-          // SKU → inventoryItem-id (enkel getrackte varianten).
-          const invByCode = new Map<string, string>()
-          let c: string | null = null
-          for (;;) {
-            const vd: any = await gql(`query($c:String){ productVariants(first:200, after:$c){ nodes { sku inventoryItem { id tracked } } pageInfo { hasNextPage endCursor } } }`, { c })
-            for (const v of vd.productVariants.nodes) {
-              if (v.sku && v.inventoryItem?.tracked) invByCode.set(v.sku, v.inventoryItem.id)
-            }
-            if (!vd.productVariants.pageInfo.hasNextPage) break
-            c = vd.productVariants.pageInfo.endCursor
-          }
-          const stockRows = await fetchAll('nieuwkoop_stock', 'itemcode, stock_available', (q) => q)
-          const quantities: any[] = []
-          for (const r of stockRows as any[]) {
-            const invId = invByCode.get(r.itemcode)
-            if (invId) quantities.push({ inventoryItemId: invId, locationId, quantity: Math.max(0, Math.floor(Number(r.stock_available ?? 0))) })
-          }
-          for (let i = 0; i < quantities.length; i += 200) {
-            const batch = quantities.slice(i, i + 200)
-            try {
-              await gql(`mutation($input: InventorySetQuantitiesInput!){ inventorySetQuantities(input:$input){ userErrors { message } } }`, { input: { name: 'available', reason: 'correction', ignoreCompareQuantity: true, quantities: batch } })
-              stockUpdated += batch.length
-            } catch {}
-            await sleep(150)
-          }
-        }
-      } catch {}
-    }
+    // Geen voorraad-tracking: deze combinaties worden op bestelling samengesteld
+    // bij de leverancier. We tonen dus geen voorraadgetal (wel de levertijd in de
+    // beschrijving); producten blijven altijd bestelbaar.
+    const stockUpdated = 0
 
     return NextResponse.json({ ok: true, pushed: ok, failed, removed, stockUpdated, aiGenerated, selected: products.length, errors: errors.slice(0, 3), scopes: grantedScopes })
   } catch (e: any) {
