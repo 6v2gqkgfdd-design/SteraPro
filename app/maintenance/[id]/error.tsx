@@ -154,7 +154,7 @@ export default function MaintenanceSegmentError({
       </div>
 
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )

@@ -73,7 +73,7 @@ export default function PlantReportForm({ slug }: { slug: string }) {
       <div className="stera-card border-stera-green/40 bg-stera-cream-deep/40">
         <p className="stera-eyebrow mb-2">Bedankt voor je melding</p>
         <p className="text-sm text-stera-ink">
-          Stera heeft je melding ontvangen en neemt zo nodig contact op of komt
+          Stera Pro heeft je melding ontvangen en neemt zo nodig contact op of komt
           bij het volgende onderhoud langs.
         </p>
       </div>
@@ -109,7 +109,7 @@ export default function PlantReportForm({ slug }: { slug: string }) {
       <div>
         <p className="stera-eyebrow mb-2">Probleem melden</p>
         <p className="text-sm text-stera-ink-soft">
-          Vink aan wat het beste past en voeg eventueel uitleg toe. Stera krijgt
+          Vink aan wat het beste past en voeg eventueel uitleg toe. Stera Pro krijgt
           de melding meteen door.
         </p>
       </div>

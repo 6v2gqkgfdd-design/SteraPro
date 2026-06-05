@@ -477,7 +477,7 @@ export default async function MaintenanceReportPage({
           <p className="stera-wordmark text-stera-ink text-sm mb-1">
             Stéra<span className="text-stera-green">Pro</span>
           </p>
-          <p>Opgemaakt door Stera · Plantbeheer voor professionals</p>
+          <p>Opgemaakt door Stera Pro · Plantbeheer voor professionals</p>
           {visit.report_sent_at ? (
             <p className="mt-1">
               Rapport verzonden op {formatDateTime(visit.report_sent_at)}

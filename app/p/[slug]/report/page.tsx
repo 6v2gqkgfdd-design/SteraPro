@@ -70,7 +70,7 @@ export default async function PlantReportPage({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/stera-logo.png"
-          alt="Stera"
+          alt="Stera Pro"
           className="h-8 w-auto select-none lg:h-12"
         />
       </header>

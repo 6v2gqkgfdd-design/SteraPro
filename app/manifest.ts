@@ -9,7 +9,7 @@ import type { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Stera Pro',
-    short_name: 'Stera',
+    short_name: 'Stera Pro',
     description:
       'Stera Pro — plantbeheer voor professionals. Onderhoud, planten en klanten in één app.',
     start_url: '/dashboard',

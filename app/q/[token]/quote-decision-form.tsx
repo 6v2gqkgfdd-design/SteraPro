@@ -342,8 +342,8 @@ export default function QuoteDecisionForm({
                 success.declined > 0
                   ? ` en ${success.declined} afgewezen`
                   : ''
-              }. Stera ontvangt automatisch een melding en gaat met je bestelling aan de slag.`
-            : 'Je keuzes zijn doorgegeven aan Stera. We nemen contact met je op om de aanpassingen te bespreken.'}
+              }. Stera Pro ontvangt automatisch een melding en gaat met je bestelling aan de slag.`
+            : 'Je keuzes zijn doorgegeven aan Stera Pro. We nemen contact met je op om de aanpassingen te bespreken.'}
         </p>
       </div>
     )
@@ -653,7 +653,7 @@ export default function QuoteDecisionForm({
                 placeholder={
                   decision === 'declined'
                     ? 'Optioneel: waarom niet akkoord?'
-                    : 'Optioneel: een opmerking voor Stera'
+                    : 'Optioneel: een opmerking voor Stera Pro'
                 }
                 className="mt-3 w-full rounded-lg border border-stera-line bg-white p-2 text-sm focus:outline-none focus:ring-2 focus:ring-stera-green/30"
               />
@@ -772,7 +772,7 @@ export default function QuoteDecisionForm({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="zodat Stera je een bevestiging kan sturen"
+            placeholder="zodat Stera Pro je een bevestiging kan sturen"
             className="w-full rounded-lg border border-stera-line bg-white p-3 text-base"
           />
         </div>

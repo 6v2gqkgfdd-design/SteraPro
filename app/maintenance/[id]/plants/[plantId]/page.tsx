@@ -110,7 +110,7 @@ function SteraShell({ children }: { children: React.ReactNode }) {
       </header>
       <div className="flex-1 px-5 py-8 sm:px-10 sm:py-12">{children}</div>
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )
@@ -1085,7 +1085,7 @@ export default function MaintenancePlantDetailPage() {
             </label>
             <p className="text-xs text-stera-ink-soft">
               Neem een foto na het onderhoud — die wordt bewaard bij deze beurt
-              zodat klant en Stera de evolutie zien.
+              zodat klant en Stera Pro de evolutie zien.
             </p>
 
             {(photoPreview || existingPhotoUrl) && (

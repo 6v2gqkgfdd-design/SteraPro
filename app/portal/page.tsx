@@ -28,7 +28,7 @@ export default async function PortalHome() {
           <p className="stera-eyebrow text-amber-700 mb-2">In behandeling</p>
           <h1 className="text-2xl font-bold">Je aanvraag is ontvangen</h1>
           <p className="mt-2 text-sm text-stera-ink-soft">
-            Stera bekijkt je registratie en activeert je toegang zo snel
+            Stera Pro bekijkt je registratie en activeert je toegang zo snel
             mogelijk. Je krijgt bericht zodra je portaal klaarstaat.
           </p>
         </div>

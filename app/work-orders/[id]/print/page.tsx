@@ -256,7 +256,7 @@ export default async function WorkOrderPrintPage({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/stera-logo.png"
-              alt="Stera"
+              alt="Stera Pro"
               className="h-8 w-auto select-none"
             />
             <p className="mt-2 text-xs text-stera-ink-soft">
@@ -642,7 +642,7 @@ export default async function WorkOrderPrintPage({
             {workOrder.reference_number
               ? `${workOrder.reference_number} · `
               : ''}
-            Stera · Plantbeheer voor professionals
+            Stera Pro · Plantbeheer voor professionals
           </p>
         </footer>
       </article>

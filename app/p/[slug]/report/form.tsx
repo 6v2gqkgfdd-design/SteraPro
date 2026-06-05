@@ -120,7 +120,7 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
             Bedankt voor je melding
           </p>
           <p className="mt-1 text-sm text-stera-ink-soft lg:text-base">
-            Stera heeft je melding ontvangen en kijkt er bij het volgende
+            Stera Pro heeft je melding ontvangen en kijkt er bij het volgende
             bezoek naar, of plant indien nodig een tussentijdse interventie in.
           </p>
         </div>

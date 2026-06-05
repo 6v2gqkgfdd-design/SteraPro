@@ -24,13 +24,13 @@ export const metadata: Metadata = {
     template: '%s · Stera Pro',
   },
   description:
-    'Stera Pro is het plantbeheerplatform van Stera. Beheer locaties, planten en onderhoud — van scan tot rapport.',
+    'Stera Pro is hét plantbeheerplatform voor professionals. Beheer locaties, planten en onderhoud — van scan tot rapport.',
   applicationName: 'Stera Pro',
   // Favicon en apple-touch-icon worden automatisch opgepakt door
   // Next.js via app/icon.png en app/apple-icon.png.
   appleWebApp: {
     capable: true,
-    title: 'Stera',
+    title: 'Stera Pro',
     statusBarStyle: 'default',
   },
   formatDetection: {

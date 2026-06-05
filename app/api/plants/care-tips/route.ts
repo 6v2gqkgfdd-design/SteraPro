@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 const MODEL = 'claude-haiku-4-5-20251001'
 
 const SYSTEM_PROMPT = [
-  'Je bent een ervaren plantenverzorger en helpt de Stera-app',
+  'Je bent een ervaren plantenverzorger en helpt de Stera Pro-app',
   'verzorgingstips genereren voor kamerplanten in een professionele setting.',
   'Antwoord altijd uitsluitend met één geldig JSON-object — geen markdown,',
   'geen code-fences, geen extra tekst. Het object heeft deze velden:',

@@ -108,7 +108,7 @@ export default function PortalEntryPage() {
               <h1 className="stera-display mb-2 text-3xl sm:text-4xl">Registreer je bedrijf</h1>
               <p className="mb-6 text-sm leading-relaxed text-stera-ink-soft">
                 Maak je account aan met een wachtwoord en vul je gegevens in. Je
-                bevestigt je e-mailadres met een link; daarna bekijkt Stera je
+                bevestigt je e-mailadres met een link; daarna bekijkt Stera Pro je
                 aanvraag.
               </p>
               <form onSubmit={handleRegister} className="rounded-xl border border-stera-line bg-white p-5">
@@ -185,9 +185,9 @@ export default function PortalEntryPage() {
       </div>
       <footer className="border-t border-stera-line px-6 py-6 text-xs text-stera-ink-soft sm:px-10">
         <a href="/login" className="text-stera-green underline-offset-4 hover:underline">
-          Medewerker van Stera? Log hier in
+          Medewerker van Stera Pro? Log hier in
         </a>
-        <span className="mx-2">·</span>© {new Date().getFullYear()} Stera · Klantenportaal
+        <span className="mx-2">·</span>© {new Date().getFullYear()} Stera Pro · Klantenportaal
       </footer>
     </main>
   )

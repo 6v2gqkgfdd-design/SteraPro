@@ -72,7 +72,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto w-full max-w-3xl space-y-8">{children}</div>
       </div>
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )
@@ -162,7 +162,7 @@ export default async function PublicQuotePage({
           </h1>
           <p className="text-base text-stera-ink-soft">
             De offerte is mogelijk al beantwoord, ingetrokken of de link bevat
-            een fout. Vraag Stera om je een nieuwe link te bezorgen.
+            een fout. Vraag Stera Pro om je een nieuwe link te bezorgen.
           </p>
         </div>
       </Shell>

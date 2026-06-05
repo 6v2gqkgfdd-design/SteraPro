@@ -121,7 +121,7 @@ export default function AppNav() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/stera-logo-short.png"
-            alt="Stera"
+            alt="Stera Pro"
             className="h-9 w-9 select-none"
           />
         </Link>

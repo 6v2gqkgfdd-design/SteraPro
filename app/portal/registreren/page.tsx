@@ -102,7 +102,7 @@ export default function RegisterPage() {
             <p className="stera-eyebrow text-stera-green mb-2">Registratie</p>
             <h1 className="text-2xl font-bold sm:text-3xl">Vul je gegevens aan</h1>
             <p className="mt-2 text-sm text-stera-ink-soft">
-              Stera bekijkt je aanvraag en activeert je toegang.
+              Stera Pro bekijkt je aanvraag en activeert je toegang.
             </p>
             <form onSubmit={handleSubmit} className="mt-6 rounded-xl border border-stera-line bg-white p-5">
               <div className="mb-4">

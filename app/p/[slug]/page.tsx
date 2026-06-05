@@ -120,14 +120,14 @@ function Shell({ children }: { children: React.ReactNode }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/stera-logo.png"
-            alt="Stera"
+            alt="Stera Pro"
             className="h-9 sm:h-11 lg:h-14 w-auto select-none"
           />
         </Link>
       </header>
       <div className="flex-1 px-5 py-4 sm:px-10 sm:py-12">{children}</div>
       <footer className="px-5 py-1.5 text-center text-[10px] leading-tight text-stera-ink-soft sm:border-t sm:border-stera-line sm:px-10 sm:py-3 sm:text-left sm:text-xs">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )

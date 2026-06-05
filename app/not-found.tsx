@@ -43,7 +43,7 @@ export default function NotFound() {
       </div>
 
       <footer className="px-6 py-6 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )

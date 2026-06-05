@@ -51,7 +51,7 @@ export default function SteraShell({
       {showFooter ? (
         <footer className="border-t border-stera-line bg-stera-cream-deep">
           <div className="mx-auto max-w-5xl px-5 py-6 text-xs text-stera-ink-soft sm:px-8">
-            © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+            © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
           </div>
         </footer>
       ) : null}

@@ -46,7 +46,7 @@ function formatRecipients(
   return formatRecipient(r)
 }
 
-const DEFAULT_FROM = 'Stera <onboarding@resend.dev>'
+const DEFAULT_FROM = 'Stera Pro <onboarding@resend.dev>'
 
 export async function sendEmail(
   input: SendEmailInput

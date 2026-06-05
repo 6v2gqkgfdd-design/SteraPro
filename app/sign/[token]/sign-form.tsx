@@ -126,7 +126,7 @@ export default function SignForm({ token }: { token: string }) {
           Werkbon goedgekeurd
         </h2>
         <p className="mt-2 text-sm text-stera-ink-soft">
-          Je handtekening is geregistreerd. Stera ontvangt automatisch een
+          Je handtekening is geregistreerd. Stera Pro ontvangt automatisch een
           melding en stelt op basis hiervan de factuur op.
         </p>
       </div>
@@ -187,7 +187,7 @@ export default function SignForm({ token }: { token: string }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="zodat Stera je een kopie kan sturen"
+          placeholder="zodat Stera Pro je een kopie kan sturen"
           className="w-full rounded-lg border border-stera-line bg-white p-3 text-base"
         />
       </div>

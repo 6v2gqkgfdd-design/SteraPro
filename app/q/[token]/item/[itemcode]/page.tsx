@@ -71,7 +71,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto w-full max-w-5xl">{children}</div>
       </div>
       <footer className="px-5 py-5 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )
@@ -102,7 +102,7 @@ export default async function PublicItemDetailPage({
             Deze link is niet (meer) geldig
           </h1>
           <p className="text-base text-stera-ink-soft">
-            Vraag Stera om je een nieuwe offerte-link te bezorgen.
+            Vraag Stera Pro om je een nieuwe offerte-link te bezorgen.
           </p>
         </div>
       </Shell>

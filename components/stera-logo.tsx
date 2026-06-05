@@ -51,18 +51,16 @@ export default function SteraLogo({
       className={`stera-wordmark inline-flex items-baseline gap-1 ${textSizeCls} ${tone} ${className}`}
     >
       <span>STERA</span>
-      {withProSuffix ? (
-        <span className={`text-[0.55em] tracking-[0.2em] ${proTone}`}>
-          PRO
-        </span>
-      ) : null}
+      <span className={`text-[0.55em] tracking-[0.2em] ${proTone}`}>
+        PRO
+      </span>
     </span>
   ) : (
     <span className={`inline-flex items-baseline gap-2 ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/stera-logo.png"
-        alt="Stera"
+        alt="Stera Pro"
         className={`${heightCls} w-auto select-none`}
         onError={() => setImageFailed(true)}
       />

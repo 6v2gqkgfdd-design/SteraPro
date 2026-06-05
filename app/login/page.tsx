@@ -94,7 +94,7 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-8 border-t border-stera-line pt-6 text-sm text-stera-ink-soft">
-            Ben je een klant van Stera?{' '}
+            Ben je een klant van Stera Pro?{' '}
             <a
               href="/portal/login"
               className="text-stera-green underline-offset-4 hover:underline"
@@ -106,7 +106,7 @@ export default function LoginPage() {
       </div>
 
       <footer className="px-6 py-6 sm:px-10 text-xs text-stera-ink-soft border-t border-stera-line">
-        © {new Date().getFullYear()} Stera · Plantbeheer voor professionals
+        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
       </footer>
     </main>
   )
