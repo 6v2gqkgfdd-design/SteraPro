@@ -26,6 +26,9 @@ const heightLabel = (h: number | null) => (h && h > 0 ? `${Math.round(h)} cm` : 
 const slug = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const descHtml = (s: string | null) =>
+  s && s.trim() ? `<p>${escapeHtml(s.trim()).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br/>')}</p>` : ''
 
 export async function POST() {
   // 1) Auth: enkel beheerders.
@@ -106,7 +109,7 @@ export async function POST() {
       fetchAll('v_nieuwkoop_with_margin', 'itemcode, suggested_sale_price',
         (q) => q.not('suggested_sale_price', 'is', null).eq('show_on_website', true)),
       fetchAll('nieuwkoop_products',
-        'itemcode, description, item_variety_nl, height, product_group_description_nl, item_picture_name',
+        'itemcode, description, item_description_nl, item_variety_nl, height, product_group_description_nl, item_picture_name',
         (q) => q.eq('show_on_website', true)),
       fetchAll('shopify_offered_products', 'group_name, offered', (q) => q.eq('offered', true)),
     ])
@@ -151,6 +154,7 @@ export async function POST() {
       return {
         handle: slug(name), title: name, vendor: VENDOR,
         productType: rows[0].product_group_description_nl || '',
+        descriptionHtml: descHtml(rows[0].item_description_nl),
         productOptions: options, variants,
         image: imgItem ? imageUrlFor(imgItem.itemcode) : null,
       }
@@ -180,6 +184,7 @@ export async function POST() {
         const id = found?.products?.nodes?.[0]?.id || null
         const input: any = {
           title: p.title, handle: p.handle, vendor: p.vendor, productType: p.productType,
+          descriptionHtml: p.descriptionHtml,
           status: 'ACTIVE', productOptions: p.productOptions, variants: p.variants,
         }
         if (CATEGORY_ID) input.category = CATEGORY_ID
