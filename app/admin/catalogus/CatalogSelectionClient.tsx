@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
@@ -6,31 +7,122 @@ import { setOffered, setOfferedBulk } from './actions'
 
 export type ProductGroup = {
   name: string
-  category: string
   imageItemcode: string | null
   variants: { label: string; teelt: string | null; price: number; itemcode: string }[]
   minPrice: number
   maxPrice: number
   offered: boolean
+  potMerk: string | null
+  collection: string | null
+  plantsoort: string | null
+  shape: string | null
+  location: string | null
 }
 
-const euro = (n: number) => `€ ${n.toFixed(2)}`
+const FACETS = [
+  { key: 'potMerk', label: 'Pot-merk' },
+  { key: 'collection', label: 'Collectie' },
+  { key: 'plantsoort', label: 'Plantsoort' },
+  { key: 'shape', label: 'Vorm' },
+  { key: 'location', label: 'Binnen/buiten' },
+] as const
+type FacetKey = (typeof FACETS)[number]['key']
 
-export default function CatalogSelectionClient({
-  groups,
-}: {
-  groups: ProductGroup[]
-}) {
+const euro = (n: number) => `€ ${n.toFixed(2)}`
+const NONE = '—'
+
+export default function CatalogSelectionClient({ groups }: { groups: ProductGroup[] }) {
   const [offeredMap, setOfferedMap] = useState<Record<string, boolean>>(
     () => Object.fromEntries(groups.map((g) => [g.name, g.offered]))
   )
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('')
   const [status, setStatus] = useState<'all' | 'on' | 'off'>('all')
+  const [facets, setFacets] = useState<Record<FacetKey, string[]>>({
+    potMerk: [], collection: [], plantsoort: [], shape: [], location: [],
+  })
   const [expanded, setExpanded] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+
+  // Voldoet een product aan alle filters? skip = laat één facet buiten
+  // beschouwing (voor de afhankelijke tellingen).
+  function groupMatches(g: ProductGroup, skip: FacetKey | null): boolean {
+    const q = search.trim().toLowerCase()
+    if (q && !g.name.toLowerCase().includes(q)) return false
+    if (status === 'on' && !offeredMap[g.name]) return false
+    if (status === 'off' && offeredMap[g.name]) return false
+    for (const f of FACETS) {
+      if (f.key === skip) continue
+      const sel = facets[f.key]
+      if (sel.length) {
+        const val = ((g as any)[f.key] as string | null) ?? NONE
+        if (!sel.includes(val)) return false
+      }
+    }
+    return true
+  }
+
+  const filtered = useMemo(
+    () => groups.filter((g) => groupMatches(g, null)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groups, search, status, facets, offeredMap]
+  )
+
+  // Afhankelijke tellingen per facet (faceted search).
+  const facetCounts = useMemo(() => {
+    const out: Record<FacetKey, Map<string, number>> = {
+      potMerk: new Map(), collection: new Map(), plantsoort: new Map(), shape: new Map(), location: new Map(),
+    }
+    for (const f of FACETS) {
+      const base = groups.filter((g) => groupMatches(g, f.key))
+      for (const g of base) {
+        const val = ((g as any)[f.key] as string | null) ?? NONE
+        out[f.key].set(val, (out[f.key].get(val) ?? 0) + 1)
+      }
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, search, status, facets, offeredMap])
+
+  const offeredCount = useMemo(
+    () => Object.values(offeredMap).filter(Boolean).length,
+    [offeredMap]
+  )
+
+  function toggleFacet(key: FacetKey, value: string) {
+    setFacets((prev) => {
+      const sel = prev[key]
+      return { ...prev, [key]: sel.includes(value) ? sel.filter((v) => v !== value) : [...sel, value] }
+    })
+  }
+  function clearFacets() {
+    setFacets({ potMerk: [], collection: [], plantsoort: [], shape: [], location: [] })
+    setSearch('')
+    setStatus('all')
+  }
+  const activeFilterCount =
+    FACETS.reduce((n, f) => n + facets[f.key].length, 0) + (search ? 1 : 0) + (status !== 'all' ? 1 : 0)
+
+  function toggle(name: string, next: boolean) {
+    setOfferedMap((m) => ({ ...m, [name]: next }))
+    startTransition(async () => {
+      const res = await setOffered(name, next)
+      if (!res.ok) { setOfferedMap((m) => ({ ...m, [name]: !next })); setMsg(`Fout: ${res.error}`) }
+    })
+  }
+
+  function bulk(next: boolean) {
+    const names = filtered.map((g) => g.name)
+    if (names.length === 0) return
+    const prev = { ...offeredMap }
+    setOfferedMap((m) => { const c = { ...m }; for (const n of names) c[n] = next; return c })
+    startTransition(async () => {
+      const res = await setOfferedBulk(names, next)
+      if (!res.ok) { setOfferedMap(prev); setMsg(`Fout: ${res.error}`) }
+      else setMsg(`${names.length} producten ${next ? 'aangezet' : 'uitgezet'}.`)
+    })
+  }
 
   async function runSync() {
     setSyncing(true)
@@ -52,73 +144,23 @@ export default function CatalogSelectionClient({
     }
   }
 
-  const categories = useMemo(
-    () => [...new Set(groups.map((g) => g.category))].sort(),
-    [groups]
-  )
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return groups.filter((g) => {
-      if (q && !g.name.toLowerCase().includes(q)) return false
-      if (category && g.category !== category) return false
-      if (status === 'on' && !offeredMap[g.name]) return false
-      if (status === 'off' && offeredMap[g.name]) return false
-      return true
-    })
-  }, [groups, search, category, status, offeredMap])
-
-  const offeredCount = useMemo(
-    () => Object.values(offeredMap).filter(Boolean).length,
-    [offeredMap]
-  )
-
-  function toggle(name: string, next: boolean) {
-    setOfferedMap((m) => ({ ...m, [name]: next })) // optimistisch
-    startTransition(async () => {
-      const res = await setOffered(name, next)
-      if (!res.ok) {
-        setOfferedMap((m) => ({ ...m, [name]: !next })) // terugdraaien
-        setMsg(`Fout: ${res.error}`)
-      }
-    })
-  }
-
-  function bulk(next: boolean) {
-    const names = filtered.map((g) => g.name)
-    if (names.length === 0) return
-    const prev = { ...offeredMap }
-    setOfferedMap((m) => {
-      const copy = { ...m }
-      for (const n of names) copy[n] = next
-      return copy
-    })
-    startTransition(async () => {
-      const res = await setOfferedBulk(names, next)
-      if (!res.ok) {
-        setOfferedMap(prev)
-        setMsg(`Fout: ${res.error}`)
-      } else {
-        setMsg(`${names.length} producten ${next ? 'aangezet' : 'uitgezet'}.`)
-      }
-    })
-  }
-
   return (
     <main className="bg-stera-cream p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-5">
         <div>
           <p className="stera-eyebrow mb-2">Admin · Webshop</p>
           <h1 className="stera-display text-3xl sm:text-4xl">Assortiment selecteren</h1>
           <p className="mt-2 text-sm text-stera-ink-soft">
-            Kies welke combinaties in de SteraPro-webshop komen. Elk product toont zijn
-            maten/varianten — klik op een product om ze te zien. Enkel wat hier aanstaat
-            wordt naar Shopify gepusht.
+            Dit zijn de combinaties die Nieuwkoop aanbiedt, met dezelfde filters als je
+            webshop. Filter op pot-merk, collectie, plantsoort, vorm en locatie — de
+            tellingen passen zich aan je keuze aan. Zet per product &ldquo;Aanbieden&rdquo;
+            aan en sync naar Shopify.
           </p>
         </div>
 
-        <div className="stera-card sticky top-0 z-10 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-3">
+        {/* Filters + acties */}
+        <div className="stera-card space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             <input
               type="text"
               value={search}
@@ -126,16 +168,6 @@ export default function CatalogSelectionClient({
               placeholder="Zoek op naam…"
               className="w-full rounded-lg border border-stera-line bg-white p-2.5 text-sm"
             />
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-stera-line bg-white p-2.5 text-sm"
-            >
-              <option value="">Alle categorieën</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as typeof status)}
@@ -146,37 +178,65 @@ export default function CatalogSelectionClient({
               <option value="off">Enkel niet-aangeboden</option>
             </select>
           </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {FACETS.map((f) => {
+              const counts = facetCounts[f.key]
+              const values = [...new Set([...counts.keys(), ...facets[f.key]])]
+                .filter((v) => (counts.get(v) ?? 0) > 0 || facets[f.key].includes(v))
+                .sort((a, b) => a.localeCompare(b))
+              return (
+                <div key={f.key} className="rounded-lg border border-stera-line bg-white p-2">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-stera-green">
+                    {f.label}
+                  </p>
+                  <div className="max-h-40 space-y-0.5 overflow-auto pr-1">
+                    {values.length === 0 ? (
+                      <p className="text-xs text-stera-ink-soft">—</p>
+                    ) : (
+                      values.map((v) => {
+                        const on = facets[f.key].includes(v)
+                        const c = counts.get(v) ?? 0
+                        return (
+                          <label key={v} className="flex cursor-pointer items-center gap-1.5 text-xs text-stera-ink">
+                            <input type="checkbox" checked={on} onChange={() => toggleFacet(f.key, v)} />
+                            <span className="min-w-0 flex-1 truncate">{v === NONE ? 'Onbekend' : v}</span>
+                            <span className="text-stera-ink-soft">{c}</span>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-stera-ink-soft">
               <strong className="text-stera-ink">{offeredCount}</strong> aangeboden ·{' '}
               {filtered.length} getoond · {groups.length} totaal
             </span>
-            <div className="ml-auto flex gap-2">
-              <button
-                type="button"
-                onClick={() => bulk(true)}
-                disabled={pending || filtered.length === 0}
-                className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
-              >
-                Alle getoonde aanbieden
+            {activeFilterCount > 0 ? (
+              <button type="button" onClick={clearFacets} className="text-xs text-stera-green underline-offset-2 hover:underline">
+                Filters wissen ({activeFilterCount})
               </button>
-              <button
-                type="button"
-                onClick={() => bulk(false)}
-                disabled={pending || filtered.length === 0}
-                className="stera-cta stera-cta-secondary text-sm disabled:opacity-50"
-              >
-                Alle getoonde uitzetten
+            ) : null}
+            <div className="ml-auto flex gap-2">
+              <button type="button" onClick={() => bulk(true)} disabled={pending || filtered.length === 0}
+                className="stera-cta stera-cta-primary text-sm disabled:opacity-50">
+                Getoonde aanbieden
+              </button>
+              <button type="button" onClick={() => bulk(false)} disabled={pending || filtered.length === 0}
+                className="stera-cta stera-cta-secondary text-sm disabled:opacity-50">
+                Getoonde uitzetten
               </button>
             </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-3 border-t border-stera-line/60 pt-3">
-            <button
-              type="button"
-              onClick={runSync}
-              disabled={syncing || pending}
-              className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
-            >
+            <button type="button" onClick={runSync} disabled={syncing || pending}
+              className="stera-cta stera-cta-primary text-sm disabled:opacity-50">
               {syncing ? 'Bezig met synchroniseren…' : '↑ Sync naar Shopify'}
             </button>
             <span className="text-xs text-stera-ink-soft">
@@ -191,24 +251,14 @@ export default function CatalogSelectionClient({
             const on = !!offeredMap[g.name]
             const isOpen = expanded === g.name
             return (
-              <li
-                key={g.name}
-                className={`rounded-xl border bg-white ${on ? 'border-stera-green/40' : 'border-stera-line'}`}
-              >
+              <li key={g.name} className={`rounded-xl border bg-white ${on ? 'border-stera-green/40' : 'border-stera-line'}`}>
                 <div className="flex items-center gap-3 p-3">
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(isOpen ? null : g.name)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  >
+                  <button type="button" onClick={() => setExpanded(isOpen ? null : g.name)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left">
                     {g.imageItemcode ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`/api/nieuwkoop/image/${encodeURIComponent(g.imageItemcode)}`}
-                        alt={g.name}
-                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                        loading="lazy"
-                      />
+                      <img src={`/api/nieuwkoop/image/${encodeURIComponent(g.imageItemcode)}`} alt={g.name}
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" />
                     ) : (
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
                         geen foto
@@ -217,27 +267,19 @@ export default function CatalogSelectionClient({
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-stera-ink">{g.name}</p>
                       <p className="text-xs text-stera-ink-soft">
-                        {g.category} · {g.variants.length}{' '}
-                        {g.variants.length === 1 ? 'maat' : 'maten'} ·{' '}
-                        {g.minPrice === g.maxPrice
-                          ? euro(g.minPrice)
-                          : `${euro(g.minPrice)} – ${euro(g.maxPrice)}`}{' '}
-                        <span className="text-stera-ink-soft/70">
-                          {isOpen ? '▲' : '▼'}
-                        </span>
+                        {[g.potMerk, g.plantsoort, g.location].filter(Boolean).join(' · ')}
+                      </p>
+                      <p className="text-xs text-stera-ink-soft">
+                        {g.variants.length} {g.variants.length === 1 ? 'maat' : 'maten'} ·{' '}
+                        {g.minPrice === g.maxPrice ? euro(g.minPrice) : `${euro(g.minPrice)} – ${euro(g.maxPrice)}`}{' '}
+                        <span className="text-stera-ink-soft/70">{isOpen ? '▲' : '▼'}</span>
                       </p>
                     </div>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => toggle(g.name, !on)}
-                    disabled={pending}
+                  <button type="button" onClick={() => toggle(g.name, !on)} disabled={pending}
                     className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-                      on
-                        ? 'bg-stera-green text-white'
-                        : 'border border-stera-line bg-white text-stera-ink-soft'
-                    }`}
-                  >
+                      on ? 'bg-stera-green text-white' : 'border border-stera-line bg-white text-stera-ink-soft'
+                    }`}>
                     {on ? '✓ Aangeboden' : 'Aanbieden'}
                   </button>
                 </div>

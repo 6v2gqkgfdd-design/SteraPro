@@ -1,35 +1,25 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { loadCatalogItems } from '@/lib/catalog-items'
 import CatalogSelectionClient, { type ProductGroup } from './CatalogSelectionClient'
 
 export const dynamic = 'force-dynamic'
 
-// Zelfde groeperings-logica als de Shopify-sync, zodat wat je hier selecteert
-// exact overeenkomt met wat gepusht wordt.
-const MOS_WORDS = ['bolmos', 'platmos', 'rendiermos', 'bol- en', 'mosschilderij', 'moss painting']
-function isMoss(desc: string | null, variety: string | null) {
-  const s = `${desc ?? ''} ${variety ?? ''}`.toLowerCase()
-  return MOS_WORDS.some((w) => s.includes(w))
-}
-function teeltOf(variety: string | null) {
-  return /hydro/i.test(variety ?? '') ? 'Hydrocultuur' : 'Aarde'
-}
-function heightLabel(h: number | null) {
-  return h && h > 0 ? `${Math.round(h)} cm` : 'Standaard'
-}
-
-type ProdRow = {
-  itemcode: string
-  description: string | null
-  item_variety_nl: string | null
-  height: number | null
-  product_group_description_nl: string | null
-  item_picture_name: string | null
+// Zelfde teelt/maat-groepering als de Shopify-sync.
+const teeltOf = (v: string | null) => (/hydro/i.test(v ?? '') ? 'Hydrocultuur' : 'Aarde')
+const heightLabel = (h: number | null) => (h && h > 0 ? `${Math.round(h)} cm` : 'Standaard')
+function locClass(locs: string[]): string | null {
+  const b = locs.includes('Binnen')
+  const o = locs.includes('Buiten')
+  if (b && o) return 'Binnen & buiten'
+  if (b) return 'Binnen'
+  if (o) return 'Buiten'
+  return null
 }
 
 export default async function CatalogusSelectiePage() {
   const supabase = await createClient()
-
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -43,8 +33,7 @@ export default async function CatalogusSelectiePage() {
             <p className="font-semibold text-stera-ink">Geen toegang</p>
             <p className="mt-1 text-stera-ink-soft">
               Je bent ingelogd als <code>{user.email}</code>, maar dit is geen
-              beheerder-account. Log uit en log in met je beheerder-account om
-              het assortiment te beheren.
+              beheerder-account.
             </p>
           </div>
         </div>
@@ -52,87 +41,53 @@ export default async function CatalogusSelectiePage() {
     )
   }
 
-  // 1) Prijzen (view) + structuur (nieuwkoop_products), gepagineerd ophalen.
-  async function fetchAll<T>(
-    table: string,
-    select: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    filter: (q: any) => any
-  ): Promise<T[]> {
-    const PAGE = 1000
-    let out: T[] = []
-    let from = 0
-    for (;;) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q: any = supabase.from(table).select(select).range(from, from + PAGE - 1)
-      q = filter(q)
-      const { data, error } = await q
-      if (error) throw new Error(`${table}: ${error.message}`)
-      out = out.concat((data ?? []) as T[])
-      if (!data || data.length < PAGE) break
-      from += PAGE
-    }
-    return out
-  }
-
   const groups: ProductGroup[] = []
   let loadError: string | null = null
 
   try {
-    const [priceRows, prodRows, offeredRows] = await Promise.all([
-      fetchAll<{ itemcode: string; suggested_sale_price: number | null }>(
-        'v_nieuwkoop_with_margin',
-        'itemcode, suggested_sale_price',
-        (q) => q.not('suggested_sale_price', 'is', null).eq('show_on_website', true)
-      ),
-      fetchAll<ProdRow>(
-        'nieuwkoop_products',
-        'itemcode, description, item_variety_nl, height, product_group_description_nl, item_picture_name',
-        (q) => q.eq('show_on_website', true)
-      ),
-      fetchAll<{ group_name: string; offered: boolean }>(
-        'shopify_offered_products',
-        'group_name, offered',
-        (q) => q
-      ),
-    ])
+    // Zelfde bron + afgeleide kenmerken als de klant-webshop (combinaties,
+    // moswanden eruit), zodat de filters hier 1-op-1 met /catalog overeenkomen.
+    const items = (await loadCatalogItems(supabase)).filter((i) => !i.isMos)
+    const { data: offeredRows } = await supabase
+      .from('shopify_offered_products')
+      .select('group_name, offered')
+      .eq('offered', true)
+    const offeredSet = new Set((offeredRows ?? []).map((r: any) => r.group_name))
 
-    const priceByCode = new Map(priceRows.map((r) => [r.itemcode, Number(r.suggested_sale_price)]))
-    const offeredSet = new Set(offeredRows.filter((r) => r.offered).map((r) => r.group_name))
-
-    // Groeperen op naam.
-    const byName = new Map<string, ProdRow[]>()
-    for (const r of prodRows) {
-      if (!priceByCode.has(r.itemcode)) continue
-      if (isMoss(r.description, r.item_variety_nl)) continue
-      const name = (r.description ?? r.itemcode).trim()
+    const byName = new Map<string, typeof items>()
+    for (const it of items) {
+      const name = it.description.trim()
       if (!byName.has(name)) byName.set(name, [])
-      byName.get(name)!.push(r)
+      byName.get(name)!.push(it)
     }
 
     for (const [name, rows] of byName) {
-      const multiTeelt = new Set(rows.map((r) => teeltOf(r.item_variety_nl))).size > 1
-      // Dedup op variant-sleutel, goedkoopste wint.
-      const byKey = new Map<string, { label: string; teelt: string | null; price: number; itemcode: string }>()
+      const multiTeelt = new Set(rows.map((r) => teeltOf(r.itemVariety))).size > 1
+      const byKey = new Map<string, any>()
       for (const r of rows) {
-        const teelt = multiTeelt ? teeltOf(r.item_variety_nl) : null
+        const teelt = multiTeelt ? teeltOf(r.itemVariety) : null
         const label = heightLabel(r.height)
         const key = teelt ? `${label}||${teelt}` : label
-        const price = priceByCode.get(r.itemcode)!
         const cur = byKey.get(key)
-        if (!cur || price < cur.price) byKey.set(key, { label, teelt, price, itemcode: r.itemcode })
+        if (!cur || r.salePrice < cur.price) {
+          byKey.set(key, { label, teelt, price: r.salePrice, itemcode: r.itemcode })
+        }
       }
       const variants = [...byKey.values()].sort((a, b) => a.price - b.price)
       const prices = variants.map((v) => v.price)
-      const imgItem = rows.find((r) => r.item_picture_name)
+      const imgItem = rows.find((r) => r.hasImage) || rows[0]
       groups.push({
         name,
-        category: rows[0].product_group_description_nl ?? '—',
-        imageItemcode: imgItem?.itemcode ?? null,
+        imageItemcode: imgItem.itemcode,
         variants,
         minPrice: Math.min(...prices),
         maxPrice: Math.max(...prices),
         offered: offeredSet.has(name),
+        potMerk: rows[0].brand || rows[0].merk || null,
+        collection: rows[0].collection || null,
+        plantsoort: rows[0].plantsoort || null,
+        shape: rows[0].shape || null,
+        location: locClass(rows[0].locations),
       })
     }
     groups.sort((a, b) => a.name.localeCompare(b.name))
@@ -147,10 +102,6 @@ export default async function CatalogusSelectiePage() {
           <div className="stera-card border-red-200 bg-red-50 text-sm text-red-700">
             <p className="font-semibold">Kon de catalogus niet laden</p>
             <p className="mt-1 font-mono text-xs break-words">{loadError}</p>
-            <p className="mt-3 text-stera-ink-soft">
-              Staat de tabel <code>shopify_offered_products</code> al in Supabase?
-              Voer anders eerst de migratie uit.
-            </p>
           </div>
         </div>
       </main>
