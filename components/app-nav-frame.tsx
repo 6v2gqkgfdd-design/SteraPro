@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 
 /** Pagina's waar de bottom-/side-nav verborgen is — hier ook geen padding. */
-const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/', '/q/']
+const HIDDEN_PREFIXES = ['/login', '/signup', '/p/', '/sign/', '/q/', '/portal']
 
 /**
  * Wrapper rond de paginainhoud die de side-rail (md:pl-20) en
