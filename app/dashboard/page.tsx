@@ -243,7 +243,7 @@ export default async function DashboardPage() {
           {weather ? <WeatherPill weather={weather} /> : null}
         </div>
         <div className="min-w-0">
-          <p className="text-base font-semibold text-stera-ink">
+          <p className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
             {greeting}, Jelle
           </p>
           <p className="text-xs text-stera-ink-soft">{todayLabel}</p>
@@ -305,7 +305,7 @@ export default async function DashboardPage() {
             <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
               Vandaag
             </p>
-            <p className="text-xl font-semibold text-stera-ink">
+            <p className="font-serif text-3xl text-stera-green">
               {todaysCount}
             </p>
           </Link>
@@ -321,8 +321,8 @@ export default async function DashboardPage() {
               Aandacht
             </p>
             <p
-              className={`text-xl font-semibold ${
-                flaggedCount > 0 ? 'text-amber-800' : 'text-stera-ink'
+              className={`font-serif text-3xl ${
+                flaggedCount > 0 ? 'text-amber-800' : 'text-stera-green'
               }`}
             >
               {flaggedCount}
@@ -336,7 +336,7 @@ export default async function DashboardPage() {
               <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
                 Meldingen
               </p>
-              <p className="text-xl font-semibold text-amber-800">
+              <p className="font-serif text-3xl text-amber-800">
                 {reportCount}
               </p>
             </a>
@@ -345,7 +345,7 @@ export default async function DashboardPage() {
               <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
                 Meldingen
               </p>
-              <p className="text-xl font-semibold text-stera-ink">
+              <p className="font-serif text-3xl text-stera-green">
                 {reportCount}
               </p>
             </div>
