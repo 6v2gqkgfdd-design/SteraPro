@@ -32,7 +32,7 @@ export default function AppNavFrame({
   // draait (zonder browser-balk bovenaan).
   return (
     <div
-      className="md:pl-20 pb-24 md:pb-0"
+      className="md:pl-64 pb-24 md:pb-0"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       {children}

@@ -112,39 +112,37 @@ export default function AppNav() {
         </ul>
       </nav>
 
-      {/* Desktop: verticale rail links */}
+      {/* Desktop: groene sidebar in Stera Pro-huisstijl */}
       <aside
         aria-label="Hoofdnavigatie"
-        className="fixed inset-y-0 left-0 z-40 hidden w-20 flex-col items-center gap-2 border-r border-stera-line bg-stera-cream/95 py-6 backdrop-blur md:flex"
+        className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-stera-green-deep px-3 py-6 md:flex"
       >
-        <Link href="/dashboard" className="mb-4 inline-flex">
+        <Link href="/dashboard" className="mb-8 inline-flex px-3.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/stera-logo-short.png"
+            src="/stera-logo.png"
             alt="Stera Pro"
-            className="h-9 w-9 select-none"
+            className="h-7 w-auto select-none"
+            style={{ filter: 'brightness(0) invert(1)' }}
           />
         </Link>
 
-        <ul className="flex w-full flex-col items-stretch gap-1 px-2">
+        <ul className="flex w-full flex-col items-stretch gap-1">
           {TABS.map((tab) => {
             const active = tab.matches(pathname)
             return (
               <li key={tab.href}>
                 <Link
                   href={tab.href}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-3 transition ${
+                  className={`flex items-center gap-3 rounded-xl px-3.5 py-3 text-[15px] transition ${
                     active
-                      ? 'bg-stera-green/10 text-stera-green'
-                      : 'text-stera-ink/65 hover:text-stera-ink'
+                      ? 'bg-white/15 font-medium text-stera-cream'
+                      : 'text-stera-cream/70 hover:bg-white/10 hover:text-stera-cream'
                   }`}
                   aria-current={active ? 'page' : undefined}
-                  title={tab.label}
                 >
                   <NavIcon name={tab.icon} />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider">
-                    {tab.label}
-                  </span>
+                  <span>{tab.label}</span>
                 </Link>
               </li>
             )
@@ -153,11 +151,10 @@ export default function AppNav() {
 
         <a
           href="/logout"
-          title="Uitloggen"
-          className="mt-auto flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-3 text-stera-ink/65 transition hover:text-stera-ink"
+          className="mt-auto flex items-center gap-3 rounded-xl px-3.5 py-3 text-[15px] text-stera-cream/70 transition hover:bg-white/10 hover:text-stera-cream"
         >
           <LogoutIcon />
-          <span className="text-[11px] font-semibold uppercase tracking-wider">Uit</span>
+          <span>Uitloggen</span>
         </a>
       </aside>
     </>
