@@ -59,7 +59,7 @@ export default function SteraLogo({
     <span className={`inline-flex items-baseline gap-2 ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/stera-logo.png"
+        src="https://sterapro.be/cdn/shop/files/Zonder_titel_320_x_112_px_-3.png"
         alt="Stera Pro"
         className={`${heightCls} w-auto select-none`}
         onError={() => setImageFailed(true)}

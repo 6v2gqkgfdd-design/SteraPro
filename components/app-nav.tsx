@@ -120,9 +120,9 @@ export default function AppNav() {
         <Link href="/dashboard" className="mb-8 inline-flex px-3.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/stera-logo.png"
+            src="https://sterapro.be/cdn/shop/files/Zonder_titel_320_x_112_px_-3.png"
             alt="Stera Pro"
-            className="h-7 w-auto select-none"
+            className="h-8 w-auto select-none"
             style={{ filter: 'brightness(0) invert(1)' }}
           />
         </Link>

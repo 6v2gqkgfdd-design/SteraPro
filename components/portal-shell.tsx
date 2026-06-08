@@ -42,8 +42,7 @@ export default function PortalShell({
   return (
     <div className="min-h-screen bg-stera-cream">
       {/* Naadloze toggle bovenaan — Webshop <-> Mijn Stera Pro */}
-      <div className="sticky top-0 z-50 flex h-10 items-center justify-between bg-stera-green-deep px-4 md:px-6">
-        <span className="text-xs text-stera-cream/70">Stera Pro</span>
+      <div className="sticky top-0 z-50 flex h-10 items-center justify-end bg-stera-green-deep px-4 md:px-6">
         <div className="flex gap-1 rounded-full bg-white/10 p-0.5">
           <a
             href="https://sterapro.be"
@@ -60,9 +59,9 @@ export default function PortalShell({
         <Link href="/portal/dashboard" className="mb-6 inline-flex px-3.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/stera-logo.png"
+            src="https://sterapro.be/cdn/shop/files/Zonder_titel_320_x_112_px_-3.png"
             alt="Stera Pro"
-            className="h-7 w-auto select-none"
+            className="h-8 w-auto select-none"
             style={{ filter: 'brightness(0) invert(1)' }}
           />
         </Link>
