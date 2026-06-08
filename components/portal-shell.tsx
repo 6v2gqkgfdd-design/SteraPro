@@ -40,8 +40,23 @@ export default function PortalShell({
 }) {
   const initials = company.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase() || 'SP'
   return (
-    <div className="min-h-screen bg-stera-cream md:pl-64">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-stera-green-deep px-3 py-6 md:flex">
+    <div className="min-h-screen bg-stera-cream">
+      {/* Naadloze toggle bovenaan — Webshop <-> Mijn Stera Pro */}
+      <div className="sticky top-0 z-50 flex h-10 items-center justify-between bg-stera-green-deep px-4 md:px-6">
+        <span className="text-xs text-stera-cream/70">Stera Pro</span>
+        <div className="flex gap-1 rounded-full bg-white/10 p-0.5">
+          <a
+            href="https://sterapro.be"
+            className="rounded-full px-4 py-1 text-xs font-semibold text-stera-cream/70 transition hover:text-stera-cream"
+          >
+            Webshop
+          </a>
+          <span className="rounded-full bg-stera-cream px-4 py-1 text-xs font-semibold text-stera-green-deep">
+            Mijn Stera Pro
+          </span>
+        </div>
+      </div>
+      <aside className="fixed bottom-0 left-0 top-10 z-40 hidden w-64 flex-col bg-stera-green-deep px-3 py-6 md:flex">
         <Link href="/portal/dashboard" className="mb-6 inline-flex px-3.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -78,15 +93,10 @@ export default function PortalShell({
             </div>
           ))}
         </nav>
-        <a
-          href="https://sterapro.be"
-          className="mt-auto flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] text-stera-cream/70 transition hover:bg-white/10 hover:text-stera-cream"
-        >
-          ← Naar de webshop
-        </a>
       </aside>
 
-      <header className="sticky top-0 z-10 flex h-[70px] items-center justify-between border-b border-stera-line bg-stera-cream px-6 md:px-9">
+      <div className="md:pl-64">
+      <header className="sticky top-10 z-10 flex h-[70px] items-center justify-between border-b border-stera-line bg-stera-cream px-6 md:px-9">
         <span className="text-sm text-stera-ink-soft">Mijn Stera Pro</span>
         <span className="flex items-center gap-2.5 text-sm text-stera-green">
           {company}
@@ -97,6 +107,7 @@ export default function PortalShell({
       </header>
 
       <main className="px-6 py-8 md:px-9">{children}</main>
+      </div>
     </div>
   )
 }
