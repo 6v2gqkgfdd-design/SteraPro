@@ -14,10 +14,10 @@ import crypto from 'crypto'
 
 export const runtime = 'nodejs'
 
-const SECRET = process.env.SHOPIFY_CLIENT_SECRET || ''
+const SECRET = process.env.SHOPIFY_PROXY_SECRET || ''
 const SHOP = process.env.SHOPIFY_STORE_DOMAIN
-const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID
-const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET
+const CLIENT_ID = process.env.SHOPIFY_PROXY_CLIENT_ID
+const CLIENT_SECRET = process.env.SHOPIFY_PROXY_SECRET
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-04'
 
 // Shopify App Proxy-handtekening: alle query-params behalve "signature",

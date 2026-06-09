@@ -14,7 +14,7 @@ import { createClient as createServer } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 
-const SECRET = process.env.SHOPIFY_CLIENT_SECRET || ''
+const SECRET = process.env.SHOPIFY_PROXY_SECRET || ''
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPA_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
