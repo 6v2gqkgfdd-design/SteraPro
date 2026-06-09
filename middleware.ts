@@ -48,6 +48,22 @@ export async function middleware(req: NextRequest) {
   const isPortalAuth =
     path === '/portal/login' || path.startsWith('/portal/auth')
 
+  // Tijdelijk: de portaal-preview (mockup-stijl, voorbeelddata) is publiek
+  // bekijkbaar zodat de toggle en het ontwerp zonder login te zien zijn.
+  // Wordt opnieuw afgeschermd zodra de echte klantdata + Shopify-login
+  // gekoppeld zijn.
+  const isPortalPreview =
+    path === '/portal/dashboard' ||
+    path === '/portal/onderhoud' ||
+    path === '/portal/planten' ||
+    path === '/portal/leveringen' ||
+    path === '/portal/contract' ||
+    path === '/portal/offertes' ||
+    path === '/portal/bestellingen' ||
+    path === '/portal/facturen'
+
+  if (isPortalPreview) return res
+
   // Portaal-zone: enkel inloggen vereist (toegang tot een bedrijf checkt
   // de portaalpagina zelf).
   if (inPortal && !isPortalAuth) {
