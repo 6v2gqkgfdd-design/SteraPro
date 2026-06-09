@@ -41,31 +41,8 @@ export default function PortalShell({
   const initials = company.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase() || 'SP'
   return (
     <div className="min-h-screen bg-stera-cream">
-      {/* Naadloze toggle bovenaan — Webshop <-> Mijn Stera Pro */}
-      <div className="sticky top-0 z-50 flex h-10 items-center justify-end border-b border-stera-line bg-stera-cream px-4 md:px-6">
-        <div className="flex gap-1 rounded-full bg-stera-green/10 p-0.5">
-          <a
-            href="https://sterapro.be"
-            className="rounded-full px-4 py-1 text-xs font-semibold text-stera-green transition hover:bg-stera-green/10"
-          >
-            Webshop
-          </a>
-          <span className="rounded-full bg-stera-green px-4 py-1 text-xs font-semibold text-stera-cream">
-            Mijn Stera Pro
-          </span>
-        </div>
-      </div>
-      <aside className="fixed bottom-0 left-0 top-10 z-40 hidden w-64 flex-col bg-stera-green-deep px-3 py-6 md:flex">
-        <Link href="/portal/dashboard" className="mb-6 inline-flex px-3.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://sterapro.be/cdn/shop/files/Zonder_titel_320_x_112_px_-3.png"
-            alt="Stera Pro"
-            className="h-8 w-auto select-none"
-            style={{ filter: 'brightness(0) invert(1)' }}
-          />
-        </Link>
-        <nav className="flex flex-col">
+      <aside className="fixed bottom-0 left-0 top-0 z-40 hidden w-64 flex-col bg-stera-green px-3 py-6 md:flex">
+        <nav className="mt-2 flex flex-col">
           {NAV.map((g) => (
             <div key={g.group}>
               <p className="px-3.5 pb-1.5 pt-4 text-[11px] uppercase tracking-wider text-stera-cream/45">
@@ -95,7 +72,7 @@ export default function PortalShell({
       </aside>
 
       <div className="md:pl-64">
-      <header className="sticky top-10 z-10 flex h-[70px] items-center justify-between border-b border-stera-line bg-stera-cream px-6 md:px-9">
+      <header className="sticky top-0 z-10 flex h-[70px] items-center justify-between border-b border-stera-line bg-stera-cream px-6 md:px-9">
         <span className="text-sm text-stera-ink-soft">Mijn Stera Pro</span>
         <span className="flex items-center gap-2.5 text-sm text-stera-green">
           {company}

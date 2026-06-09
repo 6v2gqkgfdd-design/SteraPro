@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import SteraLogo from '@/components/stera-logo'
 
 const REG_FIELDS: Array<{ key: string; label: string; type?: string; required?: boolean; half?: boolean }> = [
   { key: 'first_name', label: 'Voornaam', required: true, half: true },
@@ -87,9 +86,6 @@ export default function PortalEntryPage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-stera-cream text-stera-ink">
-      <header className="border-b border-stera-line px-6 py-6 sm:px-10">
-        <SteraLogo variant="default" href={null} />
-      </header>
       <div className="flex flex-1 items-center justify-center px-6 py-10">
         <div className="w-full max-w-2xl">
           <p className="stera-eyebrow text-stera-green mb-3">Klantenportaal</p>

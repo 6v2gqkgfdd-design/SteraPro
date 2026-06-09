@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import SteraLogo from '@/components/stera-logo'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -96,8 +95,7 @@ function Shell({
 }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink">
-      <header className="flex items-center justify-between border-b border-stera-line px-5 py-4 sm:px-10">
-        <SteraLogo variant="default" href={null} />
+      <header className="flex items-center justify-end px-5 py-4 sm:px-10">
         <div className="text-right text-xs text-stera-ink-soft">
           {company ? <div className="font-medium text-stera-ink">{company}</div> : null}
           <div>{email}</div>

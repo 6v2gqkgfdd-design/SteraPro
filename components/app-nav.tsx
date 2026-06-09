@@ -100,34 +100,15 @@ export default function AppNav() {
               </li>
             )
           })}
-          <li className="flex-1">
-            <a
-              href="/logout"
-              className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2.5 text-stera-ink/70 transition hover:text-stera-ink"
-            >
-              <LogoutIcon />
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Uit</span>
-            </a>
-          </li>
         </ul>
       </nav>
 
       {/* Desktop: groene sidebar in Stera Pro-huisstijl */}
       <aside
         aria-label="Hoofdnavigatie"
-        className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-stera-green-deep px-3 py-6 md:flex"
+        className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-stera-green px-3 py-6 md:flex"
       >
-        <Link href="/dashboard" className="mb-8 inline-flex px-3.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://sterapro.be/cdn/shop/files/Zonder_titel_320_x_112_px_-3.png"
-            alt="Stera Pro"
-            className="h-8 w-auto select-none"
-            style={{ filter: 'brightness(0) invert(1)' }}
-          />
-        </Link>
-
-        <ul className="flex w-full flex-col items-stretch gap-1">
+        <ul className="mt-2 flex w-full flex-col items-stretch gap-1">
           {TABS.map((tab) => {
             const active = tab.matches(pathname)
             return (
@@ -149,25 +130,8 @@ export default function AppNav() {
           })}
         </ul>
 
-        <a
-          href="/logout"
-          className="mt-auto flex items-center gap-3 rounded-xl px-3.5 py-3 text-[15px] text-stera-cream/70 transition hover:bg-white/10 hover:text-stera-cream"
-        >
-          <LogoutIcon />
-          <span>Uitloggen</span>
-        </a>
       </aside>
     </>
-  )
-}
-
-function LogoutIcon() {
-  return (
-    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="M16 17l5-5-5-5" />
-      <path d="M21 12H9" />
-    </svg>
   )
 }
 

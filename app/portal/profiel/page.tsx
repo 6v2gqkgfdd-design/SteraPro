@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import SteraLogo from '@/components/stera-logo'
 
 const FIELDS: Array<{ key: string; label: string; type?: string; half?: boolean }> = [
   { key: 'name', label: 'Bedrijfsnaam' },
@@ -61,8 +60,7 @@ export default function PortalProfilePage() {
 
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink">
-      <header className="flex items-center justify-between border-b border-stera-line px-5 py-4 sm:px-10">
-        <SteraLogo variant="default" href={null} />
+      <header className="flex items-center justify-end px-5 py-4 sm:px-10">
         <Link href="/portal" className="text-sm text-stera-green hover:underline">
           ← Portaal
         </Link>

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import SteraLogo from '@/components/stera-logo'
 
 const REG_STORAGE_KEY = 'stera_portal_reg'
 
@@ -89,9 +88,6 @@ export default function RegisterPage() {
 
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink">
-      <header className="border-b border-stera-line px-5 py-4 sm:px-10">
-        <SteraLogo variant="default" href={null} />
-      </header>
       <div className="mx-auto w-full max-w-2xl px-5 py-8 sm:px-10">
         {phase === 'finalizing' ? (
           <p className="text-sm text-stera-ink-soft">Registratie afronden…</p>
