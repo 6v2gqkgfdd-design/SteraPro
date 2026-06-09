@@ -42,15 +42,15 @@ export default function PortalShell({
   return (
     <div className="min-h-screen bg-stera-cream">
       {/* Naadloze toggle bovenaan — Webshop <-> Mijn Stera Pro */}
-      <div className="sticky top-0 z-50 flex h-10 items-center justify-end bg-stera-green-deep px-4 md:px-6">
-        <div className="flex gap-1 rounded-full bg-white/10 p-0.5">
+      <div className="sticky top-0 z-50 flex h-10 items-center justify-end border-b border-stera-line bg-stera-cream px-4 md:px-6">
+        <div className="flex gap-1 rounded-full bg-stera-green/10 p-0.5">
           <a
             href="https://sterapro.be"
-            className="rounded-full px-4 py-1 text-xs font-semibold text-stera-cream/70 transition hover:text-stera-cream"
+            className="rounded-full px-4 py-1 text-xs font-semibold text-stera-green transition hover:bg-stera-green/10"
           >
             Webshop
           </a>
-          <span className="rounded-full bg-stera-cream px-4 py-1 text-xs font-semibold text-stera-green-deep">
+          <span className="rounded-full bg-stera-green px-4 py-1 text-xs font-semibold text-stera-cream">
             Mijn Stera Pro
           </span>
         </div>
