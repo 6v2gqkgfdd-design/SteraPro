@@ -19,8 +19,8 @@ function OverviewCard({
 }) {
   const inner = (
     <div className="rounded-xl border border-stera-line bg-white p-3 h-full">
-      <p className="text-2xl font-semibold text-stera-ink">{value}</p>
-      <p className="text-xs font-medium text-stera-ink-soft">{label}</p>
+      <p className="font-serif text-3xl leading-none text-stera-green">{value}</p>
+      <p className="mt-1.5 text-xs font-medium text-stera-ink-soft">{label}</p>
       {hint ? (
         <p className="mt-0.5 text-[10px] text-stera-ink-soft/70">{hint}</p>
       ) : null}
@@ -118,7 +118,7 @@ export default async function CompanyDetailPage({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+                <h1 className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
                   {company.name}
                 </h1>
                 {company.has_maintenance_contract ? (

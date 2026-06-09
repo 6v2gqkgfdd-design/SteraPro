@@ -259,7 +259,7 @@ export default async function MaintenanceDetailPage({
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold text-stera-ink sm:text-3xl">
+            <h1 className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
               {(Array.isArray(visit.companies)
                 ? visit.companies[0]?.name
                 : visit.companies?.name) || 'Onbekende klant'}
