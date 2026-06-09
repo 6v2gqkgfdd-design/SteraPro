@@ -45,29 +45,18 @@ export default async function CompaniesPage() {
                 </span>
               ) : null}
             </Link>
-            <Link href="/companies/new" className="stera-cta stera-cta-primary">
-              + Nieuwe klant
-            </Link>
           </div>
         </div>
 
         {error ? (
           <p className="text-red-600">Fout bij ophalen: {error.message}</p>
         ) : !companies || companies.length === 0 ? (
-          <div className="stera-empty space-y-3">
+          <div className="stera-empty space-y-2">
             <p className="stera-empty-title">Nog geen klanten</p>
             <p className="text-sm">
-              Voeg je eerste klant toe om locaties, ruimtes en planten te
-              beginnen beheren.
+              Klanten registreren zich via de webshop en verschijnen hier na
+              goedkeuring.
             </p>
-            <div>
-              <Link
-                href="/companies/new"
-                className="stera-cta stera-cta-primary"
-              >
-                + Eerste klant toevoegen
-              </Link>
-            </div>
           </div>
         ) : (
           <ul className="space-y-3">
