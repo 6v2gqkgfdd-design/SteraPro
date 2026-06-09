@@ -93,6 +93,9 @@ export default async function MaintenancePage({
   return (
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-6 sm:pt-6">
       <div className="mx-auto max-w-5xl space-y-5">
+        <h1 className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
+          Onderhoud
+        </h1>
         <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap items-center justify-between gap-3 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <div className="flex flex-wrap gap-2">
             <Link
@@ -174,7 +177,7 @@ export default async function MaintenancePage({
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-lg font-semibold text-stera-ink">
+                    <p className="font-serif text-xl text-stera-green">
                       {company?.name ?? 'Onbekende klant'}
                     </p>
                     <p className="text-sm text-stera-ink-soft">

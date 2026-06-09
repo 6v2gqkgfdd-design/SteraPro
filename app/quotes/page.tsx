@@ -165,8 +165,7 @@ export default async function QuotesPage() {
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="stera-eyebrow text-stera-green">Offertes</p>
-            <h1 className="text-2xl font-bold tracking-tight text-stera-ink sm:text-3xl">
+            <h1 className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
               Offertes &amp; voorstellen
             </h1>
           </div>
@@ -210,7 +209,7 @@ export default async function QuotesPage() {
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-semibold text-stera-ink">
+                        <p className="font-serif text-lg text-stera-green">
                           {p.companyName || 'Onbekende klant'}
                         </p>
                         <p className="mt-1 text-sm text-stera-ink-soft">
@@ -284,7 +283,7 @@ export default async function QuotesPage() {
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-semibold text-stera-ink">
+                          <p className="font-serif text-lg text-stera-green">
                             {(q.reference_number as string) || 'Offerte'}
                           </p>
                           {subtitle ? (

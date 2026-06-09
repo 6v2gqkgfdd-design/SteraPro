@@ -30,9 +30,9 @@ export default async function CompaniesPage() {
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-6 sm:pt-6">
       <div className="mx-auto max-w-4xl space-y-5">
         <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap items-center justify-between gap-3 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-          <span className="rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white">
-            Klanten<span className="ml-2 opacity-70">{count}</span>
-          </span>
+          <h1 className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
+            Klanten <span className="align-middle text-xl text-stera-ink-soft">{count}</span>
+          </h1>
           <div className="flex flex-wrap gap-2">
             <Link
               href="/portal-aanvragen"
@@ -77,7 +77,7 @@ export default async function CompaniesPage() {
                 className="stera-card transition hover:border-stera-green"
               >
                 <Link href={`/companies/${c.id}`} className="block">
-                  <p className="font-semibold text-stera-ink">{c.name}</p>
+                  <p className="font-serif text-xl text-stera-green">{c.name}</p>
                   {c.contact_name && (
                     <p className="mt-1 text-sm text-stera-ink-soft">
                       {c.contact_name}
