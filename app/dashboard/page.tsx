@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import SteraLogo from '@/components/stera-logo'
 import WeatherPill from '@/components/weather-pill'
 import { getTodaysWeather } from '@/lib/weather'
 
@@ -237,16 +236,15 @@ export default async function DashboardPage() {
   return (
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-8 sm:pt-10">
       <div className="mx-auto max-w-4xl space-y-3 sm:space-y-6">
-        {/* Hero — compact, met logo */}
-        <div className="flex items-center justify-between gap-3">
-          <SteraLogo variant="compact" href={null} />
+        {/* Begroeting en weer op één lijn */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
+              {greeting}, Jelle
+            </p>
+            <p className="mt-1 text-xs text-stera-ink-soft">{todayLabel}</p>
+          </div>
           {weather ? <WeatherPill weather={weather} /> : null}
-        </div>
-        <div className="min-w-0">
-          <p className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
-            {greeting}, Jelle
-          </p>
-          <p className="text-xs text-stera-ink-soft">{todayLabel}</p>
         </div>
 
         {/* Net goedgekeurde werkbonnen — melding tot Jelle ze opent */}

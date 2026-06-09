@@ -122,12 +122,6 @@ export default async function MaintenancePage({
               <span className="ml-2 opacity-70">{completedCount}</span>
             </Link>
 
-            <Link
-              href="/work-orders"
-              className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
-            >
-              Werkbonnen →
-            </Link>
           </div>
 
           <Link
