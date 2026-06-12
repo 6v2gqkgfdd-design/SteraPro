@@ -37,17 +37,18 @@ function normalizeVat(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-async function checkVies(vat: string): Promise<ViesResult> {
-  const countryCode = vat.slice(0, 2)
-  const vatNumber = vat.slice(2)
+async function viesOnce(countryCode: string, vatNumber: string): Promise<ViesResult> {
   try {
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), 6000)
+    const timer = setTimeout(() => ctrl.abort(), 8000)
     const res = await fetch(
       'https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'SteraPro/1.0 (jelle@sterapro.be)',
+        },
         body: JSON.stringify({ countryCode, vatNumber }),
         signal: ctrl.signal,
         cache: 'no-store',
@@ -65,6 +66,16 @@ async function checkVies(vat: string): Promise<ViesResult> {
   } catch {
     return { checked: false }
   }
+}
+
+async function checkVies(vat: string): Promise<ViesResult> {
+  const countryCode = vat.slice(0, 2)
+  const vatNumber = vat.slice(2)
+  const first = await viesOnce(countryCode, vatNumber)
+  if (first.checked) return first
+  // VIES is geregeld kort onbereikbaar of throttelt — één keer opnieuw.
+  await new Promise((r) => setTimeout(r, 1200))
+  return viesOnce(countryCode, vatNumber)
 }
 
 export async function POST(req: NextRequest) {

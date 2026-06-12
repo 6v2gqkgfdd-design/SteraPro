@@ -48,7 +48,9 @@ export async function middleware(req: NextRequest) {
   // Login én de auth-callback (waar de sessie pas wordt gezet) hebben nog
   // geen sessie nodig.
   const isPortalAuth =
-    path === '/portal/login' || path.startsWith('/portal/auth')
+    path === '/portal/login' ||
+    path.startsWith('/portal/auth') ||
+    path === '/portal/registreren'
 
   // Tijdelijk: de portaal-preview (mockup-stijl, voorbeelddata) is publiek
   // bekijkbaar zodat de toggle en het ontwerp zonder login te zien zijn.
