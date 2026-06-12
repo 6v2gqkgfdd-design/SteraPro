@@ -113,9 +113,10 @@ const priceByCode = new Map(priceRows.map((r) => [r.itemcode, Number(r.suggested
 console.log(`    ✅ ${prodRows.length} items, ${priceByCode.size} met verkoopprijs`);
 
 // ============================================================
-// 2) Filteren (mosschilderijen eruit) + verrijken
+// 2) Verrijken — mos-items krijgen productType "Moswanden" zodat de
+//    collecties (All-in-1 combinaties vs. Moswanden) zuiver scheiden.
 // ============================================================
-const MOS_WORDS = ["bolmos", "platmos", "rendiermos", "bol- en", "mosschilderij", "moss painting"];
+const MOS_WORDS = ["bolmos", "platmos", "rendiermos", "bol- en", "mosschilderij", "moss painting", "moss divider", "mos divider"];
 function isMoss(it) {
   const s = `${it.description || ""} ${it.item_variety_nl || ""}`.toLowerCase();
   return MOS_WORDS.some((w) => s.includes(w));
@@ -128,18 +129,18 @@ function heightLabel(h) {
 }
 
 const items = prodRows
-  .filter((it) => priceByCode.has(it.itemcode) && !isMoss(it))
+  .filter((it) => priceByCode.has(it.itemcode))
   .map((it) => ({
     itemcode: it.itemcode,
     name: (it.description || it.itemcode).trim(),
     price: priceByCode.get(it.itemcode),
     teelt: teeltOf(it.item_variety_nl),
     hLabel: heightLabel(it.height),
-    productType: it.product_group_description_nl || "",
+    productType: isMoss(it) ? "Moswanden" : (it.product_group_description_nl || ""),
     hasImage: !!it.item_picture_name,
   }));
-const mossCount = prodRows.filter((it) => priceByCode.has(it.itemcode) && isMoss(it)).length;
-console.log(`    Na filter: ${items.length} plant-items (${mossCount} mos-items overgeslagen)`);
+const mossCount = items.filter((it) => it.productType === "Moswanden").length;
+console.log(`    ${items.length} items (waarvan ${mossCount} mos-items met productType "Moswanden")`);
 
 // ============================================================
 // 3) Groeperen op naam -> producten met varianten
