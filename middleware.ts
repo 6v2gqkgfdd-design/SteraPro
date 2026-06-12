@@ -14,6 +14,7 @@ import { createServerClient } from '@supabase/ssr'
 function isPublic(path: string): boolean {
   if (path === '/login' || path === '/portal/login' || path === '/logout') return true
   if (path === '/sso') return true
+  if (path === '/portal/registreren') return true
   return (
     path.startsWith('/q/') ||
     path.startsWith('/sign/') ||
