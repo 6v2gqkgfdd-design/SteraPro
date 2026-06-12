@@ -16,6 +16,8 @@ een bewerkte versie in de Stera-huisstijl: warme beige achtergrond
 """
 
 import json, os, statistics, subprocess, sys, tempfile, time, urllib.request
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 
 SHOP = os.environ["SHOPIFY_STORE_DOMAIN"]
 API = f"https://{SHOP}/admin/api/2026-04/graphql.json"
@@ -73,42 +75,33 @@ def stera_style(im):
     im = im.convert("RGB")
     if max(im.size) > 1200:
         im.thumbnail((1200, 1200), Image.LANCZOS)
-    bgr, bgg, bgb = detect_bg(im)
-    bglum = max(1, (bgr + bgg + bgb) / 3)
-    px = im.load(); w, h = im.size
-    for y in range(h):
-        for x in range(w):
-            r, g, b = px[x, y]
-            d = max(abs(r - bgr), abs(g - bgg), abs(b - bgb))
-            if d >= 90:
-                continue
-            t = 1.0 - d / 90.0
-            t = t * t * (3 - 2 * t)
-            lum = min(1.0, (r + g + b) / 3.0 / bglum)
-            px[x, y] = (int(r * (1 - t) + BEIGE[0] * lum * t),
-                        int(g * (1 - t) + BEIGE[1] * lum * t),
-                        int(b * (1 - t) + BEIGE[2] * lum * t))
-    return im
+    a = np.asarray(im).astype(np.float32)
+    border = np.concatenate([a[3, :], a[-4, :], a[:, 3], a[:, -4]])
+    bg = np.median(border, axis=0)
+    bglum = max(1.0, float(bg.mean()))
+    d = np.max(np.abs(a - bg), axis=2)
+    t = np.clip(1.0 - d / 90.0, 0, 1)
+    t = t * t * (3 - 2 * t)
+    t[d >= 90] = 0
+    lum = np.clip(a.mean(axis=2) / bglum, 0, 1)
+    beige = np.array(BEIGE, dtype=np.float32)
+    out = a * (1 - t)[..., None] + beige[None, None, :] * (lum * t)[..., None]
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
 
 
 def add_shadow(im):
-    w, h = im.size; px = im.load()
-
-    def is_obj(x, y):
-        r, g, b = px[x, y]
-        return abs(r - BEIGE[0]) + abs(g - BEIGE[1]) + abs(b - BEIGE[2]) > 120
-
-    lowest = -1
-    for y in range(h - 1, -1, -1):
-        if any(is_obj(x, y) for x in range(0, w, 3)):
-            lowest = y; break
-    if lowest < 0:
+    w, h = im.size
+    a = np.asarray(im).astype(np.int32)
+    obj = np.abs(a - np.array(BEIGE)).sum(axis=2) > 120
+    rows = np.where(obj.any(axis=1))[0]
+    if len(rows) == 0:
         return im
-    xs = [x for y in range(max(0, lowest - int(h * 0.04)), lowest + 1)
-          for x in range(0, w, 2) if is_obj(x, y)]
-    if not xs:
+    lowest = int(rows.max())
+    strip = obj[max(0, lowest - int(h * 0.04)):lowest + 1]
+    cols = np.where(strip.any(axis=0))[0]
+    if len(cols) == 0:
         return im
-    x0, x1 = min(xs), max(xs); cx = (x0 + x1) // 2
+    x0, x1 = int(cols.min()), int(cols.max()); cx = (x0 + x1) // 2
     ew = int(max(40, x1 - x0) * 1.5); eh = max(14, int(ew * 0.16))
     cy = min(h - 1, lowest + int(eh * 0.15))
     sh = Image.new("L", (w, h), 0)
@@ -137,77 +130,77 @@ def staged_upload(path, fname):
     raise RuntimeError(f"upload {code}")
 
 
-def main():
-    done = fouten = 0
-    cursor = None
-    while True:
-        d = gql("""query($c: String) {
-          products(first: 25, after: $c, query: "vendor:SteraPro -tag:%s") {
-            pageInfo { hasNextPage endCursor }
-            nodes { id title
-              media(first: 5) { nodes { id ... on MediaImage { image { url } } } } } } }""" % TAG,
-            {"c": cursor})
-        prods = d["data"]["products"]["nodes"]
-        page = d["data"]["products"]["pageInfo"]
-        if not prods:
-            break
-        for p in prods:
-            try:
-                imgs = [m for m in p["media"]["nodes"] if m.get("image")]
-                if not imgs:
-                    gql('mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }',
-                        {"id": p["id"], "tags": [TAG, "geen-foto"]})
-                    continue
-                url = imgs[0]["image"]["url"]
-                old_ids = [m["id"] for m in imgs]
-                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-                    raw = f.name
-                for attempt in range(4):
-                    r = subprocess.run(["curl", "-s", "-L", "--max-time", "60",
-                                        "--retry", "2", url, "-o", raw])
-                    if r.returncode == 0 and os.path.getsize(raw) > 1000:
-                        break
-                    time.sleep(3 * (attempt + 1))
-                else:
-                    raise RuntimeError("download blijft falen")
-                im = Image.open(raw)
-                im = add_shadow(stera_style(im))
-                out = raw.replace(".jpg", "_stera.jpg")
-                im.save(out, "JPEG", quality=88)
-                res_url = staged_upload(out, "stera-" + p["id"].split("/")[-1] + ".jpg")
-                cr = gql("""mutation($pid: ID!, $media: [CreateMediaInput!]!) {
-                  productCreateMedia(productId: $pid, media: $media) {
-                    media { id } mediaUserErrors { message } } }""",
-                    {"pid": p["id"], "media": [{"originalSource": res_url,
-                                                "mediaContentType": "IMAGE"}]})
-                errs = cr["data"]["productCreateMedia"]["mediaUserErrors"]
-                if errs:
-                    raise RuntimeError(str(errs))
-                gql("""mutation($pid: ID!, $ids: [ID!]!) {
-                  productDeleteMedia(productId: $pid, mediaIds: $ids) {
-                    deletedMediaIds mediaUserErrors { message } } }""",
-                    {"pid": p["id"], "ids": old_ids})
-                gql('mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }',
-                    {"id": p["id"], "tags": [TAG]})
-                done += 1
-                os.unlink(raw); os.unlink(out)
-            except Exception as e:
-                fouten += 1
-                print(f"FOUT {p['title']}: {e}", flush=True)
-            time.sleep(0.4)
-            if (done + fouten) % 10 == 0:
-                print(f"voortgang: {done} ok / {fouten} fout", flush=True)
-        if not page["hasNextPage"]:
-            cursor = None
+stats = {"done": 0, "fout": 0}
+
+
+def process_product(p):
+    try:
+        imgs = [m for m in p["media"]["nodes"] if m.get("image")]
+        if not imgs:
+            gql('mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }',
+                {"id": p["id"], "tags": [TAG, "geen-foto"]})
+            return
+        url = imgs[0]["image"]["url"]
+        old_ids = [m["id"] for m in imgs]
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            raw = f.name
+        for attempt in range(4):
+            r = subprocess.run(["curl", "-s", "-L", "--max-time", "60",
+                                "--retry", "2", url, "-o", raw])
+            if r.returncode == 0 and os.path.getsize(raw) > 1000:
+                break
+            time.sleep(3 * (attempt + 1))
         else:
-            cursor = page["endCursor"]
-        # query filtert op -tag, dus altijd vanaf begin pagineren
-        if not page["hasNextPage"] and not prods:
-            break
-        cursor = None
+            raise RuntimeError("download blijft falen")
+        im = Image.open(raw)
+        im = add_shadow(stera_style(im))
+        out = raw.replace(".jpg", "_stera.jpg")
+        im.save(out, "JPEG", quality=88)
+        res_url = staged_upload(out, "stera-" + p["id"].split("/")[-1] + ".jpg")
+        cr = gql("""mutation($pid: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $pid, media: $media) {
+            media { id } mediaUserErrors { message } } }""",
+            {"pid": p["id"], "media": [{"originalSource": res_url,
+                                        "mediaContentType": "IMAGE"}]})
+        errs = cr["data"]["productCreateMedia"]["mediaUserErrors"]
+        if errs:
+            raise RuntimeError(str(errs))
+        gql("""mutation($pid: ID!, $ids: [ID!]!) {
+          productDeleteMedia(productId: $pid, mediaIds: $ids) {
+            deletedMediaIds mediaUserErrors { message } } }""",
+            {"pid": p["id"], "ids": old_ids})
+        gql('mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }',
+            {"id": p["id"], "tags": [TAG]})
+        stats["done"] += 1
+        os.unlink(raw); os.unlink(out)
+    except Exception as e:
+        stats["fout"] += 1
+        print(f"FOUT {p['title']}: {e}", flush=True)
+    n = stats["done"] + stats["fout"]
+    if n % 20 == 0:
+        print(f"voortgang: {stats['done']} ok / {stats['fout']} fout", flush=True)
+
+
+def main():
+    # De query filtert op -tag:fotostijl-ok; verwerkte producten verdwijnen
+    # dus vanzelf uit de eerste pagina. Telkens de eerste 50 opvragen tot op.
+    lege_rondes = 0
+    while True:
+        d = gql("""query {
+          products(first: 50, query: "vendor:SteraPro -tag:%s") {
+            nodes { id title
+              media(first: 5) { nodes { id ... on MediaImage { image { url } } } } } } }""" % TAG)
+        prods = d["data"]["products"]["nodes"]
         if not prods:
-            break
-    print(f"KLAAR: {done} ok, {fouten} fout", flush=True)
+            lege_rondes += 1
+            if lege_rondes >= 2:
+                break
+            time.sleep(5)
+            continue
+        lege_rondes = 0
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            list(ex.map(process_product, prods))
+    print(f"KLAAR: {stats['done']} ok, {stats['fout']} fout", flush=True)
 
 
 if __name__ == "__main__":
