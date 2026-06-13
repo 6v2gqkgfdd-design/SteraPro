@@ -4,11 +4,9 @@ import { NextResponse } from 'next/server'
 // de Shopify Admin API (client_credentials, zelfde flow als /api/shopify/sync)
 // en groepeert het per plant met de echte situatie-tags (licht/grootte/buiten/
 // hydro) + de beschikbare potten en variant-ID's voor het winkelmandje.
-// (products.json wordt vanaf Vercel-datacenter-IP's door Shopify geblokkeerd,
-//  daarom de Admin API.) Resultaat wordt 10 min gecacht.
 
 export const runtime = 'nodejs'
-export const revalidate = 600
+export const revalidate = 300
 
 const PUBLIC_SHOP = (process.env.NEXT_PUBLIC_SHOP_DOMAIN || 'sterapro.be')
   .replace(/^https?:\/\//, '')
@@ -41,13 +39,27 @@ type ProductNode = {
   variants?: { nodes?: { id?: string; availableForSale?: boolean }[] }
 }
 
+type Debug = {
+  tokenOk: boolean
+  version: string
+  pages: number
+  raw: number
+  gqlError: string | null
+  tokenError?: string
+}
+
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
 export async function GET() {
   const SHOP = process.env.SHOPIFY_STORE_DOMAIN
   const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID
   const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET
   const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-04'
+  const debug: Debug = { tokenOk: false, version: API_VERSION, pages: 0, raw: 0, gqlError: null }
+  const noStore = { 'Cache-Control': 'no-store' }
+
   if (!SHOP || !CLIENT_ID || !CLIENT_SECRET) {
-    return NextResponse.json({ error: 'Webshop-koppeling ontbreekt op de server.', plants: [], count: 0 }, { status: 500 })
+    return NextResponse.json({ error: 'Webshop-koppeling ontbreekt op de server.', plants: [], count: 0, _debug: debug }, { status: 500, headers: noStore })
   }
 
   // 1) Token via client_credentials.
@@ -60,16 +72,19 @@ export async function GET() {
     })
     const j = await tr.json().catch(() => ({}))
     if (!tr.ok || !j?.access_token) {
-      return NextResponse.json({ error: 'Geen verbinding met de webshop.', plants: [], count: 0 }, { status: 502 })
+      debug.tokenError = `status ${tr.status}`
+      return NextResponse.json({ error: 'Geen verbinding met de webshop.', plants: [], count: 0, _debug: debug }, { status: 502, headers: noStore })
     }
     token = j.access_token
-  } catch {
-    return NextResponse.json({ error: 'Geen verbinding met de webshop.', plants: [], count: 0 }, { status: 502 })
+    debug.tokenOk = true
+  } catch (e) {
+    debug.tokenError = errMsg(e)
+    return NextResponse.json({ error: 'Geen verbinding met de webshop.', plants: [], count: 0, _debug: debug }, { status: 502, headers: noStore })
   }
 
-  // 2) Alle actieve, gepubliceerde producten ophalen (gepagineerd).
+  // 2) Alle actieve producten ophalen (gepagineerd).
   const QUERY = `query($cursor: String) {
-    products(first: 200, after: $cursor, query: "status:active AND published_status:published") {
+    products(first: 200, after: $cursor, query: "status:active") {
       nodes { title handle tags featuredImage { url } variants(first: 1) { nodes { id availableForSale } } }
       pageInfo { hasNextPage endCursor }
     }
@@ -77,24 +92,31 @@ export async function GET() {
 
   const all: ProductNode[] = []
   let cursor: string | null = null
-  try {
-    for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 20; i++) {
+    let j: { errors?: unknown; data?: { products?: { nodes?: ProductNode[]; pageInfo?: { hasNextPage?: boolean; endCursor?: string } } } }
+    try {
       const r = await fetch(`https://${SHOP}/admin/api/${API_VERSION}/graphql.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
         body: JSON.stringify({ query: QUERY, variables: { cursor } }),
       })
-      const j = await r.json()
-      if (j?.errors) break
-      const conn = j?.data?.products
-      const nodes: ProductNode[] = conn?.nodes || []
-      all.push(...nodes)
-      if (!conn?.pageInfo?.hasNextPage) break
-      cursor = conn.pageInfo.endCursor
+      j = await r.json()
+    } catch (e) {
+      debug.gqlError = 'fetch: ' + errMsg(e)
+      break
     }
-  } catch {
-    return NextResponse.json({ error: 'Kon het assortiment niet laden.', plants: [], count: 0 }, { status: 502 })
+    if (j?.errors) {
+      debug.gqlError = JSON.stringify(j.errors).slice(0, 400)
+      break
+    }
+    const conn = j?.data?.products
+    const nodes: ProductNode[] = conn?.nodes || []
+    all.push(...nodes)
+    debug.pages++
+    if (!conn?.pageInfo?.hasNextPage) break
+    cursor = conn.pageInfo.endCursor || null
   }
+  debug.raw = all.length
 
   // 3) Groeperen per plant (titel = "Plant in Pot").
   const byPlant = new Map<string, Plant>()
@@ -128,8 +150,5 @@ export async function GET() {
     .map((e) => ({ ...e, pots: e.pots.sort((a, b) => a.pot.localeCompare(b.pot)) }))
     .sort((a, b) => a.plant.localeCompare(b.plant))
 
-  return NextResponse.json(
-    { plants, count: plants.length, shop: PUBLIC_SHOP },
-    { headers: { 'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=3600' } },
-  )
+  return NextResponse.json({ plants, count: plants.length, shop: PUBLIC_SHOP, _debug: debug }, { headers: noStore })
 }
