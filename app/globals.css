@@ -5,7 +5,7 @@
    zwarte body-tekst. */
 :root {
   --background: #FFFDF7;
-  --foreground: #000000;
+  --foreground: #23322B;
 
   --stera-cream: #FFFDF7;
   --stera-cream-deep: #F1EFE8;
@@ -15,11 +15,11 @@
   --stera-green-soft: #608A6E;
   --stera-green-deep: #2F5840;
 
-  --stera-ink: #000000;
-  /* Iets donkerder dan #4D4D4D zodat secundaire tekst makkelijker
-     leesbaar blijft op de crème achtergrond (WCAG AA-marge). */
-  --stera-ink-soft: #3F3F3F;
-  --stera-line: rgba(0, 0, 0, 0.12);
+  --stera-ink: #23322B;
+  /* Zachte, groen-zwarte inkt i.p.v. puur zwart — oogt warmer op de
+     crème achtergrond en sluit aan bij de website-huisstijl. */
+  --stera-ink-soft: #5A6660;
+  --stera-line: rgba(47, 88, 64, 0.14);
 }
 
 @theme inline {

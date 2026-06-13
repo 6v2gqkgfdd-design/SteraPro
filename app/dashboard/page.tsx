@@ -303,7 +303,7 @@ export default async function DashboardPage() {
             <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
               Vandaag
             </p>
-            <p className="font-serif text-3xl text-stera-green">
+            <p className="font-serif text-3xl italic text-stera-green">
               {todaysCount}
             </p>
           </Link>
@@ -319,7 +319,7 @@ export default async function DashboardPage() {
               Aandacht
             </p>
             <p
-              className={`font-serif text-3xl ${
+              className={`font-serif text-3xl italic ${
                 flaggedCount > 0 ? 'text-amber-800' : 'text-stera-green'
               }`}
             >
@@ -334,7 +334,7 @@ export default async function DashboardPage() {
               <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
                 Meldingen
               </p>
-              <p className="font-serif text-3xl text-amber-800">
+              <p className="font-serif text-3xl italic text-amber-800">
                 {reportCount}
               </p>
             </a>
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
               <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
                 Meldingen
               </p>
-              <p className="font-serif text-3xl text-stera-green">
+              <p className="font-serif text-3xl italic text-stera-green">
                 {reportCount}
               </p>
             </div>
@@ -406,7 +406,12 @@ export default async function DashboardPage() {
             href="/scan"
             className="flex items-center gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
           >
-            <span className="text-xl">📷</span>
+            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-stera-cream-deep text-stera-green-deep">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+                <circle cx="12" cy="13" r="3.2" />
+              </svg>
+            </span>
             <span className="text-sm font-medium text-stera-ink">
               Scan plant
             </span>
@@ -415,7 +420,11 @@ export default async function DashboardPage() {
             href="/maintenance/new"
             className="flex items-center gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
           >
-            <span className="text-xl">➕</span>
+            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-stera-cream-deep text-stera-green-deep">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </span>
             <span className="text-sm font-medium text-stera-ink">
               Nieuwe afspraak
             </span>

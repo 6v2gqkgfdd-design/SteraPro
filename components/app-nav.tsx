@@ -48,7 +48,7 @@ const TABS: Tab[] = [
   },
   {
     href: '/admin/catalogus',
-    label: 'Webshop',
+    label: 'Catalogus',
     icon: 'webshop',
     matches: (p) => p.startsWith('/admin/catalogus'),
   },
@@ -106,9 +106,26 @@ export default function AppNav() {
       {/* Desktop: groene sidebar in Stera Pro-huisstijl */}
       <aside
         aria-label="Hoofdnavigatie"
-        className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-stera-green px-3 py-6 md:flex"
+        className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col overflow-hidden bg-stera-green px-3 py-6 md:flex"
       >
-        <ul className="mt-2 flex w-full flex-col items-stretch gap-1">
+        {/* Zacht S-watermerk, centraal-onderaan in de groene balk.
+            GÉÉN invert-filter: de open ruimtes van de S zijn wit ingevuld;
+            mix-blend-mode soft-light laat de S juist leesbaar doorschemeren. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-[10%] left-1/2 -translate-x-1/2"
+          style={{
+            width: 215,
+            height: 215,
+            opacity: 0.5,
+            mixBlendMode: 'soft-light',
+            backgroundImage: 'url(/stera-logo-short.png)',
+            backgroundSize: 'contain',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+          }}
+        />
+        <ul className="relative z-10 mt-2 flex w-full flex-col items-stretch gap-1">
           {TABS.map((tab) => {
             const active = tab.matches(pathname)
             return (
