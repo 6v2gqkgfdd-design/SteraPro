@@ -153,6 +153,7 @@ export default function Configurator() {
   // Hoogte naar de Shopify-pagina sturen zodat de iframe meegroeit.
   useEffect(() => {
     if (typeof window === 'undefined' || window.parent === window) return
+    document.documentElement.setAttribute('data-embedded', '1')
     const post = () => window.parent.postMessage({ type: 'stera-cfg-height', height: document.documentElement.scrollHeight }, '*')
     post()
     const ro = new ResizeObserver(post)
@@ -206,10 +207,12 @@ export default function Configurator() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.creme }}>
+      {/* Ingebed in de webshop (iframe): eigen logo verbergen zodat het één geheel met de site voelt. */}
+      <style>{`html[data-embedded="1"] .cfg-logo{display:none!important}`}</style>
       <header style={{ borderBottom: `1px solid ${C.line}`, background: C.creme, position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/sterapro-logo.png" alt="Stera Pro" style={{ height: 36, width: 'auto', display: 'block' }} />
+          <img className="cfg-logo" src="/sterapro-logo.png" alt="Stera Pro" style={{ height: 36, width: 'auto', display: 'block' }} />
           <Stepper step={step} />
           <span onClick={reset} style={{ fontFamily: C.sans, fontSize: 13.5, color: C.mut, cursor: 'pointer', whiteSpace: 'nowrap' }}>Opnieuw beginnen</span>
         </div>
