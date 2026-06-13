@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 
 // Publieke route: zet de samengestelde planten in het Shopify-winkelmandje.
-// Resolvet per producthandle de eerste variant-ID via de Shopify Admin API
-// (zelfde client_credentials-flow als /api/shopify/sync) en bouwt een
-// cart-permalink op het publieke webshopdomein. De gekozen pot gaat mee als
-// cart-attribuut. Geen login nodig; we lekken niets gevoeligs (variant-ID's
-// en cart-URL's zijn sowieso publiek op de storefront).
+// Resolvet per plant de eerste variant-ID (eerst op producthandle, anders op
+// naam/title) via de Shopify Admin API — zelfde client_credentials-flow als
+// /api/shopify/sync — en bouwt een cart-permalink op het publieke
+// webshopdomein. De gekozen pot gaat mee als cart-attribuut. Geen login nodig;
+// variant-ID's en cart-URL's zijn sowieso publiek op de storefront.
 
 export const runtime = 'nodejs'
 
@@ -13,7 +13,7 @@ const PUBLIC_SHOP = (process.env.NEXT_PUBLIC_SHOP_DOMAIN || 'sterapro.be')
   .replace(/^https?:\/\//, '')
   .replace(/\/$/, '')
 
-type Item = { handle?: string; qty?: number }
+type Item = { handle?: string; name?: string; qty?: number }
 
 export async function POST(req: Request) {
   let body: { items?: Item[]; pot?: { lijn?: string; kleur?: string } | null }
@@ -61,34 +61,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Kon geen verbinding maken met de webshop.' }, { status: 502 })
   }
 
-  async function gql(query: string, variables: Record<string, unknown>) {
+  const VARIANT_Q = `query($q:String!){ products(first:1, query:$q){ nodes { variants(first:1){ nodes { id } } } } }`
+  async function firstVariantId(q: string): Promise<string | null> {
     const res = await fetch(`https://${SHOP}/admin/api/${API_VERSION}/graphql.json`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-      body: JSON.stringify({ query, variables }),
+      body: JSON.stringify({ query: VARIANT_Q, variables: { q } }),
     })
     const j = await res.json()
     if (j.errors) throw new Error(JSON.stringify(j.errors))
-    return j.data
+    const gid: string | undefined = j?.data?.products?.nodes?.[0]?.variants?.nodes?.[0]?.id
+    return gid ? (gid.split('/').pop() ?? null) : null
   }
 
-  // 2) Per handle de eerste (goedkoopste/standaard) variant resolven.
-  const VARIANT_Q = `query($q:String!){ products(first:1, query:$q){ nodes { variants(first:1){ nodes { id } } } } }`
+  // 2) Per item: eerst op handle, anders op naam (title) resolven.
   const parts: string[] = []
   const missing: string[] = []
   for (const it of items) {
     const handle = String(it?.handle || '').trim()
+    const name = String(it?.name || '').trim()
     const qty = Math.max(1, Math.min(99, Number(it?.qty) || 1))
-    if (!handle) continue
+    let num: string | null = null
     try {
-      const d = await gql(VARIANT_Q, { q: `handle:${handle}` })
-      const gid: string | undefined = d?.products?.nodes?.[0]?.variants?.nodes?.[0]?.id
-      const num = gid ? gid.split('/').pop() : null
-      if (num) parts.push(`${num}:${qty}`)
-      else missing.push(handle)
+      if (handle) num = await firstVariantId(`handle:${handle}`)
+      if (!num && name) num = await firstVariantId(`title:${name}`)
     } catch {
-      missing.push(handle)
+      num = null
     }
+    if (num) parts.push(`${num}:${qty}`)
+    else missing.push(name || handle)
   }
 
   if (!parts.length) {
@@ -98,8 +99,8 @@ export async function POST(req: Request) {
     )
   }
 
-  // 3) Cart-permalink bouwen op het publieke webshopdomein. De gekozen pot als
-  //    cart-attribuut (brackets bewust niet ge-encodeerd — Shopify-formaat).
+  // 3) Cart-permalink op het publieke webshopdomein. Pot als cart-attribuut
+  //    (brackets bewust niet ge-encodeerd — Shopify-formaat).
   let url = `https://${PUBLIC_SHOP}/cart/${parts.join(',')}`
   const attrs: string[] = []
   if (pot?.lijn) attrs.push(`attributes[Pot-lijn]=${encodeURIComponent(String(pot.lijn))}`)

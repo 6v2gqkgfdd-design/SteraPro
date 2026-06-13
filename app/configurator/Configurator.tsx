@@ -149,6 +149,16 @@ export default function Configurator() {
     localStorage.setItem(CFG_LS, JSON.stringify({ step, ans, picked, pot }))
   }, [step, ans, picked, pot])
 
+  // Hoogte naar de Shopify-pagina sturen zodat de iframe meegroeit (naadloze embed).
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return
+    const post = () => window.parent.postMessage({ type: 'stera-cfg-height', height: document.documentElement.scrollHeight }, '*')
+    post()
+    const ro = new ResizeObserver(post)
+    ro.observe(document.documentElement)
+    return () => ro.disconnect()
+  }, [step])
+
   const answered = CFG_Q.every((q) => ans[q.key] !== undefined)
 
   const matches = useMemo(() => {
@@ -168,6 +178,11 @@ export default function Configurator() {
   const potLine = pot ? CFG_POTS.find((x) => x.id === pot.lijn) : null
   const reset = () => { setStep(0); setAns({}); setPicked([]); setPot(null) }
 
+  // Navigeer het TOP-venster: breekt uit de Shopify-iframe naar het echte mandje.
+  const goTop = (url: string) => {
+    try { (window.top ?? window).location.assign(url) } catch { window.location.assign(url) }
+  }
+
   async function addToCart() {
     if (!selPlants.length || !pot || adding) return
     setAdding(true)
@@ -176,18 +191,26 @@ export default function Configurator() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          items: selPlants.map((p) => ({ handle: p.shopifyHandle, qty: 1 })),
+          items: selPlants.map((p) => ({ handle: p.shopifyHandle, name: p.name, qty: 1 })),
           pot: potLine ? { lijn: potLine.name, kleur: pot.kleur } : null,
         }),
       })
       const data = await res.json().catch(() => ({}))
-      if (res.ok && data?.url) { window.location.assign(data.url as string); return }
+      if (res.ok && data?.url) { goTop(data.url as string); return }
       alert(data?.error || 'Het winkelmandje kon niet worden geopend. Probeer later opnieuw of vraag een offerte aan.')
     } catch {
       alert('Er ging iets mis bij het toevoegen aan het winkelmandje.')
     } finally {
       setAdding(false)
     }
+  }
+
+  function requestQuote() {
+    const lines = selPlants
+      .map((p) => `- ${p.name} (${p.latin})${potLine ? ` — ${potLine.name} '${pot?.kleur}', Ø ${p.pot + 6} cm` : ''}`)
+      .join('\n')
+    const body = `Hallo Stera Pro,\n\nVia de plantconfigurator stelde ik deze selectie samen:\n\n${lines || '(geen planten geselecteerd)'}\n\nGraag een offerte met mijn B2B-prijzen.\n\nBedrijf:\nNaam:\nTelefoon:\n`
+    goTop(`mailto:jelle@sterapro.be?subject=${encodeURIComponent('Offerteaanvraag via plantconfigurator')}&body=${encodeURIComponent(body)}`)
   }
 
   const navBtn = (label: string, dir: 1 | -1, disabled = false) => (
@@ -327,7 +350,7 @@ export default function Configurator() {
                   }}>
                     <IcoCart size={17} /> {adding ? 'Bezig…' : 'In winkelmandje'}
                   </span>
-                  <span style={{
+                  <span onClick={requestQuote} style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer',
                     color: C.creme, border: '1.5px solid rgba(255,253,247,.55)', fontFamily: C.sans, fontWeight: 600, fontSize: 14, padding: '12px 22px', borderRadius: 999,
                   }}>
