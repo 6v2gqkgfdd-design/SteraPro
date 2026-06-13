@@ -25,7 +25,6 @@ function Ico({ d, size = 16, sw = 1.6, style }: IcoProps & { d: ReactNode }) {
 const IcoCheck = (p: IcoProps) => <Ico {...p} d={<path d="m5 13 4 4L19 7" />} />
 const IcoArrow = (p: IcoProps) => <Ico {...p} d={<path d="M4 12h16m-6-6 6 6-6 6" />} />
 const IcoLock = (p: IcoProps) => <Ico {...p} d={<g><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></g>} />
-const IcoCal = (p: IcoProps) => <Ico {...p} d={<g><rect x="4" y="5" width="16" height="16" rx="2" /><path d="M4 10h16M8 3v4m8-4v4" /></g>} />
 const IcoCart = (p: IcoProps) => <Ico {...p} d={<g><path d="M3 4h2l2.4 12.2A2 2 0 0 0 9.36 18h8.1a2 2 0 0 0 1.95-1.57L21 9H6" /><circle cx="9.5" cy="21" r="1" /><circle cx="17.5" cy="21" r="1" /></g>} />
 
 /* ── Sectiekop ─────────────────────────────────────────── */
@@ -197,20 +196,12 @@ export default function Configurator() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data?.url) { goTop(data.url as string); return }
-      alert(data?.error || 'Het winkelmandje kon niet worden geopend. Probeer later opnieuw of vraag een offerte aan.')
+      alert(data?.error || 'Het winkelmandje kon niet worden geopend. Probeer het later opnieuw.')
     } catch {
       alert('Er ging iets mis bij het toevoegen aan het winkelmandje.')
     } finally {
       setAdding(false)
     }
-  }
-
-  function requestQuote() {
-    const lines = selPlants
-      .map((p) => `- ${p.name} (${p.latin})${potLine ? ` — ${potLine.name} '${pot?.kleur}', Ø ${p.pot + 6} cm` : ''}`)
-      .join('\n')
-    const body = `Hallo Stera Pro,\n\nVia de plantconfigurator stelde ik deze selectie samen:\n\n${lines || '(geen planten geselecteerd)'}\n\nGraag een offerte met mijn B2B-prijzen.\n\nBedrijf:\nNaam:\nTelefoon:\n`
-    goTop(`mailto:jelle@sterapro.be?subject=${encodeURIComponent('Offerteaanvraag via plantconfigurator')}&body=${encodeURIComponent(body)}`)
   }
 
   const navBtn = (label: string, dir: 1 | -1, disabled = false) => (
@@ -266,16 +257,16 @@ export default function Configurator() {
         {step === 1 && (
           <div>
             <SectionHead kicker="Stap 2 · Planten" title={`${matches.length} planten passen bij jouw ruimte`}
-              sub="Selecteer de planten die je aanspreken — meerdere mag. In het voorstel bepalen we samen de aantallen." />
+              sub="Selecteer de planten die je aanspreken — meerdere mag. De aantallen pas je nadien aan in je winkelmandje." />
             {matches.length === 0 ? (
               <div style={{ marginTop: 44, background: C.sand, borderRadius: 16, padding: '36px 40px', maxWidth: 640 }}>
                 <div style={{ fontFamily: C.sans, fontWeight: 600, fontSize: 18, color: C.deep }}>Een uitdagende combinatie — net iets voor ons.</div>
                 <p style={{ margin: '10px 0 0', fontFamily: C.sans, fontSize: 14.5, lineHeight: 1.6, color: C.mut }}>
-                  Voor deze ruimte bekijken we de opties beter ter plaatse, met een licht- en vochtmeting.
+                  Pas je antwoorden iets aan — met een andere licht-, lucht- of groottekeuze vinden we vast passende planten voor je mandje.
                 </p>
                 <div style={{ marginTop: 20 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: C.deep, color: C.creme, fontFamily: C.sans, fontWeight: 600, fontSize: 14, padding: '11px 22px', borderRadius: 999, cursor: 'pointer' }}>
-                    <IcoCal size={16} /> Plan een adviesbezoek
+                  <span onClick={() => setStep(0)} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: C.deep, color: C.creme, fontFamily: C.sans, fontWeight: 600, fontSize: 14, padding: '11px 22px', borderRadius: 999, cursor: 'pointer' }}>
+                    <IcoArrow size={16} style={{ transform: 'rotate(180deg)' }} /> Pas je antwoorden aan
                   </span>
                 </div>
               </div>
@@ -318,8 +309,8 @@ export default function Configurator() {
         {/* STAP 4 */}
         {step === 3 && (
           <div>
-            <SectionHead kicker="Stap 4 · Overzicht" title="Jouw groene voorstel"
-              sub="Zet de planten meteen in je winkelmandje, of vraag een offerte aan met jouw B2B-prijzen." />
+            <SectionHead kicker="Stap 4 · Overzicht" title="Jouw groene selectie"
+              sub="Zet je samengestelde planten in één klik in het winkelmandje, met jouw B2B-prijzen." />
             <div style={{ display: 'flex', gap: 48, marginTop: 44, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {selPlants.map((p) => (
@@ -341,7 +332,7 @@ export default function Configurator() {
               <div style={{ flex: '0 0 380px', minWidth: 300, background: C.deep, borderRadius: 18, padding: '32px 34px' }}>
                 <div style={{ fontFamily: C.serif, fontStyle: 'italic', fontSize: 26, color: C.creme }}>Klaar om te groeien?</div>
                 <p style={{ margin: '12px 0 0', fontFamily: C.sans, fontSize: 14, lineHeight: 1.6, color: C.mutLight }}>
-                  Zet je selectie in het winkelmandje en reken af met jouw prijzen, of vraag eerst een offerte met levertermijn en onderhoudsvoorstel.
+                  Zet je selectie in het winkelmandje en reken meteen af met jouw B2B-prijzen.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 24 }}>
                   <span onClick={addToCart} style={{
@@ -350,15 +341,9 @@ export default function Configurator() {
                   }}>
                     <IcoCart size={17} /> {adding ? 'Bezig…' : 'In winkelmandje'}
                   </span>
-                  <span onClick={requestQuote} style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer',
-                    color: C.creme, border: '1.5px solid rgba(255,253,247,.55)', fontFamily: C.sans, fontWeight: 600, fontSize: 14, padding: '12px 22px', borderRadius: 999,
-                  }}>
-                    Vraag offerte aan <IcoArrow size={15} />
-                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18, fontFamily: C.sans, fontSize: 12.5, color: 'rgba(255,253,247,.6)' }}>
-                  <IcoCheck size={14} /> Adviesbezoek wordt verrekend bij bestelling.
+                  <IcoLock size={14} /> Jouw B2B-prijzen verschijnen in het mandje na inloggen.
                 </div>
               </div>
             </div>

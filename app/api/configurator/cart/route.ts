@@ -94,7 +94,7 @@ export async function POST(req: Request) {
 
   if (!parts.length) {
     return NextResponse.json(
-      { error: 'Deze planten staan nog niet in de webshop. Vraag een offerte aan en we zetten ze klaar.', missing },
+      { error: 'Deze planten staan nog niet los in de webshop. Kies een andere combinatie of contacteer ons via de webshop.', missing },
       { status: 422 },
     )
   }
