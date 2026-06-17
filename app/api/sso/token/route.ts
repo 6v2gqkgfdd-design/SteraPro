@@ -81,6 +81,29 @@ function issueToken(email: string): string {
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams
   if (!verifyProxySignature(params)) {
+    // TIJDELIJKE DIAGNOSTIEK — alleen actief met ?__debug=1. Lekt geen secrets:
+    // enkel booleans, lengtes en hash-prefixes. Verwijderen zodra opgelost.
+    if (params.get('__debug') === '1') {
+      const sig = params.get('signature') || ''
+      const keys = [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort()
+      const message = keys.map((k) => `${k}=${params.getAll(k).join(',')}`).join('')
+      const computed = SECRET
+        ? crypto.createHmac('sha256', SECRET).update(message).digest('hex')
+        : ''
+      return NextResponse.json({
+        ok: false,
+        error: 'bad_signature',
+        _debug: {
+          hasProxySecret: !!process.env.SHOPIFY_PROXY_SECRET,
+          hasClientSecret: !!process.env.SHOPIFY_CLIENT_SECRET,
+          secretLen: SECRET.length,
+          signedKeys: keys,
+          receivedSigPrefix: sig.slice(0, 12),
+          computedSigPrefix: computed.slice(0, 12),
+          matches: computed !== '' && computed === sig,
+        },
+      })
+    }
     return NextResponse.json({ ok: false, error: 'bad_signature' }, { status: 401 })
   }
   const cid = params.get('logged_in_customer_id')
