@@ -113,35 +113,6 @@ function issueToken(email: string): string {
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams
   if (!verifyProxySignature(params)) {
-    // TIJDELIJKE DIAGNOSTIEK — alleen actief met ?__debug=1. Lekt geen secrets:
-    // enkel booleans, lengtes en hash-prefixes. Verwijderen zodra opgelost.
-    if (params.get('__debug') === '1') {
-      const sig = params.get('signature') || ''
-      const variants: Record<string, string> = {
-        asReceived: buildProxyMessage(params),
-        withEmptyLcid: buildProxyMessage(params, { logged_in_customer_id: '' }),
-      }
-      const proxyS = process.env.SHOPIFY_PROXY_SECRET
-      const clientS = process.env.SHOPIFY_CLIENT_SECRET
-      const test = (s?: string) =>
-        s
-          ? Object.fromEntries(
-              Object.entries(variants).map(([n, m]) => [
-                n,
-                crypto.createHmac('sha256', s).update(m).digest('hex') === sig,
-              ])
-            )
-          : null
-      return NextResponse.json({
-        ok: false,
-        error: 'bad_signature',
-        _debug: {
-          signedKeys: [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort(),
-          proxySecret: { present: !!proxyS, len: (proxyS || '').length, matches: test(proxyS) },
-          clientSecret: { present: !!clientS, len: (clientS || '').length, matches: test(clientS) },
-        },
-      })
-    }
     return NextResponse.json({ ok: false, error: 'bad_signature' }, { status: 401 })
   }
   const cid = params.get('logged_in_customer_id')
