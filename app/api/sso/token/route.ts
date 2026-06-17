@@ -14,10 +14,15 @@ import crypto from 'crypto'
 
 export const runtime = 'nodejs'
 
-const SECRET = process.env.SHOPIFY_PROXY_SECRET || ''
+// De Shopify App Proxy ondertekent met het app-client-secret. Deze code las
+// eerder SHOPIFY_PROXY_SECRET / SHOPIFY_PROXY_CLIENT_ID, maar die bestaan niet:
+// in .env.local (en op Vercel) heten ze SHOPIFY_CLIENT_SECRET / SHOPIFY_CLIENT_ID.
+// Daardoor was SECRET leeg en faalde élke handtekening met "bad_signature".
+// We accepteren nu beide namen, zodat het werkt ongeacht de omgeving.
+const SECRET = process.env.SHOPIFY_PROXY_SECRET || process.env.SHOPIFY_CLIENT_SECRET || ''
 const SHOP = process.env.SHOPIFY_STORE_DOMAIN
-const CLIENT_ID = process.env.SHOPIFY_PROXY_CLIENT_ID
-const CLIENT_SECRET = process.env.SHOPIFY_PROXY_SECRET
+const CLIENT_ID = process.env.SHOPIFY_PROXY_CLIENT_ID || process.env.SHOPIFY_CLIENT_ID
+const CLIENT_SECRET = process.env.SHOPIFY_PROXY_SECRET || process.env.SHOPIFY_CLIENT_SECRET
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-04'
 
 // Shopify App Proxy-handtekening: alle query-params behalve "signature",
