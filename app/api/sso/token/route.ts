@@ -28,17 +28,31 @@ const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-04'
 // Shopify App Proxy-handtekening: alle query-params behalve "signature",
 // alfabetisch gesorteerd, als key=value (arrays met komma's), zonder
 // scheidingsteken aan elkaar, HMAC-SHA256 met het app-secret (hex).
+// Kandidaat-secrets: zowel SHOPIFY_PROXY_SECRET als SHOPIFY_CLIENT_SECRET kunnen
+// gezet zijn (met mogelijk verschillende waarden). We accepteren de handtekening
+// als één van beide klopt, zodat we niet afhangen van de juiste env-naam.
+function proxySecretCandidates(): string[] {
+  return [process.env.SHOPIFY_PROXY_SECRET, process.env.SHOPIFY_CLIENT_SECRET].filter(
+    (s): s is string => !!s
+  )
+}
+
 function verifyProxySignature(params: URLSearchParams): boolean {
   const sig = params.get('signature')
-  if (!sig || !SECRET) return false
+  if (!sig) return false
   const keys = [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort()
   const message = keys.map((k) => `${k}=${params.getAll(k).join(',')}`).join('')
-  const digest = crypto.createHmac('sha256', SECRET).update(message).digest('hex')
-  try {
-    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(sig))
-  } catch {
-    return false
+  for (const secret of proxySecretCandidates()) {
+    const digest = crypto.createHmac('sha256', secret).update(message).digest('hex')
+    try {
+      if (digest.length === sig.length && crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(sig))) {
+        return true
+      }
+    } catch {
+      // lengte-mismatch e.d. — probeer volgende kandidaat
+    }
   }
+  return false
 }
 
 async function fetchCustomerEmail(customerId: string): Promise<string | null> {
@@ -87,20 +101,21 @@ export async function GET(req: NextRequest) {
       const sig = params.get('signature') || ''
       const keys = [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort()
       const message = keys.map((k) => `${k}=${params.getAll(k).join(',')}`).join('')
-      const computed = SECRET
-        ? crypto.createHmac('sha256', SECRET).update(message).digest('hex')
-        : ''
+      const tryHmac = (s?: string) =>
+        s ? crypto.createHmac('sha256', s).update(message).digest('hex') : ''
+      const proxyS = process.env.SHOPIFY_PROXY_SECRET
+      const clientS = process.env.SHOPIFY_CLIENT_SECRET
+      const cProxy = tryHmac(proxyS)
+      const cClient = tryHmac(clientS)
       return NextResponse.json({
         ok: false,
         error: 'bad_signature',
         _debug: {
-          hasProxySecret: !!process.env.SHOPIFY_PROXY_SECRET,
-          hasClientSecret: !!process.env.SHOPIFY_CLIENT_SECRET,
-          secretLen: SECRET.length,
           signedKeys: keys,
           receivedSigPrefix: sig.slice(0, 12),
-          computedSigPrefix: computed.slice(0, 12),
-          matches: computed !== '' && computed === sig,
+          proxySecret: { present: !!proxyS, len: (proxyS || '').length, matches: cProxy !== '' && cProxy === sig },
+          clientSecret: { present: !!clientS, len: (clientS || '').length, matches: cClient !== '' && cClient === sig },
+          secretsIdentical: !!proxyS && proxyS === clientS,
         },
       })
     }
