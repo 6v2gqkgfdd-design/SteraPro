@@ -35,9 +35,12 @@ export async function middleware(req: NextRequest) {
   // intern (géén redirect, query blijft behouden) naar de canonieke route, zodat
   // de handler 200 JSON teruggeeft die de proxy aan de browser doorgeeft.
   if (path === '/api/sso/token/') {
-    const url = req.nextUrl.clone()
-    url.pathname = '/api/sso/token'
-    return NextResponse.rewrite(url)
+    // Bewaar de RUWE querystring (incl. lege params zoals logged_in_customer_id=).
+    // NextURL.clone() laat lege params vallen, en die zijn nét nodig om de
+    // Shopify-handtekening te kunnen verifiëren.
+    const dest = new URL(req.url)
+    dest.pathname = '/api/sso/token'
+    return NextResponse.rewrite(dest)
   }
 
   const supabase = createServerClient(

@@ -37,19 +37,37 @@ function proxySecretCandidates(): string[] {
   )
 }
 
+// Bouwt het te ondertekenen bericht: alle params behalve "signature",
+// alfabetisch gesorteerd, als key=value zonder scheidingsteken (arrays met
+// komma's). Met `extra` kun je ontbrekende params toevoegen (zie hieronder).
+function buildProxyMessage(params: URLSearchParams, extra?: Record<string, string>): string {
+  const merged = new URLSearchParams(params)
+  if (extra) for (const [k, v] of Object.entries(extra)) if (!merged.has(k)) merged.set(k, v)
+  const keys = [...new Set([...merged.keys()])].filter((k) => k !== 'signature').sort()
+  return keys.map((k) => `${k}=${merged.getAll(k).join(',')}`).join('')
+}
+
 function verifyProxySignature(params: URLSearchParams): boolean {
   const sig = params.get('signature')
   if (!sig) return false
-  const keys = [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort()
-  const message = keys.map((k) => `${k}=${params.getAll(k).join(',')}`).join('')
+  // Shopify ondertekent álle proxy-params, inclusief een LEEG
+  // logged_in_customer_id wanneer niemand is ingelogd. Onze trailing-slash
+  // rewrite kan zo'n lege param laten vallen, waardoor het bericht niet meer
+  // overeenkomt. Daarom verifiëren we ook de variant mét logged_in_customer_id=.
+  const messages = [buildProxyMessage(params)]
+  if (!params.has('logged_in_customer_id')) {
+    messages.push(buildProxyMessage(params, { logged_in_customer_id: '' }))
+  }
   for (const secret of proxySecretCandidates()) {
-    const digest = crypto.createHmac('sha256', secret).update(message).digest('hex')
-    try {
-      if (digest.length === sig.length && crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(sig))) {
-        return true
+    for (const message of messages) {
+      const digest = crypto.createHmac('sha256', secret).update(message).digest('hex')
+      try {
+        if (digest.length === sig.length && crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(sig))) {
+          return true
+        }
+      } catch {
+        // lengte-mismatch e.d. — probeer volgende
       }
-    } catch {
-      // lengte-mismatch e.d. — probeer volgende kandidaat
     }
   }
   return false
@@ -99,23 +117,28 @@ export async function GET(req: NextRequest) {
     // enkel booleans, lengtes en hash-prefixes. Verwijderen zodra opgelost.
     if (params.get('__debug') === '1') {
       const sig = params.get('signature') || ''
-      const keys = [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort()
-      const message = keys.map((k) => `${k}=${params.getAll(k).join(',')}`).join('')
-      const tryHmac = (s?: string) =>
-        s ? crypto.createHmac('sha256', s).update(message).digest('hex') : ''
+      const variants: Record<string, string> = {
+        asReceived: buildProxyMessage(params),
+        withEmptyLcid: buildProxyMessage(params, { logged_in_customer_id: '' }),
+      }
       const proxyS = process.env.SHOPIFY_PROXY_SECRET
       const clientS = process.env.SHOPIFY_CLIENT_SECRET
-      const cProxy = tryHmac(proxyS)
-      const cClient = tryHmac(clientS)
+      const test = (s?: string) =>
+        s
+          ? Object.fromEntries(
+              Object.entries(variants).map(([n, m]) => [
+                n,
+                crypto.createHmac('sha256', s).update(m).digest('hex') === sig,
+              ])
+            )
+          : null
       return NextResponse.json({
         ok: false,
         error: 'bad_signature',
         _debug: {
-          signedKeys: keys,
-          receivedSigPrefix: sig.slice(0, 12),
-          proxySecret: { present: !!proxyS, len: (proxyS || '').length, matches: cProxy !== '' && cProxy === sig },
-          clientSecret: { present: !!clientS, len: (clientS || '').length, matches: cClient !== '' && cClient === sig },
-          secretsIdentical: !!proxyS && proxyS === clientS,
+          signedKeys: [...new Set([...params.keys()])].filter((k) => k !== 'signature').sort(),
+          proxySecret: { present: !!proxyS, len: (proxyS || '').length, matches: test(proxyS) },
+          clientSecret: { present: !!clientS, len: (clientS || '').length, matches: test(clientS) },
         },
       })
     }
