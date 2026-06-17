@@ -28,6 +28,18 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const path = req.nextUrl.pathname
 
+  // Shopify App Proxy stuurt /apps/mijn door naar deze route MÉT trailing slash
+  // (/api/sso/token/). Met `skipTrailingSlashRedirect` (next.config.ts) doet
+  // Next.js daar geen 308-redirect meer op — die lekte via de proxy naar
+  // sterapro.be/api/sso/token en gaf een 404. We rewriten de slash-versie hier
+  // intern (géén redirect, query blijft behouden) naar de canonieke route, zodat
+  // de handler 200 JSON teruggeeft die de proxy aan de browser doorgeeft.
+  if (path === '/api/sso/token/') {
+    const url = req.nextUrl.clone()
+    url.pathname = '/api/sso/token'
+    return NextResponse.rewrite(url)
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
