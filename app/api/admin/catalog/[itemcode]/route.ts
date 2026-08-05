@@ -37,23 +37,31 @@ export async function GET(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!p) return NextResponse.json({ error: 'Niet gevonden' }, { status: 404 })
 
-  const [{ data: stock }, { data: offeredRow }, { data: margin }] = await Promise.all([
-    supabase
-      .from('nieuwkoop_stock')
-      .select('stock_available, first_available')
-      .eq('itemcode', itemcode)
-      .maybeSingle(),
-    supabase
-      .from('shopify_offered_items')
-      .select('offered, updated_at')
-      .eq('itemcode', itemcode)
-      .maybeSingle(),
-    supabase
-      .from('v_nieuwkoop_with_margin')
-      .select('suggested_sale_price, effective_margin_factor, cost_price')
-      .eq('itemcode', itemcode)
-      .maybeSingle(),
-  ])
+  const [{ data: stock }, { data: offeredRow }, { data: margin }, { data: itemMargin }] =
+    await Promise.all([
+      supabase
+        .from('nieuwkoop_stock')
+        .select('stock_available, first_available')
+        .eq('itemcode', itemcode)
+        .maybeSingle(),
+      supabase
+        .from('shopify_offered_items')
+        .select('offered, updated_at')
+        .eq('itemcode', itemcode)
+        .maybeSingle(),
+      supabase
+        .from('v_nieuwkoop_with_margin')
+        .select('effective_margin_factor, cost_price')
+        .eq('itemcode', itemcode)
+        .maybeSingle(),
+      // Item-specifieke override (indien gezet)
+      supabase
+        .from('margin_config')
+        .select('margin_factor')
+        .eq('scope', 'item')
+        .eq('scope_value', itemcode)
+        .maybeSingle(),
+    ])
 
   const tags = p.tags
   const locations = tagValues(tags, 'Location')
@@ -72,8 +80,12 @@ export async function GET(
       description: p.description || p.itemcode,
       detail: p.item_description_nl,
       costPrice: margin?.cost_price ?? p.sales_price,
-      salePrice: margin?.suggested_sale_price ?? null,
       marginFactor: margin?.effective_margin_factor ?? null,
+      /** true = er staat een item-override in margin_config */
+      marginIsCustom: itemMargin?.margin_factor != null,
+      /** Item-override factor (null = volgt groep/default) */
+      itemMarginFactor:
+        itemMargin?.margin_factor != null ? Number(itemMargin.margin_factor) : null,
       mainGroup: p.main_group_description_nl,
       productGroup: p.product_group_description_nl,
       group: p.group_description_nl,

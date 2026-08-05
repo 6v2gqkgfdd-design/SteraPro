@@ -5,16 +5,17 @@
  * Geen navigatie — parent houdt filters/pagina vast.
  */
 
-import { useEffect, useState, useTransition } from 'react'
-import { setItemOffered } from './actions'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { setItemMarginFactor, setItemOffered } from './actions'
 
 export type DetailItem = {
   itemcode: string
   description: string
   detail?: string | null
   costPrice?: number | null
-  salePrice?: number | null
   marginFactor?: number | null
+  marginIsCustom?: boolean
+  itemMarginFactor?: number | null
   mainGroup?: string | null
   productGroup?: string | null
   group?: string | null
@@ -71,19 +72,26 @@ type Props = {
 export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange }: Props) {
   const [item, setItem] = useState<DetailItem | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [marginMsg, setMarginMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [pending, startTransition] = useTransition()
+  const [marginDraft, setMarginDraft] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setMarginMsg(null)
     setItem(null)
     fetch(`/api/admin/catalog/${encodeURIComponent(itemcode)}`)
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok || data.error) throw new Error(data.error || 'Laden mislukt')
-        if (!cancelled) setItem(data.item)
+        if (!cancelled) {
+          setItem(data.item)
+          const f = data.item?.marginFactor
+          setMarginDraft(f != null && Number.isFinite(Number(f)) ? String(Number(f)) : '2')
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Laden mislukt')
@@ -112,6 +120,16 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
     }
   }, [])
 
+  const draftFactor = useMemo(() => {
+    const n = Number(String(marginDraft).replace(',', '.'))
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [marginDraft])
+
+  const previewSale = useMemo(() => {
+    if (!item?.costPrice || draftFactor == null) return null
+    return Math.round(Number(item.costPrice) * draftFactor * 100) / 100
+  }, [item?.costPrice, draftFactor])
+
   function toggleOffer() {
     if (!item) return
     const next = !item.offered
@@ -127,9 +145,59 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
     })
   }
 
+  function saveMargin() {
+    if (!item || draftFactor == null) {
+      setMarginMsg('Vul een geldige factor in (bv. 2 of 2,5).')
+      return
+    }
+    setMarginMsg(null)
+    startTransition(async () => {
+      const res = await setItemMarginFactor(item.itemcode, draftFactor)
+      if (!res.ok) {
+        setMarginMsg(res.error)
+        return
+      }
+      setItem({
+        ...item,
+        marginFactor: draftFactor,
+        marginIsCustom: true,
+        itemMarginFactor: draftFactor,
+      })
+      setMarginMsg(`Marge opgeslagen: ${draftFactor}× (item-override).`)
+    })
+  }
+
+  function resetMargin() {
+    if (!item) return
+    setMarginMsg(null)
+    startTransition(async () => {
+      const res = await setItemMarginFactor(item.itemcode, null)
+      if (!res.ok) {
+        setMarginMsg(res.error)
+        return
+      }
+      // Herlaad effectieve factor (groep/default)
+      try {
+        const r = await fetch(`/api/admin/catalog/${encodeURIComponent(item.itemcode)}`)
+        const data = await r.json()
+        if (data.item) {
+          setItem(data.item)
+          const f = data.item.marginFactor
+          setMarginDraft(f != null ? String(Number(f)) : '2')
+        }
+      } catch {
+        /* ignore */
+      }
+      setMarginMsg('Item-marge gewist — opnieuw groep/default.')
+    })
+  }
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true">
-      {/* Dim overlay — klik sluit popup */}
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
@@ -137,7 +205,6 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
         onClick={onClose}
       />
 
-      {/* Gecentreerde popup */}
       <div className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-stera-line bg-stera-cream shadow-2xl">
         <header className="flex shrink-0 items-center gap-3 border-b border-stera-line bg-white/80 px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -182,7 +249,7 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                     {item.description}
                   </h2>
                   {item.detail ? (
-                    <p className="text-sm leading-relaxed text-stera-ink-soft line-clamp-4">
+                    <p className="line-clamp-4 text-sm leading-relaxed text-stera-ink-soft">
                       {item.detail}
                     </p>
                   ) : null}
@@ -222,13 +289,9 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
 
               <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
-                  Prijzen & voorraad
+                  Prijs & marge
                 </h3>
-                <Row label="Inkoop">{euro(item.costPrice)}</Row>
-                <Row label="Advies verkoop (excl.)">{euro(item.salePrice)}</Row>
-                <Row label="Margefactor">
-                  {item.marginFactor != null ? `${Number(item.marginFactor).toFixed(2)}×` : '—'}
-                </Row>
+                <Row label="Inkoop (Nieuwkoop)">{euro(item.costPrice)}</Row>
                 <Row label="Voorraad">
                   {item.stock != null
                     ? item.stock > 0
@@ -239,6 +302,63 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                 <Row label="Levertijd">
                   {item.deliveryDays != null ? `${item.deliveryDays} dagen` : '—'}
                 </Row>
+
+                <div className="mt-3 space-y-2 border-t border-stera-line/60 pt-3">
+                  <label className="block text-xs font-semibold text-stera-ink">
+                    Margefactor
+                    {item.marginIsCustom ? (
+                      <span className="ml-1.5 font-normal text-stera-green">(item-override)</span>
+                    ) : (
+                      <span className="ml-1.5 font-normal text-stera-ink-soft">
+                        (groep/default)
+                      </span>
+                    )}
+                  </label>
+                  <p className="text-[11px] text-stera-ink-soft">
+                    2 = 100% opslag (inkoop × 2). Verkoopprijs in Shopify = inkoop × factor
+                    (excl. btw).
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={marginDraft}
+                      onChange={(e) => setMarginDraft(e.target.value)}
+                      className="w-28 rounded-lg border border-stera-line bg-stera-cream px-3 py-2 text-sm font-mono"
+                      aria-label="Margefactor"
+                    />
+                    <span className="text-sm text-stera-ink-soft">×</span>
+                    <button
+                      type="button"
+                      onClick={saveMargin}
+                      disabled={pending || draftFactor == null}
+                      className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+                    >
+                      Opslaan
+                    </button>
+                    {item.marginIsCustom ? (
+                      <button
+                        type="button"
+                        onClick={resetMargin}
+                        disabled={pending}
+                        className="stera-cta stera-cta-secondary text-sm disabled:opacity-50"
+                      >
+                        Reset naar default
+                      </button>
+                    ) : null}
+                  </div>
+                  {previewSale != null ? (
+                    <p className="text-xs text-stera-ink-soft">
+                      Rekenvoorbeeld:{' '}
+                      <strong className="text-stera-ink">
+                        {euro(item.costPrice)} × {draftFactor} = {euro(previewSale)} excl. btw
+                      </strong>
+                    </p>
+                  ) : null}
+                  {marginMsg ? (
+                    <p className="text-xs text-stera-green">{marginMsg}</p>
+                  ) : null}
+                </div>
               </section>
 
               <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">

@@ -127,3 +127,70 @@ export async function acknowledgeAllOpen(changeType?: string): Promise<Result> {
   revalidatePath('/admin/catalogus')
   return { ok: true }
 }
+
+/**
+ * Zet of wist de margefactor op item-niveau (scope = item).
+ * factor = null → item-override verwijderen (terug naar groep/default).
+ * factor > 0 → upsert in margin_config.
+ */
+export async function setItemMarginFactor(
+  itemcode: string,
+  factor: number | null
+): Promise<Result & { marginFactor?: number | null }> {
+  const { supabase, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  if (!itemcode?.trim()) return { ok: false, error: 'Geen itemcode' }
+
+  const code = itemcode.trim()
+
+  // Wissen: item-override weg
+  if (factor == null) {
+    const { error } = await supabase
+      .from('margin_config')
+      .delete()
+      .eq('scope', 'item')
+      .eq('scope_value', code)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/admin/catalogus')
+    return { ok: true, marginFactor: null }
+  }
+
+  const f = Number(factor)
+  if (!Number.isFinite(f) || f <= 0) {
+    return { ok: false, error: 'Margefactor moet groter zijn dan 0 (bv. 2 = 100% opslag).' }
+  }
+  if (f > 50) {
+    return { ok: false, error: 'Margefactor lijkt te hoog (max. 50).' }
+  }
+
+  // Bestaande item-rij?
+  const { data: existing } = await supabase
+    .from('margin_config')
+    .select('id')
+    .eq('scope', 'item')
+    .eq('scope_value', code)
+    .maybeSingle()
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('margin_config')
+      .update({
+        margin_factor: f,
+        description: `Item-marge ${code}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id)
+    if (error) return { ok: false, error: error.message }
+  } else {
+    const { error } = await supabase.from('margin_config').insert({
+      scope: 'item',
+      scope_value: code,
+      margin_factor: f,
+      description: `Item-marge ${code}`,
+    })
+    if (error) return { ok: false, error: error.message }
+  }
+
+  revalidatePath('/admin/catalogus')
+  return { ok: true, marginFactor: f }
+}
