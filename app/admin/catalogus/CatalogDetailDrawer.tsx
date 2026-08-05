@@ -60,6 +60,53 @@ const cm = (n: number | null | undefined) =>
     ? '—'
     : `${Math.round(Number(n))} cm`
 
+/** Nieuwkoop Temperature-tag: min. °C (vaak 15 of -20). */
+function formatTemps(vals: string[] | undefined): string {
+  if (!vals?.length) return '—'
+  return vals
+    .map((raw) => {
+      const s = String(raw).trim()
+      if (!s) return null
+      // Al eenheid? niet dubbel plakken
+      if (/°\s*c/i.test(s) || /celsius/i.test(s)) return s
+      const n = Number(s.replace(/[^\d.-]/g, ''))
+      if (Number.isFinite(n)) return `min. ${n} °C`
+      return `${s} °C`
+    })
+    .filter(Boolean)
+    .join(', ')
+}
+
+const LIGHT_WORDS: Record<string, string> = {
+  '500': 'Weinig licht',
+  '750': 'Halfschaduw',
+  '1000': 'Veel licht',
+  '1500': 'Volle zon',
+}
+
+/** Nieuwkoop LocationLight: lux-waarden → leesbaar + eenheid. */
+function formatLights(vals: string[] | undefined): string {
+  if (!vals?.length) return '—'
+  return vals
+    .map((raw) => {
+      const s = String(raw).trim()
+      if (!s) return null
+      if (/lux/i.test(s)) return s
+      // "> 1000" e.d.
+      const m = s.match(/^([<>]=?)?\s*(\d+)/)
+      if (m) {
+        const op = m[1] || ''
+        const n = m[2]
+        const word = LIGHT_WORDS[n]
+        const lux = op ? `${op}${n} lux` : `${n} lux`
+        return word ? `${word} (${lux})` : lux
+      }
+      return s
+    })
+    .filter(Boolean)
+    .join(', ')
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-stera-line/50 py-1.5 last:border-0">
@@ -554,10 +601,8 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                   {item.materials?.length ? item.materials.join(', ') : '—'}
                 </Row>
                 <Row label="Vorm">{item.shapes?.length ? item.shapes.join(', ') : '—'}</Row>
-                <Row label="Licht">{item.light?.length ? item.light.join(', ') : '—'}</Row>
-                <Row label="Temperatuur">
-                  {item.temperature?.length ? item.temperature.join(', ') : '—'}
-                </Row>
+                <Row label="Lichtbehoefte">{formatLights(item.light)}</Row>
+                <Row label="Temperatuur">{formatTemps(item.temperature)}</Row>
               </section>
             </div>
           ) : null}
