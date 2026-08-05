@@ -17,11 +17,7 @@ import {
   type LocationLabel,
   type LocationSource,
 } from '@/lib/location'
-import {
-  catalogThumbUrl,
-  originalImageApiUrl,
-  studioImageApiUrl,
-} from '@/lib/product-media'
+import { originalImageApiUrl, studioImageApiUrl } from '@/lib/product-media'
 
 export type DetailItem = {
   itemcode: string
