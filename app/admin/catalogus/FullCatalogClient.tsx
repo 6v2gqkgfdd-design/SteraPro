@@ -58,8 +58,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'new', label: 'Nieuw / wijzigingen' },
   { id: 'all', label: 'Hele catalogus' },
   { id: 'offered', label: 'Aangeboden' },
-  { id: 'oos', label: 'Uit voorraad' },
-  { id: 'discontinued', label: 'Verdwenen' },
 ]
 
 const CHANGE_LABEL: Record<string, string> = {
@@ -130,14 +128,9 @@ function loadSavedState(): {
       page?: number
       scroll?: number
     }
+    // Oude tabs (oos/discontinued) vallen terug op hele catalogus
     const tab: Tab =
-      s.tab === 'new' ||
-      s.tab === 'offered' ||
-      s.tab === 'oos' ||
-      s.tab === 'discontinued' ||
-      s.tab === 'all'
-        ? s.tab
-        : 'all'
+      s.tab === 'new' || s.tab === 'offered' || s.tab === 'all' ? s.tab : 'all'
     return {
       tab,
       filters: { ...EMPTY_FILTERS, ...(s.filters || {}) },
@@ -289,8 +282,8 @@ export default function FullCatalogClient() {
   function changeTab(t: Tab) {
     setTab(t)
     setPage(1)
+    // Tab "Aangeboden" filtert al op offered — dropdown niet dubbel zetten
     if (t === 'offered') setFilters((f) => ({ ...f, offered: '' }))
-    if (t === 'oos') setFilters((f) => ({ ...f, stock: '' }))
   }
 
   /** Popup openen — geen route-wijziging, filters blijven in state. */
