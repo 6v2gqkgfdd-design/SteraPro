@@ -94,6 +94,32 @@ export async function acknowledgeAllOpen(changeType?: string): Promise<Result> {
  * factor = null → item-override verwijderen (terug naar groep/default).
  * factor > 0 → upsert in margin_config.
  */
+/** Markeer product als afgewerkt/geoptimaliseerd (foto + data klaar). */
+export async function setItemOptimized(
+  itemcode: string,
+  optimized: boolean
+): Promise<Result> {
+  const { supabase, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  const code = itemcode?.trim()
+  if (!code) return { ok: false, error: 'Geen itemcode' }
+
+  const now = new Date().toISOString()
+  const { error } = await supabase.from('product_enrichment').upsert(
+    {
+      itemcode: code,
+      optimized,
+      // ready_for_shopify blijft in sync met optimized
+      ready_for_shopify: optimized,
+      updated_at: now,
+    },
+    { onConflict: 'itemcode' }
+  )
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/catalogus')
+  return { ok: true }
+}
+
 /**
  * Handmatige standplaats op product_enrichment.
  * binnen/buiten: true/false; beide false = wissen van manuele locatie.

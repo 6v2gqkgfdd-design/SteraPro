@@ -6,12 +6,22 @@
  */
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { setItemLocation, setItemMarginFactor, setItemOffered } from './actions'
+import {
+  setItemLocation,
+  setItemMarginFactor,
+  setItemOffered,
+  setItemOptimized,
+} from './actions'
 import {
   locationAppliesToType,
   type LocationLabel,
   type LocationSource,
 } from '@/lib/location'
+import {
+  catalogThumbUrl,
+  originalImageApiUrl,
+  studioImageApiUrl,
+} from '@/lib/product-media'
 
 export type DetailItem = {
   itemcode: string
@@ -54,6 +64,9 @@ export type DetailItem = {
   light?: string[]
   temperature?: string[]
   itemStatus?: string | null
+  optimized?: boolean
+  hasStudioImage?: boolean
+  studioImagePath?: string | null
 }
 
 const euro = (n: number | null | undefined) =>
@@ -136,6 +149,9 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
   const [marginDraft, setMarginDraft] = useState('')
   const [locBinnen, setLocBinnen] = useState(false)
   const [locBuiten, setLocBuiten] = useState(false)
+  const [mediaMsg, setMediaMsg] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [imgTick, setImgTick] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -143,6 +159,7 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
     setError(null)
     setMarginMsg(null)
     setLocMsg(null)
+    setMediaMsg(null)
     setItem(null)
     fetch(`/api/admin/catalog/${encodeURIComponent(itemcode)}`)
       .then(async (res) => {
@@ -218,6 +235,70 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
         setError(res.error)
       }
     })
+  }
+
+  function toggleOptimized() {
+    if (!item) return
+    const next = !item.optimized
+    setItem({ ...item, optimized: next })
+    setMediaMsg(null)
+    startTransition(async () => {
+      const res = await setItemOptimized(item.itemcode, next)
+      if (!res.ok) {
+        setItem({ ...item, optimized: !next })
+        setMediaMsg(res.error)
+      } else {
+        setMediaMsg(next ? 'Gemarkeerd als afgewerkt ✓' : 'Afgewerkt-status verwijderd.')
+      }
+    })
+  }
+
+  async function onStudioUpload(file: File | null) {
+    if (!item || !file) return
+    setUploading(true)
+    setMediaMsg(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(
+        `/api/product-media/${encodeURIComponent(item.itemcode)}`,
+        { method: 'POST', body: fd }
+      )
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Upload mislukt')
+      setItem({
+        ...item,
+        hasStudioImage: true,
+        studioImagePath: data.path,
+      })
+      setImgTick((t) => t + 1)
+      setMediaMsg('Studiofoto opgeslagen — thumbnail gebruikt nu studio.')
+    } catch (e) {
+      setMediaMsg(e instanceof Error ? e.message : 'Upload mislukt')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function removeStudio() {
+    if (!item) return
+    setUploading(true)
+    setMediaMsg(null)
+    try {
+      const res = await fetch(
+        `/api/product-media/${encodeURIComponent(item.itemcode)}`,
+        { method: 'DELETE' }
+      )
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Verwijderen mislukt')
+      setItem({ ...item, hasStudioImage: false, studioImagePath: null })
+      setImgTick((t) => t + 1)
+      setMediaMsg('Studiofoto verwijderd — thumbnail = Nieuwkoop-origineel.')
+    } catch (e) {
+      setMediaMsg(e instanceof Error ? e.message : 'Verwijderen mislukt')
+    } finally {
+      setUploading(false)
+    }
   }
 
   function saveMargin() {
@@ -337,18 +418,18 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
           ) : item ? (
             <div className="space-y-4">
               <div className="flex gap-4">
-                {item.imageItemcode ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/nieuwkoop/image/${encodeURIComponent(item.imageItemcode)}`}
-                    alt=""
-                    className="h-32 w-32 shrink-0 rounded-xl object-cover shadow-sm sm:h-40 sm:w-40"
-                  />
-                ) : (
-                  <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-xl border border-dashed border-stera-line text-xs text-stera-ink-soft sm:h-40 sm:w-40">
-                    geen foto
-                  </div>
-                )}
+                {/* Primary = studio indien aanwezig, anders NK */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={
+                    (item.hasStudioImage
+                      ? studioImageApiUrl(item.itemcode)
+                      : originalImageApiUrl(item.itemcode)) +
+                    (item.hasStudioImage ? `&t=${imgTick}` : `?t=${imgTick}`)
+                  }
+                  alt=""
+                  className="h-32 w-32 shrink-0 rounded-xl object-cover shadow-sm sm:h-40 sm:w-40 bg-white"
+                />
                 <div className="min-w-0 flex-1 space-y-2">
                   <h2 className="text-base font-semibold leading-snug text-stera-ink sm:text-lg">
                     {item.description}
@@ -359,6 +440,20 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-1.5">
+                    {item.optimized ? (
+                      <span className="rounded-full bg-stera-green/15 px-2 py-0.5 text-[10px] font-semibold text-stera-green">
+                        Afgewerkt
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Niet afgewerkt
+                      </span>
+                    )}
+                    {item.hasStudioImage ? (
+                      <span className="rounded-full border border-stera-green/30 px-2 py-0.5 text-[10px] text-stera-green">
+                        Studiofoto
+                      </span>
+                    ) : null}
                     {item.stock != null && item.stock <= 0 ? (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                         Op bestelling
@@ -376,6 +471,91 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                   </div>
                 </div>
               </div>
+
+              {/* Foto's: studio + origineel */}
+              <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                  Foto&apos;s
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">
+                      Studio (Stera)
+                      {item.hasStudioImage ? (
+                        <span className="ml-1 font-normal text-stera-green">· thumbnail</span>
+                      ) : (
+                        <span className="ml-1 font-normal text-stera-ink-soft">· nog niet</span>
+                      )}
+                    </p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        item.hasStudioImage
+                          ? `${studioImageApiUrl(item.itemcode)}&t=${imgTick}`
+                          : 'data:image/svg+xml,' +
+                            encodeURIComponent(
+                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="12" font-family="system-ui">geen studio</text></svg>`
+                            )
+                      }
+                      alt="Studio"
+                      className="aspect-square w-full rounded-lg object-cover border border-stera-line bg-stera-cream"
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">
+                      Origineel (Nieuwkoop)
+                    </p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={originalImageApiUrl(item.itemcode)}
+                      alt="Nieuwkoop origineel"
+                      className="aspect-square w-full rounded-lg object-cover border border-stera-line bg-stera-cream"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <label className="stera-cta stera-cta-secondary cursor-pointer text-sm">
+                    {uploading ? 'Bezig…' : 'Studiofoto uploaden'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={uploading || pending}
+                      onChange={(e) => onStudioUpload(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {item.hasStudioImage ? (
+                    <button
+                      type="button"
+                      onClick={removeStudio}
+                      disabled={uploading || pending}
+                      className="stera-cta stera-cta-secondary text-sm disabled:opacity-50"
+                    >
+                      Studio verwijderen
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-[11px] text-stera-ink-soft">
+                  Origineel blijft altijd bewaard in de database/cache. Studio wordt de
+                  catalogus-thumbnail en (later) de Shopify-hoofdfoto.
+                </p>
+                {mediaMsg ? <p className="mt-1 text-xs text-stera-green">{mediaMsg}</p> : null}
+              </section>
+
+              <button
+                type="button"
+                onClick={toggleOptimized}
+                disabled={pending}
+                className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${
+                  item.optimized
+                    ? 'bg-stera-green text-white'
+                    : 'border-2 border-dashed border-stera-green/40 bg-white text-stera-ink'
+                }`}
+              >
+                {item.optimized
+                  ? '✓ Afgewerkt & geoptimaliseerd — klik om terug te zetten'
+                  : 'Markeer als afgewerkt & geoptimaliseerd'}
+              </button>
 
               <button
                 type="button"

@@ -33,6 +33,7 @@ export async function GET(request: Request) {
   const heightBand = (url.searchParams.get('height') || '').trim()
   const brand = (url.searchParams.get('brand') || '').trim()
   const plantsoort = (url.searchParams.get('plantsoort') || '').trim()
+  const optimized = (url.searchParams.get('optimized') || '').trim()
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
 
   // --- Tab Nieuw: open change-events (aparte query) ---
@@ -140,6 +141,7 @@ export async function GET(request: Request) {
     p_q: q || null,
     p_page: page,
     p_page_size: PAGE_SIZE,
+    p_optimized: optimized || null,
   })
 
   if (error) {

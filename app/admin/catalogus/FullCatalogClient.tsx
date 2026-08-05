@@ -13,11 +13,13 @@ import {
   CATALOG_TYPES,
   HEIGHT_BANDS,
   OFFERED_OPTIONS,
+  OPTIMIZED_OPTIONS,
   PHOTO_OPTIONS,
   PRICE_BANDS,
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
 import { LOCATION_FILTER_OPTIONS, locationAppliesToType } from '@/lib/location'
+import { catalogThumbUrl } from '@/lib/product-media'
 
 /** Lokale opslag zodat filters/pagina overleven bij re-render of per ongeluk refresh. */
 const STATE_KEY = 'stera-admin-catalog-v1'
@@ -52,6 +54,9 @@ type CatalogItem = {
   locationRelevant?: boolean
   plantsoort?: string | null
   readyForShopify?: boolean
+  optimized?: boolean
+  hasStudioImage?: boolean
+  studioImagePath?: string | null
   changeId?: string
   changeType?: string
   summary?: string
@@ -101,6 +106,7 @@ type Filters = {
   height: string
   brand: string
   plantsoort: string
+  optimized: string
 }
 
 const EMPTY_FILTERS: Filters = {
@@ -114,6 +120,7 @@ const EMPTY_FILTERS: Filters = {
   height: '',
   brand: '',
   plantsoort: '',
+  optimized: '',
 }
 
 function loadSavedState(): {
@@ -222,6 +229,7 @@ export default function FullCatalogClient() {
         height: filters.height,
         brand: filters.brand,
         plantsoort: filters.plantsoort,
+        optimized: filters.optimized,
       })
       const res = await fetch(`/api/admin/catalog?${params}`)
       const data = await res.json()
@@ -602,6 +610,18 @@ export default function FullCatalogClient() {
               </select>
 
               <select
+                value={filters.optimized}
+                onChange={(e) => setFilter('optimized', e.target.value)}
+                className={selectClass}
+              >
+                {OPTIMIZED_OPTIONS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
                 value={filters.offered}
                 onChange={(e) => setFilter('offered', e.target.value)}
                 className={selectClass}
@@ -786,12 +806,12 @@ export default function FullCatalogClient() {
                     onClick={() => openDetail(it.itemcode)}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
-                    {it.imageItemcode ? (
+                    {it.imageItemcode || it.hasStudioImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={`/api/nieuwkoop/image/${encodeURIComponent(String(it.imageItemcode))}`}
+                        src={catalogThumbUrl(it.itemcode, !!it.hasStudioImage)}
                         alt=""
-                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover bg-white"
                         loading="lazy"
                       />
                     ) : (
@@ -810,6 +830,16 @@ export default function FullCatalogClient() {
                         {it.catalogType ? (
                           <span className="shrink-0 rounded-full border border-stera-line px-2 py-0.5 text-[10px] text-stera-ink-soft">
                             {TYPE_LABEL[it.catalogType] || it.catalogType}
+                          </span>
+                        ) : null}
+                        {it.optimized ? (
+                          <span className="shrink-0 rounded-full bg-stera-green/15 px-2 py-0.5 text-[10px] font-semibold text-stera-green">
+                            Afgewerkt
+                          </span>
+                        ) : null}
+                        {it.hasStudioImage ? (
+                          <span className="shrink-0 rounded-full border border-stera-green/30 px-2 py-0.5 text-[10px] text-stera-green">
+                            Studio
                           </span>
                         ) : null}
                         {it.stock != null && it.stock <= 0 ? (

@@ -45,8 +45,14 @@ export const STOCK_OPTIONS = [
 
 export const PHOTO_OPTIONS = [
   { id: '', label: 'Foto: alles' },
-  { id: 'yes', label: 'Met foto' },
-  { id: 'no', label: 'Zonder foto' },
+  { id: 'yes', label: 'Met NK-foto' },
+  { id: 'no', label: 'Zonder NK-foto' },
+]
+
+export const OPTIMIZED_OPTIONS = [
+  { id: '', label: 'Status: alles' },
+  { id: 'yes', label: 'Afgewerkt ✓' },
+  { id: 'no', label: 'Nog niet afgewerkt' },
 ]
 
 export const OFFERED_OPTIONS = [
