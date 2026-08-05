@@ -2,9 +2,8 @@
 /**
  * Sync Nieuwkoop voorraad (/stock) naar de Supabase-tabel nieuwkoop_stock.
  *
- * Het /stock-endpoint geeft de voorraad voor de HELE catalogus (~24,5k),
- * maar onze nieuwkoop_products bevat enkel de ~1967 combinaties. De FK
- * dwingt af dat we alleen voor die itemcodes schrijven, dus filteren we.
+ * Het /stock-endpoint geeft de voorraad voor de HELE catalogus (~29k).
+ * We filteren op itemcodes die in nieuwkoop_products zitten (FK).
  *
  * Gebruik:
  *   node --env-file=.env.local sync-nieuwkoop-stock.mjs

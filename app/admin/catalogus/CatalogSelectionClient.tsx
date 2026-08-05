@@ -318,9 +318,12 @@ export default function CatalogSelectionClient({ groups }: { groups: ProductGrou
           <p className="text-center text-sm text-stera-ink-soft">Geen producten voor deze filter.</p>
         ) : null}
 
-        <div className="pt-2 text-sm">
-          <Link href="/dashboard" className="text-stera-green underline-offset-4 hover:underline">
-            ← Terug naar dashboard
+        <div className="flex flex-wrap gap-4 pt-2 text-sm">
+          <Link href="/admin/catalogus" className="text-stera-green underline-offset-4 hover:underline">
+            ← Volledige catalogus
+          </Link>
+          <Link href="/dashboard" className="text-stera-ink-soft underline-offset-4 hover:underline">
+            Dashboard
           </Link>
         </div>
       </div>

@@ -165,23 +165,38 @@ export async function POST() {
     const canPublish = /write_publications/.test(grantedScopes)
 
     // Data.
-    const [priceRows, prodRows, offeredRows] = await Promise.all([
+    // Selectie: item-level (nieuw, full catalog) ∪ group-level (legacy combis).
+    const [priceRows, prodRows, offeredGroups] = await Promise.all([
       fetchAll('v_nieuwkoop_with_margin', 'itemcode, suggested_sale_price',
-        (q) => q.not('suggested_sale_price', 'is', null).eq('show_on_website', true)),
+        (q) => q.not('suggested_sale_price', 'is', null)),
       fetchAll('nieuwkoop_products',
-        'itemcode, description, item_description_nl, item_variety_nl, height, diameter, location_icon_nl, tags, delivery_time_in_days, product_group_description_nl, item_picture_name',
-        (q) => q.eq('show_on_website', true)),
+        'itemcode, description, item_description_nl, item_variety_nl, height, diameter, location_icon_nl, tags, delivery_time_in_days, product_group_description_nl, item_picture_name, show_on_website',
+        (q) => q),
       fetchAll('shopify_offered_products', 'group_name, offered', (q) => q.eq('offered', true)),
     ])
+    // shopify_offered_items kan ontbreken vóór migratie — soft-fail.
+    let offeredItems: any[] = []
+    try {
+      offeredItems = await fetchAll(
+        'shopify_offered_items',
+        'itemcode, offered',
+        (q) => q.eq('offered', true)
+      )
+    } catch {
+      offeredItems = []
+    }
     const priceByCode = new Map<string, number>(priceRows.map((r: any) => [r.itemcode, Number(r.suggested_sale_price)]))
-    const offeredSet = new Set<string>(offeredRows.map((r: any) => r.group_name))
+    const offeredGroupSet = new Set<string>(offeredGroups.map((r: any) => r.group_name))
+    const offeredItemSet = new Set<string>(offeredItems.map((r: any) => r.itemcode))
 
-    // Groeperen op naam (enkel aangeboden + geen mos).
+    // Groeperen op naam: aangeboden via itemcode of via legacy group_name.
     const byName = new Map<string, any[]>()
     for (const r of prodRows as any[]) {
-      if (!priceByCode.has(r.itemcode) || isMoss(r.description, r.item_variety_nl)) continue
+      if (!priceByCode.has(r.itemcode)) continue
       const name = (r.description ?? r.itemcode).trim()
-      if (!offeredSet.has(name)) continue
+      const byItem = offeredItemSet.has(r.itemcode)
+      const byGroup = offeredGroupSet.has(name)
+      if (!byItem && !byGroup) continue
       if (!byName.has(name)) byName.set(name, [])
       byName.get(name)!.push(r)
     }
@@ -207,8 +222,9 @@ export async function POST() {
         optionValues: multiTeelt
           ? [{ optionName: 'Hoogte', name: x.label }, { optionName: 'Teelt', name: x.teelt }]
           : [{ optionName: 'Hoogte', name: x.label }],
-        // Geen voorraad-tracking: combinaties zijn op bestelling.
-        inventoryItem: { sku: x.itemcode, tracked: false },
+        // Voorraad tonen, maar bij 0 blijven verkopen (= op bestelling).
+        inventoryPolicy: 'CONTINUE',
+        inventoryItem: { sku: x.itemcode, tracked: true },
       }))
       const imgItem = chosen.find((x) => x.hasImage) || rows.find((r) => r.item_picture_name)
       return {

@@ -10,13 +10,13 @@ async function requireStaff() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { supabase, error: 'Niet ingelogd.' as const }
+  if (!user) return { supabase, user: null, error: 'Niet ingelogd.' as const }
   const { data: staff } = await supabase.rpc('is_staff')
-  if (!staff) return { supabase, error: 'Geen beheerder.' as const }
-  return { supabase, error: null }
+  if (!staff) return { supabase, user, error: 'Geen beheerder.' as const }
+  return { supabase, user, error: null }
 }
 
-/** Zet één combinatie aan/uit voor de webshop. */
+/** Zet één combinatie-groep aan/uit (legacy group_name model). */
 export async function setOffered(groupName: string, offered: boolean): Promise<Result> {
   const { supabase, error: authErr } = await requireStaff()
   if (authErr) return { ok: false, error: authErr }
@@ -31,7 +31,7 @@ export async function setOffered(groupName: string, offered: boolean): Promise<R
   return { ok: true }
 }
 
-/** Zet meerdere combinaties tegelijk aan/uit (bulk-actie). */
+/** Zet meerdere combinatie-groepen tegelijk (legacy). */
 export async function setOfferedBulk(
   groupNames: string[],
   offered: boolean
@@ -45,13 +45,85 @@ export async function setOfferedBulk(
     offered,
     updated_at: now,
   }))
-  // In batches om payload-limieten te vermijden.
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await supabase
       .from('shopify_offered_products')
       .upsert(rows.slice(i, i + 500), { onConflict: 'group_name' })
     if (error) return { ok: false, error: error.message }
   }
+  revalidatePath('/admin/catalogus')
+  return { ok: true }
+}
+
+/** Item-level: één itemcode aanbieden of uitzetten. */
+export async function setItemOffered(itemcode: string, offered: boolean): Promise<Result> {
+  const { supabase, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  if (!itemcode) return { ok: false, error: 'Geen itemcode' }
+  const { error } = await supabase.from('shopify_offered_items').upsert(
+    {
+      itemcode,
+      offered,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'itemcode' }
+  )
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/catalogus')
+  return { ok: true }
+}
+
+/** Item-level bulk. */
+export async function setItemsOfferedBulk(
+  itemcodes: string[],
+  offered: boolean
+): Promise<Result> {
+  const { supabase, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  if (itemcodes.length === 0) return { ok: true }
+  const now = new Date().toISOString()
+  const rows = itemcodes.map((itemcode) => ({ itemcode, offered, updated_at: now }))
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase
+      .from('shopify_offered_items')
+      .upsert(rows.slice(i, i + 500), { onConflict: 'itemcode' })
+    if (error) return { ok: false, error: error.message }
+  }
+  revalidatePath('/admin/catalogus')
+  return { ok: true }
+}
+
+/** Markeer change-events als bekeken. */
+export async function acknowledgeChanges(changeIds: string[]): Promise<Result> {
+  const { supabase, user, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  if (changeIds.length === 0) return { ok: true }
+  const { error } = await supabase
+    .from('catalog_changes')
+    .update({
+      acknowledged_at: new Date().toISOString(),
+      acknowledged_by: user?.id ?? null,
+    })
+    .in('id', changeIds)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/catalogus')
+  return { ok: true }
+}
+
+/** Alle open changes van één type of alles markeren. */
+export async function acknowledgeAllOpen(changeType?: string): Promise<Result> {
+  const { supabase, user, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  let q = supabase
+    .from('catalog_changes')
+    .update({
+      acknowledged_at: new Date().toISOString(),
+      acknowledged_by: user?.id ?? null,
+    })
+    .is('acknowledged_at', null)
+  if (changeType) q = q.eq('change_type', changeType)
+  const { error } = await q
+  if (error) return { ok: false, error: error.message }
   revalidatePath('/admin/catalogus')
   return { ok: true }
 }
