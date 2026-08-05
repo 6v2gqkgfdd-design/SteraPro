@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "optimize-photos": "node --env-file=.env.local scripts/optimize-offered-photos.mjs",
+    "optimize-photos:dry": "node --env-file=.env.local scripts/optimize-offered-photos.mjs --dry-run",
+    "optimize-photos:mark": "node --env-file=.env.local scripts/optimize-offered-photos.mjs --mark-optimized"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
