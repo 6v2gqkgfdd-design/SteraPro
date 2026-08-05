@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   setItemOffered,
   setItemsOfferedBulk,
@@ -19,6 +18,9 @@ import {
   PRICE_BANDS,
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
+
+/** Lokale opslag zodat filters/pagina overleven bij re-render of per ongeluk refresh. */
+const STATE_KEY = 'stera-admin-catalog-v1'
 
 type Tab = 'new' | 'all' | 'offered' | 'oos' | 'discontinued'
 
@@ -112,39 +114,54 @@ const EMPTY_FILTERS: Filters = {
   plantsoort: '',
 }
 
-function filtersFromParams(sp: URLSearchParams): Filters {
-  return {
-    q: sp.get('q') || '',
-    type: sp.get('type') || '',
-    location: sp.get('location') || '',
-    stock: sp.get('stock') || '',
-    photo: sp.get('photo') || '',
-    offered: sp.get('offered') || '',
-    price: sp.get('price') || '',
-    height: sp.get('height') || '',
-    brand: sp.get('brand') || '',
-    plantsoort: sp.get('plantsoort') || '',
+function loadSavedState(): {
+  tab: Tab
+  filters: Filters
+  page: number
+  scroll: number
+} | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(STATE_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as {
+      tab?: string
+      filters?: Partial<Filters>
+      page?: number
+      scroll?: number
+    }
+    const tab: Tab =
+      s.tab === 'new' ||
+      s.tab === 'offered' ||
+      s.tab === 'oos' ||
+      s.tab === 'discontinued' ||
+      s.tab === 'all'
+        ? s.tab
+        : 'all'
+    return {
+      tab,
+      filters: { ...EMPTY_FILTERS, ...(s.filters || {}) },
+      page: Math.max(1, Number(s.page) || 1),
+      scroll: Number(s.scroll) || 0,
+    }
+  } catch {
+    return null
   }
 }
 
-function tabFromParams(sp: URLSearchParams): Tab {
-  const t = sp.get('tab') || 'all'
-  if (t === 'new' || t === 'offered' || t === 'oos' || t === 'discontinued' || t === 'all') return t
-  return 'all'
-}
-
 export default function FullCatalogClient() {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const skipUrlWrite = useRef(true)
-  const listScrollRef = useRef(0)
+  const saved = useRef(loadSavedState())
+  const listScrollRef = useRef(saved.current?.scroll ?? 0)
+  const restoreScrollOnce = useRef(true)
 
-  const [tab, setTab] = useState<Tab>(() => tabFromParams(searchParams))
-  const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams))
-  const [draftQ, setDraftQ] = useState(() => searchParams.get('q') || '')
-  const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1))
-  const [detailCode, setDetailCode] = useState<string | null>(() => searchParams.get('item'))
+  // Detail = pure React-state → geen navigatie, geen filter-verlies.
+  const [detailCode, setDetailCode] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>(() => saved.current?.tab ?? 'all')
+  const [filters, setFilters] = useState<Filters>(
+    () => saved.current?.filters ?? EMPTY_FILTERS
+  )
+  const [draftQ, setDraftQ] = useState(() => saved.current?.filters?.q ?? '')
+  const [page, setPage] = useState(() => saved.current?.page ?? 1)
   const [items, setItems] = useState<CatalogItem[]>([])
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(40)
@@ -162,32 +179,22 @@ export default function FullCatalogClient() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(true)
 
-  // Schrijf filters/tab/page/item naar de URL (zodat terug/refresh de context houdt).
+  // Bewaar progressie lokaal (filters/tab/pagina/scroll) — geen Next-router.
   useEffect(() => {
-    if (skipUrlWrite.current) {
-      skipUrlWrite.current = false
-      return
+    try {
+      sessionStorage.setItem(
+        STATE_KEY,
+        JSON.stringify({
+          tab,
+          filters,
+          page,
+          scroll: listScrollRef.current,
+        })
+      )
+    } catch {
+      /* private mode e.d. */
     }
-    const params = new URLSearchParams()
-    if (tab !== 'all') params.set('tab', tab)
-    if (page > 1) params.set('page', String(page))
-    for (const [k, v] of Object.entries(filters)) {
-      if (v) params.set(k, v)
-    }
-    if (detailCode) params.set('item', detailCode)
-    const qs = params.toString()
-    const next = qs ? `${pathname}?${qs}` : pathname
-    const cur = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
-    if (next !== cur) {
-      router.replace(next, { scroll: false })
-    }
-  }, [tab, page, filters, detailCode, pathname, router, searchParams])
-
-  // Browser-back: URL is bron van truth voor item open/dicht.
-  useEffect(() => {
-    const item = searchParams.get('item')
-    setDetailCode((prev) => (prev === item ? prev : item))
-  }, [searchParams])
+  }, [tab, filters, page])
 
   // Debounce zoekveld
   useEffect(() => {
@@ -196,7 +203,7 @@ export default function FullCatalogClient() {
         if (f.q === draftQ) return f
         return { ...f, q: draftQ }
       })
-      setPage((p) => (draftQ === filters.q ? p : 1))
+      if (draftQ !== filters.q) setPage(1)
     }, 300)
     return () => clearTimeout(t)
   }, [draftQ, filters.q])
@@ -243,12 +250,26 @@ export default function FullCatalogClient() {
       setMsg(e instanceof Error ? e.message : 'Laden mislukt')
     } finally {
       setLoading(false)
+      // Eén keer scroll herstellen na heropenen met opgeslagen state
+      if (restoreScrollOnce.current && listScrollRef.current > 0) {
+        restoreScrollOnce.current = false
+        requestAnimationFrame(() => window.scrollTo(0, listScrollRef.current))
+      }
     }
   }, [tab, page, filters])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  // Onthoud scroll terwijl je door de lijst gaat
+  useEffect(() => {
+    function onScroll() {
+      listScrollRef.current = window.scrollY
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((f) => ({ ...f, [key]: value }))
@@ -268,22 +289,27 @@ export default function FullCatalogClient() {
   function changeTab(t: Tab) {
     setTab(t)
     setPage(1)
-    // Op tab offered/oos: stock/offered-filter is impliciet — reset conflicterende
     if (t === 'offered') setFilters((f) => ({ ...f, offered: '' }))
     if (t === 'oos') setFilters((f) => ({ ...f, stock: '' }))
   }
 
+  /** Popup openen — geen route-wijziging, filters blijven in state. */
   function openDetail(itemcode: string) {
-    listScrollRef.current = typeof window !== 'undefined' ? window.scrollY : 0
+    listScrollRef.current = window.scrollY
+    try {
+      sessionStorage.setItem(
+        STATE_KEY,
+        JSON.stringify({ tab, filters, page, scroll: listScrollRef.current })
+      )
+    } catch {
+      /* ignore */
+    }
     setDetailCode(itemcode)
   }
 
   function closeDetail() {
     setDetailCode(null)
-    // Herstel scrollpositie na unmount drawer
-    requestAnimationFrame(() => {
-      window.scrollTo(0, listScrollRef.current)
-    })
+    requestAnimationFrame(() => window.scrollTo(0, listScrollRef.current))
   }
 
   function onOfferedFromDrawer(itemcode: string, offered: boolean) {

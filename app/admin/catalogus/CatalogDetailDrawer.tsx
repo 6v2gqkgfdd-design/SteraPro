@@ -1,5 +1,10 @@
 'use client'
 
+/**
+ * Gecentreerde modal-popup voor productdetail.
+ * Geen navigatie — parent houdt filters/pagina vast.
+ */
+
 import { useEffect, useState, useTransition } from 'react'
 import { setItemOffered } from './actions'
 
@@ -91,7 +96,6 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
     }
   }, [itemcode])
 
-  // Escape sluit drawer
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -100,7 +104,6 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Body scroll lock
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -125,58 +128,63 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true">
+      {/* Dim overlay — klik sluit popup */}
       <button
         type="button"
-        className="absolute inset-0 bg-stera-ink/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
         aria-label="Sluiten"
         onClick={onClose}
       />
-      <aside className="relative flex h-full w-full max-w-lg flex-col bg-stera-cream shadow-2xl animate-in slide-in-from-right">
-        <header className="flex items-center gap-3 border-b border-stera-line px-4 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-stera-line bg-white px-3 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green/40"
-          >
-            ← Terug
-          </button>
+
+      {/* Gecentreerde popup */}
+      <div className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-stera-line bg-stera-cream shadow-2xl">
+        <header className="flex shrink-0 items-center gap-3 border-b border-stera-line bg-white/80 px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-stera-ink">
-              {item?.description || itemcode}
+              {item?.description || 'Productdetail'}
             </p>
             <p className="font-mono text-xs text-stera-ink-soft">{itemcode}</p>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg border border-stera-line bg-white px-3 py-1.5 text-sm font-medium text-stera-ink hover:border-stera-green/50"
+          >
+            Sluiten
+          </button>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <p className="text-sm text-stera-ink-soft">Laden…</p>
+            <p className="py-8 text-center text-sm text-stera-ink-soft">Laden…</p>
           ) : error ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
               {error}
             </p>
           ) : item ? (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="flex gap-4">
                 {item.imageItemcode ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={`/api/nieuwkoop/image/${encodeURIComponent(item.imageItemcode)}`}
                     alt=""
-                    className="h-36 w-36 shrink-0 rounded-xl object-cover shadow-sm"
+                    className="h-32 w-32 shrink-0 rounded-xl object-cover shadow-sm sm:h-40 sm:w-40"
                   />
                 ) : (
-                  <div className="flex h-36 w-36 shrink-0 items-center justify-center rounded-xl border border-dashed border-stera-line text-xs text-stera-ink-soft">
+                  <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-xl border border-dashed border-stera-line text-xs text-stera-ink-soft sm:h-40 sm:w-40">
                     geen foto
                   </div>
                 )}
                 <div className="min-w-0 flex-1 space-y-2">
-                  <h2 className="text-lg font-semibold leading-snug text-stera-ink">
+                  <h2 className="text-base font-semibold leading-snug text-stera-ink sm:text-lg">
                     {item.description}
                   </h2>
                   {item.detail ? (
-                    <p className="text-sm leading-relaxed text-stera-ink-soft">{item.detail}</p>
+                    <p className="text-sm leading-relaxed text-stera-ink-soft line-clamp-4">
+                      {item.detail}
+                    </p>
                   ) : null}
                   <div className="flex flex-wrap gap-1.5">
                     {item.stock != null && item.stock <= 0 ? (
@@ -204,13 +212,15 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                 className={`w-full rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${
                   item.offered
                     ? 'bg-stera-green text-white'
-                    : 'border border-stera-line bg-white text-stera-ink'
+                    : 'border border-stera-line bg-white text-stera-ink hover:border-stera-green/40'
                 }`}
               >
-                {item.offered ? '✓ Wordt aangeboden — klik om uit te zetten' : 'Aanbieden in webshop'}
+                {item.offered
+                  ? '✓ Wordt aangeboden — klik om uit te zetten'
+                  : 'Aanbieden in webshop'}
               </button>
 
-              <section className="stera-card !p-3 text-sm">
+              <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
                   Prijzen & voorraad
                 </h3>
@@ -231,22 +241,20 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                 </Row>
               </section>
 
-              <section className="stera-card !p-3 text-sm">
+              <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
                   Afmetingen
                 </h3>
                 <Row label="Hoogte">{cm(item.height)}</Row>
                 <Row label="Diameter">{cm(item.diameter)}</Row>
                 <Row label="L × B">
-                  {item.length || item.width
-                    ? `${cm(item.length)} × ${cm(item.width)}`
-                    : '—'}
+                  {item.length || item.width ? `${cm(item.length)} × ${cm(item.width)}` : '—'}
                 </Row>
                 <Row label="Potmaat">{item.potSize || '—'}</Row>
                 <Row label="Cultuurpot Ø">{cm(item.diameterCulturePot)}</Row>
               </section>
 
-              <section className="stera-card !p-3 text-sm">
+              <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
                   Kenmerken
                 </h3>
@@ -276,7 +284,17 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
             </div>
           ) : null}
         </div>
-      </aside>
+
+        <footer className="shrink-0 border-t border-stera-line bg-white/80 px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="stera-cta stera-cta-primary w-full text-sm"
+          >
+            Terug naar catalogus
+          </button>
+        </footer>
+      </div>
     </div>
   )
 }
