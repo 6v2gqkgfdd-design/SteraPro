@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import Link from 'next/link'
 import {
   setItemOffered,
   setItemsOfferedBulk,
@@ -1100,14 +1099,6 @@ export default function FullCatalogClient() {
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-4 pt-2 text-sm">
-          <Link
-            href="/dashboard"
-            className="text-stera-green underline-offset-4 hover:underline"
-          >
-            ← Dashboard
-          </Link>
-        </div>
       </div>
     </main>
   )
