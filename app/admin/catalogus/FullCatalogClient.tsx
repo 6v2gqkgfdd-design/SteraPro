@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   setItemOffered,
@@ -8,6 +8,15 @@ import {
   acknowledgeChanges,
   acknowledgeAllOpen,
 } from './actions'
+import {
+  CATALOG_TYPES,
+  HEIGHT_BANDS,
+  LOCATION_OPTIONS,
+  OFFERED_OPTIONS,
+  PHOTO_OPTIONS,
+  PRICE_BANDS,
+  STOCK_OPTIONS,
+} from '@/lib/catalog-filters'
 
 type Tab = 'new' | 'all' | 'offered' | 'oos' | 'discontinued'
 
@@ -31,7 +40,10 @@ type CatalogItem = {
   stock?: number
   offered?: boolean
   showOnWebsite?: boolean | null
-  // change fields
+  catalogType?: string | null
+  brand?: string | null
+  location?: string | null
+  plantsoort?: string | null
   changeId?: string
   changeType?: string
   summary?: string
@@ -54,6 +66,10 @@ const CHANGE_LABEL: Record<string, string> = {
   discontinued: 'Verdwenen',
 }
 
+const TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  CATALOG_TYPES.filter((t) => t.id).map((t) => [t.id, t.label])
+)
+
 const euro = (n: number | null | undefined) =>
   n == null || !Number.isFinite(Number(n)) ? '—' : `€ ${Number(n).toFixed(2)}`
 
@@ -68,18 +84,46 @@ function specsLine(it: CatalogItem) {
   return parts.join(' · ')
 }
 
+type Filters = {
+  q: string
+  type: string
+  location: string
+  stock: string
+  photo: string
+  offered: string
+  price: string
+  height: string
+  brand: string
+  plantsoort: string
+}
+
+const EMPTY_FILTERS: Filters = {
+  q: '',
+  type: '',
+  location: '',
+  stock: '',
+  photo: '',
+  offered: '',
+  price: '',
+  height: '',
+  brand: '',
+  plantsoort: '',
+}
+
 export default function FullCatalogClient() {
-  const [tab, setTab] = useState<Tab>('new')
-  const [q, setQ] = useState('')
-  const [mainGroup, setMainGroup] = useState('')
+  const [tab, setTab] = useState<Tab>('all')
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  const [draftQ, setDraftQ] = useState('')
   const [page, setPage] = useState(1)
   const [items, setItems] = useState<CatalogItem[]>([])
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(40)
   const [openChanges, setOpenChanges] = useState(0)
   const [offeredTotal, setOfferedTotal] = useState(0)
-  const [mainGroups, setMainGroups] = useState<{ name: string; count: number }[]>([])
-  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({})
+  const [brands, setBrands] = useState<{ name: string; count: number }[]>([])
+  const [plantsoorten, setPlantsoorten] = useState<{ name: string; count: number }[]>([])
+  const [catalogTypeCounts, setCatalogTypeCounts] = useState<Record<string, number>>({})
+  const [changeTypeCounts, setChangeTypeCounts] = useState<Record<string, number>>({})
   const [warning, setWarning] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
@@ -87,6 +131,16 @@ export default function FullCatalogClient() {
   const [pending, startTransition] = useTransition()
   const [syncing, setSyncing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [filtersOpen, setFiltersOpen] = useState(true)
+
+  // Debounce zoekveld
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFilters((f) => (f.q === draftQ ? f : { ...f, q: draftQ }))
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [draftQ])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -95,41 +149,70 @@ export default function FullCatalogClient() {
       const params = new URLSearchParams({
         tab,
         page: String(page),
-        q,
-        main_group: mainGroup,
+        q: filters.q,
+        type: filters.type,
+        location: filters.location,
+        stock: filters.stock,
+        photo: filters.photo,
+        offered: filters.offered,
+        price: filters.price,
+        height: filters.height,
+        brand: filters.brand,
+        plantsoort: filters.plantsoort,
       })
       const res = await fetch(`/api/admin/catalog?${params}`)
       const data = await res.json()
-      if (!res.ok || data.error) {
-        setMsg(data.error || 'Laden mislukt')
+      if (!res.ok && data.error) {
+        setMsg(data.error)
         setItems([])
         return
       }
+      if (data.warning) setWarning(data.warning)
+      if (data.error && !data.ok) setMsg(data.error)
       setItems(data.items || [])
       setTotal(data.total ?? 0)
       setPageSize(data.pageSize ?? 40)
       if (typeof data.openChanges === 'number') setOpenChanges(data.openChanges)
       if (typeof data.offeredTotal === 'number') setOfferedTotal(data.offeredTotal)
-      if (data.mainGroups) setMainGroups(data.mainGroups)
-      if (data.typeCounts) setTypeCounts(data.typeCounts)
-      if (data.warning) setWarning(data.warning)
+      if (data.brands) setBrands(data.brands)
+      if (data.plantsoorten) setPlantsoorten(data.plantsoorten)
+      if (data.catalogTypeCounts) setCatalogTypeCounts(data.catalogTypeCounts)
+      else if (data.typeCounts && tab !== 'new') setCatalogTypeCounts(data.typeCounts)
+      if (data.changeTypeCounts) setChangeTypeCounts(data.changeTypeCounts)
       setSelected(new Set())
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Laden mislukt')
     } finally {
       setLoading(false)
     }
-  }, [tab, page, q, mainGroup])
+  }, [tab, page, filters])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  // Debounce search: reset page when filters change
+  function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
+    setFilters((f) => ({ ...f, [key]: value }))
+    setPage(1)
+  }
+
+  function clearFilters() {
+    setFilters(EMPTY_FILTERS)
+    setDraftQ('')
+    setPage(1)
+  }
+
+  const activeFilterCount = useMemo(() => {
+    return Object.entries(filters).filter(([k, v]) => k !== 'q' && !!v).length + (filters.q ? 1 : 0)
+  }, [filters])
+
   function changeTab(t: Tab) {
     setTab(t)
     setPage(1)
     setExpanded(null)
+    // Op tab offered/oos: stock/offered-filter is impliciet — reset conflicterende
+    if (t === 'offered') setFilters((f) => ({ ...f, offered: '' }))
+    if (t === 'oos') setFilters((f) => ({ ...f, stock: '' }))
   }
 
   function toggleOffer(itemcode: string, next: boolean) {
@@ -150,14 +233,25 @@ export default function FullCatalogClient() {
   function bulkOffer(next: boolean) {
     const codes =
       selected.size > 0
-        ? [...selected]
+        ? [...selected].filter((id) => !id.includes('-') || items.some((i) => i.itemcode === id))
         : items.map((it) => it.itemcode).filter(Boolean)
-    if (!codes.length) return
+    // selected kan changeIds zijn op tab new — map naar itemcodes
+    const itemcodes =
+      tab === 'new'
+        ? items
+            .filter((it) => selected.size === 0 || selected.has(String(it.changeId)))
+            .map((it) => it.itemcode)
+        : selected.size > 0
+          ? items.filter((it) => selected.has(it.itemcode)).map((it) => it.itemcode)
+          : items.map((it) => it.itemcode)
+
+    const list = itemcodes.length ? itemcodes : codes
+    if (!list.length) return
     startTransition(async () => {
-      const res = await setItemsOfferedBulk(codes, next)
+      const res = await setItemsOfferedBulk(list, next)
       if (!res.ok) setMsg(res.error)
       else {
-        setMsg(`${codes.length} items ${next ? 'aangeboden' : 'uitgezet'}.`)
+        setMsg(`${list.length} items ${next ? 'aangeboden' : 'uitgezet'}.`)
         void load()
       }
     })
@@ -165,15 +259,14 @@ export default function FullCatalogClient() {
 
   function ackSelected() {
     const ids = items
-      .filter((it) => it.changeId && selected.has(it.changeId))
+      .filter((it) => it.changeId && (selected.size === 0 || selected.has(String(it.changeId))))
       .map((it) => it.changeId!)
-    const allIds = ids.length ? ids : items.map((it) => it.changeId!).filter(Boolean)
-    if (!allIds.length) return
+    if (!ids.length) return
     startTransition(async () => {
-      const res = await acknowledgeChanges(allIds)
+      const res = await acknowledgeChanges(ids)
       if (!res.ok) setMsg(res.error)
       else {
-        setMsg(`${allIds.length} wijzigingen gemarkeerd als bekeken.`)
+        setMsg(`${ids.length} wijzigingen gemarkeerd als bekeken.`)
         void load()
       }
     })
@@ -212,6 +305,12 @@ export default function FullCatalogClient() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isNew = tab === 'new'
+  const showPlantsoort = !filters.type || filters.type === 'planten' || filters.type === 'combinaties'
+  const showBrand =
+    !filters.type ||
+    filters.type === 'potten' ||
+    filters.type === 'combinaties' ||
+    filters.type === 'accessoires'
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -222,6 +321,9 @@ export default function FullCatalogClient() {
     })
   }
 
+  const selectClass =
+    'w-full rounded-lg border border-stera-line bg-white p-2.5 text-sm text-stera-ink'
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-5xl space-y-5">
@@ -229,9 +331,8 @@ export default function FullCatalogClient() {
           <p className="stera-eyebrow mb-2">Admin · Webshop</p>
           <h1 className="stera-display text-3xl sm:text-4xl">Catalogus</h1>
           <p className="mt-2 text-sm text-stera-ink-soft">
-            Volledige Nieuwkoop-catalogus in Supabase. Filter, bekijk specs, kies wat je
-            aanbiedt, en sync enkel die selectie naar Shopify. Bij 0 voorraad blijft het
-            product verkoopbaar (op bestelling).
+            Filter eerst (type, locatie, stock, prijs…), bekijk specs, en kies wat je
+            aanbiedt. Alleen de selectie gaat naar Shopify — bij 0 stock = op bestelling.
           </p>
         </div>
 
@@ -239,11 +340,7 @@ export default function FullCatalogClient() {
         <div className="flex flex-wrap gap-2">
           {TABS.map((t) => {
             const badge =
-              t.id === 'new'
-                ? openChanges
-                : t.id === 'offered'
-                  ? offeredTotal
-                  : null
+              t.id === 'new' ? openChanges : t.id === 'offered' ? offeredTotal : null
             return (
               <button
                 key={t.id}
@@ -270,9 +367,9 @@ export default function FullCatalogClient() {
           })}
         </div>
 
-        {isNew && Object.keys(typeCounts).length > 0 ? (
+        {isNew && Object.keys(changeTypeCounts).length > 0 ? (
           <div className="flex flex-wrap gap-2 text-xs text-stera-ink-soft">
-            {Object.entries(typeCounts).map(([k, n]) => (
+            {Object.entries(changeTypeCounts).map(([k, n]) => (
               <span key={k} className="rounded-full border border-stera-line bg-white px-2 py-1">
                 {CHANGE_LABEL[k] || k}: <strong className="text-stera-ink">{n}</strong>
               </span>
@@ -280,48 +377,188 @@ export default function FullCatalogClient() {
           </div>
         ) : null}
 
+        {!isNew && Object.keys(catalogTypeCounts).length > 0 ? (
+          <div className="flex flex-wrap gap-2 text-xs">
+            {CATALOG_TYPES.filter((t) => t.id).map((t) => {
+              const n = catalogTypeCounts[t.id] ?? 0
+              if (!n) return null
+              const active = filters.type === t.id
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setFilter('type', active ? '' : t.id)}
+                  className={`rounded-full border px-2.5 py-1 transition ${
+                    active
+                      ? 'border-stera-green bg-stera-green text-white'
+                      : 'border-stera-line bg-white text-stera-ink-soft hover:border-stera-green/40'
+                  }`}
+                >
+                  {t.label} <strong className={active ? '' : 'text-stera-ink'}>{n}</strong>
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+
         {/* Filters */}
         <div className="stera-card space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
-              type="search"
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value)
-                setPage(1)
-              }}
-              placeholder="Zoek op naam, itemcode, variety…"
-              className="w-full rounded-lg border border-stera-line bg-white p-2.5 text-sm"
-            />
-            {!isNew ? (
-              <select
-                value={mainGroup}
-                onChange={(e) => {
-                  setMainGroup(e.target.value)
-                  setPage(1)
-                }}
-                className="w-full rounded-lg border border-stera-line bg-white p-2.5 text-sm"
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              className="text-sm font-semibold text-stera-ink"
+            >
+              Filters {activeFilterCount > 0 ? `(${activeFilterCount} actief)` : ''}{' '}
+              <span className="text-stera-ink-soft">{filtersOpen ? '▲' : '▼'}</span>
+            </button>
+            {activeFilterCount > 0 ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs text-stera-green underline-offset-2 hover:underline"
               >
-                <option value="">Alle hoofdgroepen</option>
-                {mainGroups.map((g) => (
-                  <option key={g.name} value={g.name}>
-                    {g.name} ({g.count})
+                Filters wissen
+              </button>
+            ) : null}
+          </div>
+
+          <input
+            type="search"
+            value={draftQ}
+            onChange={(e) => setDraftQ(e.target.value)}
+            placeholder="Zoek op naam, itemcode, variety…"
+            className={selectClass}
+          />
+
+          {filtersOpen && !isNew ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <select
+                value={filters.type}
+                onChange={(e) => setFilter('type', e.target.value)}
+                className={selectClass}
+              >
+                {CATALOG_TYPES.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
                   </option>
                 ))}
               </select>
-            ) : (
-              <div className="flex items-center text-sm text-stera-ink-soft">
-                Open wijzigingen van de ochtend-scan
-              </div>
-            )}
-          </div>
+
+              <select
+                value={filters.location}
+                onChange={(e) => setFilter('location', e.target.value)}
+                className={selectClass}
+              >
+                {LOCATION_OPTIONS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.stock}
+                onChange={(e) => setFilter('stock', e.target.value)}
+                className={selectClass}
+                disabled={tab === 'oos'}
+              >
+                {STOCK_OPTIONS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.photo}
+                onChange={(e) => setFilter('photo', e.target.value)}
+                className={selectClass}
+              >
+                {PHOTO_OPTIONS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.offered}
+                onChange={(e) => setFilter('offered', e.target.value)}
+                className={selectClass}
+                disabled={tab === 'offered'}
+              >
+                {OFFERED_OPTIONS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.price}
+                onChange={(e) => setFilter('price', e.target.value)}
+                className={selectClass}
+              >
+                {PRICE_BANDS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.height}
+                onChange={(e) => setFilter('height', e.target.value)}
+                className={selectClass}
+              >
+                {HEIGHT_BANDS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              {showBrand ? (
+                <select
+                  value={filters.brand}
+                  onChange={(e) => setFilter('brand', e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">Merk: alles</option>
+                  {brands.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name} ({b.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              {showPlantsoort ? (
+                <select
+                  value={filters.plantsoort}
+                  onChange={(e) => setFilter('plantsoort', e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">Plantsoort: alles</option>
+                  {plantsoorten.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} ({p.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-stera-ink-soft">
-              {loading ? 'Laden…' : (
+              {loading ? (
+                'Laden…'
+              ) : (
                 <>
-                  <strong className="text-stera-ink">{total}</strong> resultaten · pagina {page}/
-                  {totalPages}
+                  <strong className="text-stera-ink">{total.toLocaleString('nl-BE')}</strong>{' '}
+                  resultaten · pagina {page}/{totalPages}
                 </>
               )}
             </span>
@@ -391,8 +628,7 @@ export default function FullCatalogClient() {
           </div>
           {warning ? (
             <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              {warning} Pas <code>20260805120000_catalog_full_tracking.sql</code> toe in
-              Supabase SQL Editor.
+              {warning}
             </p>
           ) : null}
           {msg ? <p className="text-xs text-stera-ink-soft">{msg}</p> : null}
@@ -446,6 +682,11 @@ export default function FullCatalogClient() {
                             {CHANGE_LABEL[it.changeType] || it.changeType}
                           </span>
                         ) : null}
+                        {it.catalogType ? (
+                          <span className="shrink-0 rounded-full border border-stera-line px-2 py-0.5 text-[10px] text-stera-ink-soft">
+                            {TYPE_LABEL[it.catalogType] || it.catalogType}
+                          </span>
+                        ) : null}
                         {it.stock != null && it.stock <= 0 && tab !== 'discontinued' ? (
                           <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                             Op bestelling
@@ -453,7 +694,9 @@ export default function FullCatalogClient() {
                         ) : null}
                       </div>
                       <p className="text-xs text-stera-ink-soft">
-                        {[it.mainGroup, it.productGroup].filter(Boolean).join(' · ')}
+                        {[it.mainGroup, it.productGroup, it.brand?.split('|')[0], it.plantsoort]
+                          .filter(Boolean)
+                          .join(' · ')}
                         {it.summary ? ` · ${it.summary}` : ''}
                       </p>
                       <p className="text-xs text-stera-ink-soft">
@@ -517,6 +760,18 @@ export default function FullCatalogClient() {
                           {it.deliveryDays != null ? `${it.deliveryDays} dagen` : '—'}
                         </dd>
                       </div>
+                      <div>
+                        <dt className="text-stera-ink-soft">Locatie</dt>
+                        <dd>{it.location?.replace(/\|/g, ', ') || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-stera-ink-soft">Merk</dt>
+                        <dd>{it.brand?.replace(/\|/g, ', ') || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-stera-ink-soft">Plantsoort</dt>
+                        <dd>{it.plantsoort || '—'}</dd>
+                      </div>
                       <div className="col-span-2">
                         <dt className="text-stera-ink-soft">Hoofdgroep</dt>
                         <dd>{it.mainGroup || '—'}</dd>
@@ -548,12 +803,11 @@ export default function FullCatalogClient() {
         {!loading && items.length === 0 ? (
           <p className="text-center text-sm text-stera-ink-soft">
             {isNew
-              ? 'Geen open wijzigingen. Na de ochtend-scan verschijnen hier nieuwe items, prijs- en specswijzigingen, weer op voorraad en verdwenen artikelen.'
-              : 'Geen producten voor deze filter.'}
+              ? 'Geen open wijzigingen. Na de ochtend-scan verschijnen hier delta’s.'
+              : 'Geen producten voor deze filter. Probeer filters te verbreden.'}
           </p>
         ) : null}
 
-        {/* Paginatie */}
         {totalPages > 1 ? (
           <div className="flex items-center justify-center gap-3">
             <button
@@ -579,10 +833,16 @@ export default function FullCatalogClient() {
         ) : null}
 
         <div className="flex flex-wrap gap-4 pt-2 text-sm">
-          <Link href="/admin/catalogus/combinaties" className="text-stera-green underline-offset-4 hover:underline">
+          <Link
+            href="/admin/catalogus/combinaties"
+            className="text-stera-green underline-offset-4 hover:underline"
+          >
             Oude combi-selectie →
           </Link>
-          <Link href="/dashboard" className="text-stera-ink-soft underline-offset-4 hover:underline">
+          <Link
+            href="/dashboard"
+            className="text-stera-ink-soft underline-offset-4 hover:underline"
+          >
             ← Dashboard
           </Link>
         </div>
