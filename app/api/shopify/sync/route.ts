@@ -4,9 +4,10 @@ import { NextResponse } from 'next/server'
 import { createClient as createServer } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
-// Server-side product-sync (knop op /admin/catalogus). Dezelfde logica als
-// sync-shopify-products.mjs: geselecteerde combinaties pushen + niet-geselecteerde
-// eigen producten verwijderen. Stelt de winkel gelijk aan de selectie.
+// Server-side product-sync (knop op /admin/catalogus).
+// - Aangeboden → product pushen/updaten als ACTIVE
+// - Niet (meer) aangeboden → eigen product op DRAFT (niet verwijderen),
+//   zodat foto's, media en handmatige optimalisaties behouden blijven.
 //
 // Vereiste env-vars OP VERCEL (niet enkel .env.local):
 //   SHOPIFY_STORE_DOMAIN, SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET,
@@ -310,29 +311,65 @@ export async function POST() {
       await sleep(120)
     }
 
-    // Reconcile: niet-geselecteerde eigen producten verwijderen.
+    // Reconcile: niet-geselecteerde eigen producten → DRAFT (niet verwijderen).
+    // Zo blijven media, foto's en handmatige edits bewaard voor later heraanbieden.
     const keep = new Set(products.map((p) => p.handle))
-    let removed = 0
+    let deactivated = 0
     let cursor: string | null = null
     for (;;) {
-      const d: any = await gql(`query($c:String){ products(first:100, after:$c){ nodes { id handle vendor } pageInfo { hasNextPage endCursor } } }`, { c: cursor })
-      for (const n of d.products.nodes) {
+      const d: any = await gql(
+        `query($c:String){ products(first:100, after:$c, query:"status:active"){ nodes { id handle vendor status } pageInfo { hasNextPage endCursor } } }`,
+        { c: cursor }
+      )
+      for (const n of d?.products?.nodes || []) {
         // Onze producten = vendor 'SteraPro' (nieuw) of 'Stera' (oude testdata).
         const managed = n.vendor === VENDOR || n.vendor === 'Stera'
         if (keep.has(n.handle) || !managed) continue
-        try { await gql(`mutation($id:ID!){ productDelete(input:{id:$id}){ deletedProductId } }`, { id: n.id }); removed++ } catch {}
+        try {
+          const r = await gql(
+            `mutation($id:ID!,$status:ProductStatus!){ productChangeStatus(productId:$id, status:$status){ product { id status } userErrors { message } } }`,
+            { id: n.id, status: 'DRAFT' }
+          )
+          const errs = r?.productChangeStatus?.userErrors || []
+          if (!errs.length) deactivated++
+          else {
+            // Fallback oudere API-vorm
+            await gql(
+              `mutation($input:ProductInput!){ productUpdate(input:$input){ product { id } userErrors { message } } }`,
+              { input: { id: n.id, status: 'DRAFT' } }
+            )
+            deactivated++
+          }
+        } catch {
+          try {
+            await gql(
+              `mutation($input:ProductInput!){ productUpdate(input:$input){ product { id } userErrors { message } } }`,
+              { input: { id: n.id, status: 'DRAFT' } }
+            )
+            deactivated++
+          } catch {}
+        }
         await sleep(100)
       }
-      if (!d.products.pageInfo.hasNextPage) break
+      if (!d?.products?.pageInfo?.hasNextPage) break
       cursor = d.products.pageInfo.endCursor
     }
 
-    // Geen voorraad-tracking: deze combinaties worden op bestelling samengesteld
-    // bij de leverancier. We tonen dus geen voorraadgetal (wel de levertijd in de
-    // beschrijving); producten blijven altijd bestelbaar.
     const stockUpdated = 0
 
-    return NextResponse.json({ ok: true, pushed: ok, failed, removed, stockUpdated, aiGenerated, selected: products.length, errors: errors.slice(0, 3), scopes: grantedScopes })
+    return NextResponse.json({
+      ok: true,
+      pushed: ok,
+      failed,
+      // "removed" blijft als alias voor oudere UI; betekent nu "gedeactiveerd"
+      removed: deactivated,
+      deactivated,
+      stockUpdated,
+      aiGenerated,
+      selected: products.length,
+      errors: errors.slice(0, 3),
+      scopes: grantedScopes,
+    })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Onbekende fout' }, { status: 500 })
   }

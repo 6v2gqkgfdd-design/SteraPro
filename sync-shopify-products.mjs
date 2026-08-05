@@ -374,34 +374,45 @@ for (let i = 0; i < toSync.length; i++) {
 }
 console.log("");
 
-// ----- Reconcile: niet-geselecteerde producten VERWIJDEREN (echte spiegel) -----
-// Veiligheid: enkel producten die deze sync zelf beheert (vendor === VENDOR),
-// zodat een eventueel handmatig toegevoegd product nooit sneuvelt.
-console.log("\n[4] Niet-geselecteerde producten verwijderen...");
+// ----- Reconcile: niet-geselecteerde producten → DRAFT (niet verwijderen) -----
+// Zo blijven foto's/media en handmatige optimalisaties bewaard. Bij heraanbieden
+// zet de push hierboven status weer op ACTIVE.
+// Veiligheid: enkel vendor SteraPro/Stera.
+console.log("\n[4] Niet-geselecteerde producten op non-actief (DRAFT)...");
 const keep = new Set(products.map((p) => p.handle));
-let removed = 0, cursor = null;
+let deactivated = 0, cursor = null;
 for (;;) {
   const d = await gql(
-    `query($c:String){ products(first:100, after:$c){ nodes { id handle vendor } pageInfo { hasNextPage endCursor } } }`,
+    `query($c:String){ products(first:100, after:$c, query:"status:active"){ nodes { id handle vendor status } pageInfo { hasNextPage endCursor } } }`,
     { c: cursor }
   );
   for (const n of d.products.nodes) {
     if (keep.has(n.handle)) continue;
-    if (n.vendor !== VENDOR) continue; // enkel onze eigen producten
+    if (n.vendor !== VENDOR && n.vendor !== "Stera") continue;
     try {
-      await gql(
-        `mutation($id:ID!){ productDelete(input:{id:$id}){ deletedProductId userErrors{ message } } }`,
-        { id: n.id }
+      const r = await gql(
+        `mutation($id:ID!,$status:ProductStatus!){ productChangeStatus(productId:$id, status:$status){ product { id status } userErrors { message } } }`,
+        { id: n.id, status: "DRAFT" }
       );
-      removed++; process.stdout.write(`\r    Verwijderd: ${removed}`);
-    } catch (e) { console.warn(`\n    ⚠️  ${n.handle} verwijderen mislukt: ${e.message}`); }
+      const errs = r?.productChangeStatus?.userErrors || [];
+      if (errs.length) {
+        await gql(
+          `mutation($input:ProductInput!){ productUpdate(input:$input){ userErrors { message } } }`,
+          { input: { id: n.id, status: "DRAFT" } }
+        );
+      }
+      deactivated++;
+      process.stdout.write(`\r    Non-actief: ${deactivated}`);
+    } catch (e) {
+      console.warn(`\n    ⚠️  ${n.handle} deactiveren mislukt: ${e.message}`);
+    }
     await sleep(120);
   }
   if (!d.products.pageInfo.hasNextPage) break;
   cursor = d.products.pageInfo.endCursor;
 }
-console.log(removed ? "" : "    (niets te verwijderen)");
+console.log(deactivated ? "" : "    (niets te deactiveren)");
 
 console.log("\n" + "=".repeat(60));
-console.log(`✅ Klaar. Producten: ${ok} ok, ${failed} fout. Verwijderd: ${removed}`);
+console.log(`✅ Klaar. Producten: ${ok} ok, ${failed} fout. Non-actief (draft): ${deactivated}`);
 console.log("=".repeat(60));

@@ -292,7 +292,10 @@ export default function FullCatalogClient() {
       if (!data.ok) setMsg(`Sync-fout: ${data.error}`)
       else
         setMsg(
-          `Sync klaar — ${data.pushed} gepusht, ${data.removed} verwijderd` +
+          `Sync klaar — ${data.pushed} actief gepusht` +
+            (data.deactivated || data.removed
+              ? `, ${data.deactivated ?? data.removed} op non-actief (draft, niet verwijderd)`
+              : '') +
             (data.failed ? `, ${data.failed} fout` : '') +
             '.'
         )
@@ -623,7 +626,8 @@ export default function FullCatalogClient() {
               {syncing ? 'Bezig…' : '↑ Sync naar Shopify'}
             </button>
             <span className="text-xs text-stera-ink-soft">
-              Pusht de aangeboden selectie ({offeredTotal}). 0-stock = op bestelling.
+              Aangeboden ({offeredTotal}) → actief in Shopify. Uitgezet → draft
+              (foto&apos;s blijven bewaard). 0-stock = op bestelling.
             </span>
           </div>
           {warning ? (
