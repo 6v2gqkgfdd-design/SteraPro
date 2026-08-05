@@ -1,15 +1,11 @@
 #!/usr/bin/env node
 /**
- * Sync Supabase-catalogus -> SteraPro Shopify-shop (gegroepeerd op product).
+ * Sync Supabase -> SteraPro Shopify (alleen aangeboden itemcodes).
  *
- * Eén Shopify-product per plant-pot-naam (description), met:
- *   - HOOGTE als variant ("120 cm", "140 cm", ...)
- *   - TEELT als variant ("Aarde" / "Hydrocultuur") wanneer beide bestaan
- * Verkoopprijs = suggested_sale_price uit v_nieuwkoop_with_margin (excl. btw,
- * marge al toegepast). White-label: vendor "Stera", geen leveranciersnaam.
- * Mosschilderijen worden (voorlopig) uitgefilterd.
- *
- * Idempotent: handle = slug(naam); bestaand product wordt bijgewerkt (op id).
+ * Bron van waarheid: shopify_offered_items (offered = true).
+ * Eén Shopify-product per description-groep, met hoogte/teelt als varianten
+ * waar van toepassing. Verkoopprijs = suggested_sale_price (inkoop × marge).
+ * Vendor "SteraPro". Niet-aangeboden eigen producten → DRAFT (niet delete).
  *
  * Gebruik:
  *   node --env-file=.env.local sync-shopify-products.mjs                 # DRY-RUN
@@ -207,22 +203,32 @@ let products = [...groups.entries()].map(([name, g]) => buildProduct(name, g));
 products.sort((a, b) => a.title.localeCompare(b.title));
 console.log(`    ✅ ${products.length} producten (gem. ${(items.length / products.length).toFixed(2)} maten/product, ${dupMerged} dubbels samengevoegd)`);
 
-// Selectie toepassen: enkel combinaties die in /admin/catalogus aanstaan.
+// Selectie: uitsluitend shopify_offered_items (itemcode) — Supabase = waarheid.
+// Filter op itemniveau vóór/na groepering: alleen producten met minstens 1 offered SKU.
 const { data: offeredRows, error: offErr } = await supabase
-  .from("shopify_offered_products")
-  .select("group_name")
+  .from("shopify_offered_items")
+  .select("itemcode")
   .eq("offered", true);
 if (offErr) {
   console.error("❌ Selectie-tabel niet leesbaar:", offErr.message);
-  console.error("   Heb je de migratie 20260604120000_shopify_offered_products.sql uitgevoerd?");
+  console.error("   Verwacht tabel shopify_offered_items (item-level, /admin/catalogus).");
   process.exit(1);
 }
-const offeredSet = new Set((offeredRows || []).map((r) => r.group_name));
-const beforeSel = products.length;
-products = products.filter((p) => offeredSet.has(p.title));
-console.log(`    Selectie: ${products.length} van ${beforeSel} producten staan aan in de webshop`);
+const offeredCodes = new Set((offeredRows || []).map((r) => r.itemcode));
+// Herbouw producten: enkel offered itemcodes, opnieuw groeperen op naam.
+{
+  const offeredItems = items.filter((it) => offeredCodes.has(it.itemcode));
+  const g2 = new Map();
+  for (const it of offeredItems) {
+    if (!g2.has(it.name)) g2.set(it.name, []);
+    g2.get(it.name).push(it);
+  }
+  products = [...g2.entries()].map(([name, g]) => buildProduct(name, g));
+  products.sort((a, b) => a.title.localeCompare(b.title));
+}
+console.log(`    Selectie: ${products.length} Shopify-producten (${offeredCodes.size} itemcodes aangeboden)`);
 if (products.length === 0 && !isLive) {
-  console.log("\nℹ️  Nog niets geselecteerd. Zet producten aan op /admin/catalogus en draai opnieuw.");
+  console.log("\nℹ️  Nog niets geselecteerd. Zet producten aan op /admin/catalogus (Aanbieden) en draai opnieuw.");
   process.exit(0);
 }
 // In live-modus draaien we wél door bij 0 selectie: dan worden alle bestaande

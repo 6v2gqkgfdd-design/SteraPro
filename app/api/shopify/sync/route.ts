@@ -5,6 +5,7 @@ import { createClient as createServer } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
 // Server-side product-sync (knop op /admin/catalogus).
+// Bron van waarheid: shopify_offered_items (itemcode) in Supabase.
 // - Aangeboden → product pushen/updaten als ACTIVE
 // - Niet (meer) aangeboden → eigen product op DRAFT (niet verwijderen),
 //   zodat foto's, media en handmatige optimalisaties behouden blijven.
@@ -165,39 +166,24 @@ export async function POST() {
     const grantedScopes = String(tok.scope || '')
     const canPublish = /write_publications/.test(grantedScopes)
 
-    // Data.
-    // Selectie: item-level (nieuw, full catalog) ∪ group-level (legacy combis).
-    const [priceRows, prodRows, offeredGroups] = await Promise.all([
+    // Data — selectie uitsluitend via shopify_offered_items (Supabase = waarheid).
+    const [priceRows, prodRows, offeredItems] = await Promise.all([
       fetchAll('v_nieuwkoop_with_margin', 'itemcode, suggested_sale_price',
         (q) => q.not('suggested_sale_price', 'is', null)),
       fetchAll('nieuwkoop_products',
         'itemcode, description, item_description_nl, item_variety_nl, height, diameter, location_icon_nl, tags, delivery_time_in_days, product_group_description_nl, item_picture_name, show_on_website',
         (q) => q),
-      fetchAll('shopify_offered_products', 'group_name, offered', (q) => q.eq('offered', true)),
+      fetchAll('shopify_offered_items', 'itemcode, offered', (q) => q.eq('offered', true)),
     ])
-    // shopify_offered_items kan ontbreken vóór migratie — soft-fail.
-    let offeredItems: any[] = []
-    try {
-      offeredItems = await fetchAll(
-        'shopify_offered_items',
-        'itemcode, offered',
-        (q) => q.eq('offered', true)
-      )
-    } catch {
-      offeredItems = []
-    }
     const priceByCode = new Map<string, number>(priceRows.map((r: any) => [r.itemcode, Number(r.suggested_sale_price)]))
-    const offeredGroupSet = new Set<string>(offeredGroups.map((r: any) => r.group_name))
     const offeredItemSet = new Set<string>(offeredItems.map((r: any) => r.itemcode))
 
-    // Groeperen op naam: aangeboden via itemcode of via legacy group_name.
+    // Alleen aangeboden itemcodes; groepeer op description voor Shopify-varianten.
     const byName = new Map<string, any[]>()
     for (const r of prodRows as any[]) {
       if (!priceByCode.has(r.itemcode)) continue
+      if (!offeredItemSet.has(r.itemcode)) continue
       const name = (r.description ?? r.itemcode).trim()
-      const byItem = offeredItemSet.has(r.itemcode)
-      const byGroup = offeredGroupSet.has(name)
-      if (!byItem && !byGroup) continue
       if (!byName.has(name)) byName.set(name, [])
       byName.get(name)!.push(r)
     }

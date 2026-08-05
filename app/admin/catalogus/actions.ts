@@ -16,45 +16,6 @@ async function requireStaff() {
   return { supabase, user, error: null }
 }
 
-/** Zet één combinatie-groep aan/uit (legacy group_name model). */
-export async function setOffered(groupName: string, offered: boolean): Promise<Result> {
-  const { supabase, error: authErr } = await requireStaff()
-  if (authErr) return { ok: false, error: authErr }
-  const { error } = await supabase
-    .from('shopify_offered_products')
-    .upsert(
-      { group_name: groupName, offered, updated_at: new Date().toISOString() },
-      { onConflict: 'group_name' }
-    )
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/admin/catalogus')
-  return { ok: true }
-}
-
-/** Zet meerdere combinatie-groepen tegelijk (legacy). */
-export async function setOfferedBulk(
-  groupNames: string[],
-  offered: boolean
-): Promise<Result> {
-  const { supabase, error: authErr } = await requireStaff()
-  if (authErr) return { ok: false, error: authErr }
-  if (groupNames.length === 0) return { ok: true }
-  const now = new Date().toISOString()
-  const rows = groupNames.map((n) => ({
-    group_name: n,
-    offered,
-    updated_at: now,
-  }))
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await supabase
-      .from('shopify_offered_products')
-      .upsert(rows.slice(i, i + 500), { onConflict: 'group_name' })
-    if (error) return { ok: false, error: error.message }
-  }
-  revalidatePath('/admin/catalogus')
-  return { ok: true }
-}
-
 /** Item-level: één itemcode aanbieden of uitzetten. */
 export async function setItemOffered(itemcode: string, offered: boolean): Promise<Result> {
   const { supabase, error: authErr } = await requireStaff()

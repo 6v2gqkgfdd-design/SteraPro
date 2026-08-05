@@ -889,14 +889,8 @@ export default function FullCatalogClient() {
 
         <div className="flex flex-wrap gap-4 pt-2 text-sm">
           <Link
-            href="/admin/catalogus/combinaties"
-            className="text-stera-green underline-offset-4 hover:underline"
-          >
-            Oude combi-selectie →
-          </Link>
-          <Link
             href="/dashboard"
-            className="text-stera-ink-soft underline-offset-4 hover:underline"
+            className="text-stera-green underline-offset-4 hover:underline"
           >
             ← Dashboard
           </Link>
