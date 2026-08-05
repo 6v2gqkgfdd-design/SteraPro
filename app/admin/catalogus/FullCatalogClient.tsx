@@ -22,7 +22,7 @@ import {
 /** Lokale opslag zodat filters/pagina overleven bij re-render of per ongeluk refresh. */
 const STATE_KEY = 'stera-admin-catalog-v1'
 
-type Tab = 'new' | 'all' | 'offered' | 'oos' | 'discontinued'
+type Tab = 'new' | 'all' | 'offered'
 
 type CatalogItem = {
   itemcode: string
@@ -561,7 +561,6 @@ export default function FullCatalogClient() {
                 value={filters.stock}
                 onChange={(e) => setFilter('stock', e.target.value)}
                 className={selectClass}
-                disabled={tab === 'oos'}
               >
                 {STOCK_OPTIONS.map((o) => (
                   <option key={o.id || 'all'} value={o.id}>
@@ -793,7 +792,7 @@ export default function FullCatalogClient() {
                             {TYPE_LABEL[it.catalogType] || it.catalogType}
                           </span>
                         ) : null}
-                        {it.stock != null && it.stock <= 0 && tab !== 'discontinued' ? (
+                        {it.stock != null && it.stock <= 0 ? (
                           <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                             Op bestelling
                           </span>
