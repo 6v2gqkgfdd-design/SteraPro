@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import FullCatalogClient from './FullCatalogClient'
@@ -27,5 +28,15 @@ export default async function CatalogusPage() {
     )
   }
 
-  return <FullCatalogClient />
+  return (
+    <Suspense
+      fallback={
+        <main className="bg-stera-cream p-6">
+          <p className="text-sm text-stera-ink-soft">Catalogus laden…</p>
+        </main>
+      }
+    >
+      <FullCatalogClient />
+    </Suspense>
+  )
 }

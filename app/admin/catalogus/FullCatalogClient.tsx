@@ -1,13 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   setItemOffered,
   setItemsOfferedBulk,
   acknowledgeChanges,
   acknowledgeAllOpen,
 } from './actions'
+import CatalogDetailDrawer from './CatalogDetailDrawer'
 import {
   CATALOG_TYPES,
   HEIGHT_BANDS,
@@ -110,11 +112,39 @@ const EMPTY_FILTERS: Filters = {
   plantsoort: '',
 }
 
+function filtersFromParams(sp: URLSearchParams): Filters {
+  return {
+    q: sp.get('q') || '',
+    type: sp.get('type') || '',
+    location: sp.get('location') || '',
+    stock: sp.get('stock') || '',
+    photo: sp.get('photo') || '',
+    offered: sp.get('offered') || '',
+    price: sp.get('price') || '',
+    height: sp.get('height') || '',
+    brand: sp.get('brand') || '',
+    plantsoort: sp.get('plantsoort') || '',
+  }
+}
+
+function tabFromParams(sp: URLSearchParams): Tab {
+  const t = sp.get('tab') || 'all'
+  if (t === 'new' || t === 'offered' || t === 'oos' || t === 'discontinued' || t === 'all') return t
+  return 'all'
+}
+
 export default function FullCatalogClient() {
-  const [tab, setTab] = useState<Tab>('all')
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
-  const [draftQ, setDraftQ] = useState('')
-  const [page, setPage] = useState(1)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const skipUrlWrite = useRef(true)
+  const listScrollRef = useRef(0)
+
+  const [tab, setTab] = useState<Tab>(() => tabFromParams(searchParams))
+  const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams))
+  const [draftQ, setDraftQ] = useState(() => searchParams.get('q') || '')
+  const [page, setPage] = useState(() => Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1))
+  const [detailCode, setDetailCode] = useState<string | null>(() => searchParams.get('item'))
   const [items, setItems] = useState<CatalogItem[]>([])
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(40)
@@ -127,20 +157,49 @@ export default function FullCatalogClient() {
   const [warning, setWarning] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const [syncing, setSyncing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(true)
 
+  // Schrijf filters/tab/page/item naar de URL (zodat terug/refresh de context houdt).
+  useEffect(() => {
+    if (skipUrlWrite.current) {
+      skipUrlWrite.current = false
+      return
+    }
+    const params = new URLSearchParams()
+    if (tab !== 'all') params.set('tab', tab)
+    if (page > 1) params.set('page', String(page))
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) params.set(k, v)
+    }
+    if (detailCode) params.set('item', detailCode)
+    const qs = params.toString()
+    const next = qs ? `${pathname}?${qs}` : pathname
+    const cur = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+    if (next !== cur) {
+      router.replace(next, { scroll: false })
+    }
+  }, [tab, page, filters, detailCode, pathname, router, searchParams])
+
+  // Browser-back: URL is bron van truth voor item open/dicht.
+  useEffect(() => {
+    const item = searchParams.get('item')
+    setDetailCode((prev) => (prev === item ? prev : item))
+  }, [searchParams])
+
   // Debounce zoekveld
   useEffect(() => {
     const t = setTimeout(() => {
-      setFilters((f) => (f.q === draftQ ? f : { ...f, q: draftQ }))
-      setPage(1)
+      setFilters((f) => {
+        if (f.q === draftQ) return f
+        return { ...f, q: draftQ }
+      })
+      setPage((p) => (draftQ === filters.q ? p : 1))
     }, 300)
     return () => clearTimeout(t)
-  }, [draftQ])
+  }, [draftQ, filters.q])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -209,10 +268,29 @@ export default function FullCatalogClient() {
   function changeTab(t: Tab) {
     setTab(t)
     setPage(1)
-    setExpanded(null)
     // Op tab offered/oos: stock/offered-filter is impliciet — reset conflicterende
     if (t === 'offered') setFilters((f) => ({ ...f, offered: '' }))
     if (t === 'oos') setFilters((f) => ({ ...f, stock: '' }))
+  }
+
+  function openDetail(itemcode: string) {
+    listScrollRef.current = typeof window !== 'undefined' ? window.scrollY : 0
+    setDetailCode(itemcode)
+  }
+
+  function closeDetail() {
+    setDetailCode(null)
+    // Herstel scrollpositie na unmount drawer
+    requestAnimationFrame(() => {
+      window.scrollTo(0, listScrollRef.current)
+    })
+  }
+
+  function onOfferedFromDrawer(itemcode: string, offered: boolean) {
+    setItems((list) =>
+      list.map((it) => (it.itemcode === itemcode ? { ...it, offered } : it))
+    )
+    setOfferedTotal((n) => n + (offered ? 1 : -1))
   }
 
   function toggleOffer(itemcode: string, next: boolean) {
@@ -638,18 +716,22 @@ export default function FullCatalogClient() {
           {msg ? <p className="text-xs text-stera-ink-soft">{msg}</p> : null}
         </div>
 
-        {/* List */}
+        {/* List — klik op rij opent detail-drawer (filters/pagina blijven staan) */}
         <ul className="space-y-2">
           {items.map((it) => {
             const key = isNew ? String(it.changeId) : it.itemcode
-            const isOpen = expanded === key
             const selId = isNew ? String(it.changeId) : it.itemcode
             const on = !!it.offered
+            const active = detailCode === it.itemcode
             return (
               <li
                 key={key}
-                className={`rounded-xl border bg-white ${
-                  on ? 'border-stera-green/40' : 'border-stera-line'
+                className={`rounded-xl border bg-white transition ${
+                  active
+                    ? 'border-stera-green ring-1 ring-stera-green/30'
+                    : on
+                      ? 'border-stera-green/40'
+                      : 'border-stera-line'
                 }`}
               >
                 <div className="flex items-center gap-3 p-3">
@@ -657,12 +739,13 @@ export default function FullCatalogClient() {
                     type="checkbox"
                     checked={selected.has(selId)}
                     onChange={() => toggleSelect(selId)}
+                    onClick={(e) => e.stopPropagation()}
                     className="shrink-0"
                     aria-label="Selecteer"
                   />
                   <button
                     type="button"
-                    onClick={() => setExpanded(isOpen ? null : key)}
+                    onClick={() => openDetail(it.itemcode)}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
                     {it.imageItemcode ? (
@@ -707,14 +790,17 @@ export default function FullCatalogClient() {
                         <span className="font-mono">{it.itemcode}</span>
                         {specsLine(it) ? ` · ${specsLine(it)}` : ''}
                         {it.costPrice != null ? ` · inkoop ${euro(it.costPrice)}` : ''}
-                        {it.stock != null && !isNew ? ` · stock ${it.stock}` : ''}{' '}
-                        <span className="text-stera-ink-soft/70">{isOpen ? '▲' : '▼'}</span>
+                        {it.stock != null && !isNew ? ` · stock ${it.stock}` : ''}
+                        <span className="ml-1 text-stera-green">· detail →</span>
                       </p>
                     </div>
                   </button>
                   <button
                     type="button"
-                    onClick={() => toggleOffer(it.itemcode, !on)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleOffer(it.itemcode, !on)
+                    }}
                     disabled={pending}
                     className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
                       on
@@ -725,84 +811,18 @@ export default function FullCatalogClient() {
                     {on ? '✓ Aangeboden' : 'Aanbieden'}
                   </button>
                 </div>
-
-                {isOpen ? (
-                  <div className="space-y-2 border-t border-stera-line/70 px-3 py-3 text-xs text-stera-ink">
-                    {it.detail ? <p className="text-stera-ink-soft">{it.detail}</p> : null}
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-                      <div>
-                        <dt className="text-stera-ink-soft">Itemcode</dt>
-                        <dd className="font-mono">{it.itemcode}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Inkoop</dt>
-                        <dd>{euro(it.costPrice)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Voorraad</dt>
-                        <dd>
-                          {it.stock != null
-                            ? it.stock > 0
-                              ? it.stock
-                              : '0 (op bestelling)'
-                            : '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Hoogte</dt>
-                        <dd>{it.height ? `${Math.round(Number(it.height))} cm` : '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Diameter</dt>
-                        <dd>
-                          {it.diameter ? `${Math.round(Number(it.diameter))} cm` : '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Levertijd</dt>
-                        <dd>
-                          {it.deliveryDays != null ? `${it.deliveryDays} dagen` : '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Locatie</dt>
-                        <dd>{it.location?.replace(/\|/g, ', ') || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Merk</dt>
-                        <dd>{it.brand?.replace(/\|/g, ', ') || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Plantsoort</dt>
-                        <dd>{it.plantsoort || '—'}</dd>
-                      </div>
-                      <div className="col-span-2">
-                        <dt className="text-stera-ink-soft">Hoofdgroep</dt>
-                        <dd>{it.mainGroup || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-stera-ink-soft">Productgroep</dt>
-                        <dd>{it.productGroup || '—'}</dd>
-                      </div>
-                      <div className="col-span-2 sm:col-span-3">
-                        <dt className="text-stera-ink-soft">Variety</dt>
-                        <dd>{it.variety || '—'}</dd>
-                      </div>
-                    </dl>
-                    <p className="pt-1">
-                      <Link
-                        href={`/catalog/${encodeURIComponent(it.itemcode)}`}
-                        className="text-stera-green underline-offset-2 hover:underline"
-                      >
-                        Open detail in catalogus →
-                      </Link>
-                    </p>
-                  </div>
-                ) : null}
               </li>
             )
           })}
         </ul>
+
+        {detailCode ? (
+          <CatalogDetailDrawer
+            itemcode={detailCode}
+            onClose={closeDetail}
+            onOfferedChange={onOfferedFromDrawer}
+          />
+        ) : null}
 
         {!loading && items.length === 0 ? (
           <p className="text-center text-sm text-stera-ink-soft">

@@ -32,7 +32,7 @@ const TABS: Tab[] = [
     href: '/quotes',
     label: 'Offertes',
     icon: 'quotes',
-    // De catalogus is bereikbaar vanuit het offertes-gedeelte.
+    // /catalog is de kies-UI vanuit offertes (niet de admin-webshop-catalogus).
     matches: (p) => p.startsWith('/quotes') || p.startsWith('/catalog'),
   },
   {
@@ -50,6 +50,7 @@ const TABS: Tab[] = [
     href: '/admin/catalogus',
     label: 'Catalogus',
     icon: 'webshop',
+    // Admin-selectie + detail-drawer blijven op /admin/catalogus (URL-params).
     matches: (p) => p.startsWith('/admin/catalogus'),
   },
 ]
