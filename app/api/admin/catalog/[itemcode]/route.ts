@@ -69,7 +69,7 @@ export async function GET(
     supabase
       .from('product_enrichment')
       .select(
-        'location_binnen, location_buiten, location_source, ready_for_shopify, notes, studio_image_path, optimized'
+        'location_binnen, location_buiten, location_source, ready_for_shopify, notes, studio_image_path, detail_image_path, maat_image_path, optimized, photoset_generated_at'
       )
       .eq('itemcode', itemcode)
       .maybeSingle(),
@@ -140,6 +140,9 @@ export async function GET(
       optimized: enrichment?.optimized ?? false,
       hasStudioImage: !!(enrichment?.studio_image_path),
       studioImagePath: enrichment?.studio_image_path ?? null,
+      detailImagePath: enrichment?.detail_image_path ?? null,
+      maatImagePath: enrichment?.maat_image_path ?? null,
+      photosetGeneratedAt: enrichment?.photoset_generated_at ?? null,
       notes: enrichment?.notes ?? null,
       brands,
       collections,

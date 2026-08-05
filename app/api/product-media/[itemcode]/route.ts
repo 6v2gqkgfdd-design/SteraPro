@@ -48,21 +48,27 @@ export async function GET(
     )
   }
 
-  // studio
   const sb = admin()
   const { data: enr } = await sb
     .from('product_enrichment')
-    .select('studio_image_path')
+    .select('studio_image_path, detail_image_path, maat_image_path')
     .eq('itemcode', itemcode)
     .maybeSingle()
 
-  const path = enr?.studio_image_path as string | null
+  let path: string | null = null
+  if (variant === 'detail') path = (enr?.detail_image_path as string) || null
+  else if (variant === 'maat') path = (enr?.maat_image_path as string) || null
+  else path = (enr?.studio_image_path as string) || null
+
   if (!path) {
-    // Geen studio → val terug op origineel
-    return NextResponse.redirect(
-      new URL(`/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`, request.url),
-      302
-    )
+    // Geen studio/set → val terug op origineel (alleen zinvol voor studio)
+    if (variant === 'studio') {
+      return NextResponse.redirect(
+        new URL(`/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`, request.url),
+        302
+      )
+    }
+    return NextResponse.json({ error: `Geen ${variant}-foto` }, { status: 404 })
   }
 
   const { data: signed, error } = await sb.storage

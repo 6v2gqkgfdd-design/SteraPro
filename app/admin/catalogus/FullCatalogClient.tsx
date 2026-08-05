@@ -182,6 +182,14 @@ export default function FullCatalogClient() {
   const [syncing, setSyncing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(true)
+  const [photoStatus, setPhotoStatus] = useState<{
+    needOptimize: number
+    offered: number
+    optimized: number
+    queue: { pending: number; running: number }
+  } | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoMsg, setPhotoMsg] = useState<string | null>(null)
 
   // Bewaar progressie lokaal (filters/tab/pagina/scroll) — geen Next-router.
   useEffect(() => {
@@ -266,6 +274,91 @@ export default function FullCatalogClient() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const refreshPhotoStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/photos/optimize')
+      const data = await res.json()
+      if (data.ok) {
+        setPhotoStatus({
+          needOptimize: data.needOptimize ?? 0,
+          offered: data.offered ?? 0,
+          optimized: data.optimized ?? 0,
+          queue: data.queue ?? { pending: 0, running: 0 },
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshPhotoStatus()
+  }, [refreshPhotoStatus, offeredTotal])
+
+  async function enqueuePhotoOptimize() {
+    setPhotoBusy(true)
+    setPhotoMsg(null)
+    try {
+      const res = await fetch('/api/admin/photos/optimize', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ limit: 50 }),
+      })
+      const data = await res.json()
+      if (!data.ok && data.error) {
+        setPhotoMsg(data.error)
+        return
+      }
+      setPhotoMsg(data.message || `${data.enqueued} in wachtrij`)
+      await refreshPhotoStatus()
+      // Automatisch eerste jobs verwerken (één voor één)
+      if (data.enqueued > 0) {
+        void processPhotoQueue()
+      }
+    } catch (e) {
+      setPhotoMsg(e instanceof Error ? e.message : 'Enqueue mislukt')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  async function processPhotoQueue() {
+    setPhotoBusy(true)
+    setPhotoMsg('Bezig met studio + detail + maat… (dit kan 30–90s per product duren)')
+    try {
+      let safety = 0
+      while (safety < 50) {
+        safety++
+        const res = await fetch('/api/admin/photos/optimize/run', { method: 'POST' })
+        const data = await res.json()
+        if (data.message && data.done === false && !data.itemcode) {
+          setPhotoMsg(data.message)
+          break
+        }
+        if (!res.ok || data.error) {
+          setPhotoMsg(
+            `Fout bij ${data.itemcode || '?'}: ${data.error || 'onbekend'}` +
+              (data.remaining ? ` · nog ${data.remaining} in wachtrij` : '')
+          )
+          // ga door met volgende
+          if (!data.remaining) break
+          continue
+        }
+        setPhotoMsg(
+          `${data.itemcode}: fotoset klaar` +
+            (data.remaining ? ` · nog ${data.remaining} in wachtrij…` : ' · klaar')
+        )
+        if (!data.remaining) break
+      }
+      await refreshPhotoStatus()
+      void load()
+    } catch (e) {
+      setPhotoMsg(e instanceof Error ? e.message : 'Verwerken mislukt')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
 
   // Onthoud scroll terwijl je door de lijst gaat
   useEffect(() => {
@@ -766,6 +859,76 @@ export default function FullCatalogClient() {
               (foto&apos;s blijven bewaard). 0-stock = op bestelling.
             </span>
           </div>
+
+          {/* Foto-pipeline: aangeboden + niet afgewerkt */}
+          <div className="space-y-2 rounded-xl border border-stera-green/25 bg-stera-green/5 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-stera-green">
+              Foto-optimalisatie (studio + detail + maat)
+            </p>
+            <p className="text-xs text-stera-ink-soft">
+              Voor <strong className="text-stera-ink">aangeboden</strong> producten die nog{' '}
+              <strong className="text-stera-ink">niet afgewerkt</strong> zijn: Grok studiofoto,
+              detailclose-up en maatfoto — zoals de eerdere combinatie-pipeline. Thumbnail
+              wordt de studiofoto; origineel blijft bewaard.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-stera-ink-soft">
+              {photoStatus ? (
+                <>
+                  <span>
+                    Te doen:{' '}
+                    <strong className="text-stera-ink">{photoStatus.needOptimize}</strong>
+                    {' / '}
+                    {photoStatus.offered} aangeboden
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Afgewerkt: <strong className="text-stera-ink">{photoStatus.optimized}</strong>
+                  </span>
+                  {(photoStatus.queue.pending > 0 || photoStatus.queue.running > 0) && (
+                    <>
+                      <span>·</span>
+                      <span>
+                        Queue: {photoStatus.queue.pending} wacht, {photoStatus.queue.running}{' '}
+                        bezig
+                      </span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span>Status laden…</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={enqueuePhotoOptimize}
+                disabled={photoBusy || (photoStatus?.needOptimize ?? 0) === 0}
+                className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+              >
+                {photoBusy
+                  ? 'Bezig…'
+                  : `Optimaliseer openstaande (${photoStatus?.needOptimize ?? '…'})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void processPhotoQueue()}
+                disabled={photoBusy || (photoStatus?.queue.pending ?? 0) === 0}
+                className="stera-cta stera-cta-secondary text-sm disabled:opacity-50"
+              >
+                Verwerk wachtrij
+              </button>
+              <button
+                type="button"
+                onClick={() => void refreshPhotoStatus()}
+                disabled={photoBusy}
+                className="text-xs text-stera-green underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                Status vernieuwen
+              </button>
+            </div>
+            {photoMsg ? <p className="text-xs text-stera-ink-soft">{photoMsg}</p> : null}
+          </div>
+
           {warning ? (
             <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               {warning}

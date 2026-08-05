@@ -63,6 +63,8 @@ export type DetailItem = {
   optimized?: boolean
   hasStudioImage?: boolean
   studioImagePath?: string | null
+  detailImagePath?: string | null
+  maatImagePath?: string | null
 }
 
 const euro = (n: number | null | undefined) =>
@@ -473,15 +475,13 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
                   Foto&apos;s
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div>
                     <p className="mb-1 text-[11px] font-semibold text-stera-ink">
-                      Studio (Stera)
+                      Studio
                       {item.hasStudioImage ? (
-                        <span className="ml-1 font-normal text-stera-green">· thumbnail</span>
-                      ) : (
-                        <span className="ml-1 font-normal text-stera-ink-soft">· nog niet</span>
-                      )}
+                        <span className="ml-1 font-normal text-stera-green">· thumb</span>
+                      ) : null}
                     </p>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -490,28 +490,92 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                           ? `${studioImageApiUrl(item.itemcode)}&t=${imgTick}`
                           : 'data:image/svg+xml,' +
                             encodeURIComponent(
-                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="12" font-family="system-ui">geen studio</text></svg>`
+                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">geen studio</text></svg>`
                             )
                       }
                       alt="Studio"
-                      className="aspect-square w-full rounded-lg object-cover border border-stera-line bg-stera-cream"
+                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">Detail</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        item.detailImagePath
+                          ? `/api/product-media/${encodeURIComponent(item.itemcode)}?variant=detail&t=${imgTick}`
+                          : 'data:image/svg+xml,' +
+                            encodeURIComponent(
+                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">geen detail</text></svg>`
+                            )
+                      }
+                      alt="Detail"
+                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">Maat</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        item.maatImagePath
+                          ? `/api/product-media/${encodeURIComponent(item.itemcode)}?variant=maat&t=${imgTick}`
+                          : 'data:image/svg+xml,' +
+                            encodeURIComponent(
+                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">geen maat</text></svg>`
+                            )
+                      }
+                      alt="Maat"
+                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
                     />
                   </div>
                   <div>
                     <p className="mb-1 text-[11px] font-semibold text-stera-ink">
-                      Origineel (Nieuwkoop)
+                      Origineel (NK)
                     </p>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={originalImageApiUrl(item.itemcode)}
                       alt="Nieuwkoop origineel"
-                      className="aspect-square w-full rounded-lg object-cover border border-stera-line bg-stera-cream"
+                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
                     />
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={uploading || pending}
+                    className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+                    onClick={async () => {
+                      setUploading(true)
+                      setMediaMsg(`${item.itemcode}: pipeline (studio+detail+maat)…`)
+                      try {
+                        const res = await fetch('/api/admin/photos/optimize/run', {
+                          method: 'POST',
+                          headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({ itemcode: item.itemcode }),
+                        })
+                        const data = await res.json()
+                        if (!res.ok || data.error) throw new Error(data.error || 'Mislukt')
+                        // herlaad item
+                        const r = await fetch(
+                          `/api/admin/catalog/${encodeURIComponent(item.itemcode)}`
+                        )
+                        const d = await r.json()
+                        if (d.item) setItem(d.item)
+                        setImgTick((t) => t + 1)
+                        setMediaMsg('Fotoset klaar: studio + detail + maat.')
+                      } catch (e) {
+                        setMediaMsg(e instanceof Error ? e.message : 'Pipeline mislukt')
+                      } finally {
+                        setUploading(false)
+                      }
+                    }}
+                  >
+                    {uploading ? 'Pipeline bezig…' : 'AI-fotoset genereren'}
+                  </button>
                   <label className="stera-cta stera-cta-secondary cursor-pointer text-sm">
-                    {uploading ? 'Bezig…' : 'Studiofoto uploaden'}
+                    {uploading ? 'Bezig…' : 'Studio handmatig uploaden'}
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
