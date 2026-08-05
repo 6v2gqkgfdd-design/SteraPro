@@ -120,11 +120,12 @@ export async function GET(request: Request) {
   }
 
   // --- Product-tabs via RPC (filters + paginatie) ---
-  const price = PRICE_BANDS.find((b) => b.id === priceBand)
-  const height = HEIGHT_BANDS.find((b) => b.id === heightBand)
+  // Alleen echte prijs/hoogtebanden doorgeven (lege id '' telt niet als band).
+  const price = priceBand ? PRICE_BANDS.find((b) => b.id === priceBand) : undefined
+  const height = heightBand ? HEIGHT_BANDS.find((b) => b.id === heightBand) : undefined
 
   const { data, error } = await supabase.rpc('admin_catalog_search', {
-    p_tab: tab,
+    p_tab: tab || 'all',
     p_type: type || null,
     p_location: location || null,
     p_stock: stock || null,
@@ -142,13 +143,12 @@ export async function GET(request: Request) {
   })
 
   if (error) {
-    // Fallback als RPC nog niet bestaat
     return NextResponse.json({
       ok: false,
       error: error.message,
       warning:
         error.message.includes('admin_catalog_search') || error.message.includes('function')
-          ? 'Migratie admin_catalog_search nog niet toegepast.'
+          ? 'Catalogus-zoekfunctie niet beschikbaar. Probeer opnieuw of contacteer support.'
           : error.message,
       tab,
       page,
@@ -158,10 +158,28 @@ export async function GET(request: Request) {
     })
   }
 
-  const result = data as Record<string, unknown>
+  // Supabase kan jsonb al als object teruggeven, of als string.
+  const result =
+    typeof data === 'string'
+      ? (JSON.parse(data) as Record<string, unknown>)
+      : ((data ?? {}) as Record<string, unknown>)
+
+  const items = Array.isArray(result.items) ? result.items : []
+  const total = typeof result.total === 'number' ? result.total : Number(result.total) || 0
+
   return NextResponse.json({
-    ...result,
-    // Alias voor UI: typeCounts van catalog-types vs change-types
+    ok: result.ok !== false,
+    tab: result.tab ?? tab,
+    page: result.page ?? page,
+    pageSize: result.pageSize ?? PAGE_SIZE,
+    total,
+    openChanges: result.openChanges ?? 0,
+    offeredTotal: result.offeredTotal ?? 0,
+    typeCounts: result.typeCounts ?? {},
     catalogTypeCounts: result.typeCounts ?? {},
+    brands: result.brands ?? [],
+    plantsoorten: result.plantsoorten ?? [],
+    items,
+    error: result.error,
   })
 }
