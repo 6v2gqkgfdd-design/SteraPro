@@ -46,7 +46,6 @@ export type DetailItem = {
   locationsManual?: LocationLabel[] | string[]
   enrichmentBinnen?: boolean | null
   enrichmentBuiten?: boolean | null
-  catalogType?: string | null
   brands?: string[]
   collections?: string[]
   substrate?: string[]
