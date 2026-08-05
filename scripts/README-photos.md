@@ -1,18 +1,16 @@
 # Foto-optimalisatie via terminal
 
-Volledige batch **zonder de admin-UI of chat**. Wel nodig: `XAI_API_KEY` (Grok Imagine API).
+**Zelfde look als de combinatie-pipeline** (niet de simpele sharp-beige).
 
-## Wat er gebeurt
+## Pipeline (identiek aan combis)
 
-Voor elk **aangeboden** product dat nog **niet afgewerkt** is:
+1. Nieuwkoop cutout  
+2. **`build-studio-v2.py`** — warme perzik-beige studio, plant 100% echt  
+3. **Grok Imagine** — zelfde prompt als `pipeline-fotos.mjs`  
+4. **`maak-fotoset.py`** — studio-final + detail + maat (2048px)  
+5. Upload naar Storage + `product_enrichment`
 
-1. Nieuwkoop cutout ophalen  
-2. Beige studio-basis (sharp)  
-3. **Grok Imagine** studiofoto  
-4. Detail (blad-crop) + maatfoto (H/Ø)  
-5. Opslaan in Storage: `studio/`, `detail/`, `maat/` + `product_enrichment`
-
-Catalogus-thumbnail = studio. Origineel NK blijft beschikbaar.
+Vereist lokaal: **python3 + Pillow**, `XAI_API_KEY`, Nieuwkoop + Supabase env.
 
 ## Commando’s
 
