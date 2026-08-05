@@ -470,11 +470,55 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                 </div>
               </div>
 
-              {/* Foto's: studio + origineel */}
-              <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
-                  Foto&apos;s
+              {/* Foto's: pipeline per product + previews */}
+              <section className="rounded-xl border border-stera-green/30 bg-white p-3 text-sm">
+                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                  Foto&apos;s — dit product
                 </h3>
+                <p className="mb-3 text-[11px] text-stera-ink-soft">
+                  Genereert voor <strong className="text-stera-ink">{item.itemcode}</strong>:{' '}
+                  1 hoofdfoto (studio), 1 detail, 1 maatfoto. Origineel Nieuwkoop blijft
+                  bewaard.
+                </p>
+
+                <button
+                  type="button"
+                  disabled={uploading || pending}
+                  className="stera-cta stera-cta-primary mb-3 w-full text-sm disabled:opacity-50"
+                  onClick={async () => {
+                    setUploading(true)
+                    setMediaMsg(
+                      `${item.itemcode}: bezig met studio + detail + maat (30–90s)…`
+                    )
+                    try {
+                      const res = await fetch('/api/admin/photos/optimize/run', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ itemcode: item.itemcode }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok || data.error) throw new Error(data.error || 'Mislukt')
+                      const r = await fetch(
+                        `/api/admin/catalog/${encodeURIComponent(item.itemcode)}`
+                      )
+                      const d = await r.json()
+                      if (d.item) setItem(d.item)
+                      setImgTick((t) => t + 1)
+                      setMediaMsg('Klaar: studio + detail + maat opgeslagen.')
+                    } catch (e) {
+                      setMediaMsg(e instanceof Error ? e.message : 'Pipeline mislukt')
+                    } finally {
+                      setUploading(false)
+                    }
+                  }}
+                >
+                  {uploading
+                    ? 'Bezig met fotoset… even geduld'
+                    : item.hasStudioImage
+                      ? 'Fotoset opnieuw genereren (studio + detail + maat)'
+                      : 'Fotoset genereren (studio + detail + maat)'}
+                </button>
+
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div>
                     <p className="mb-1 text-[11px] font-semibold text-stera-ink">
@@ -541,39 +585,8 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                     />
                   </div>
                 </div>
+
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={uploading || pending}
-                    className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
-                    onClick={async () => {
-                      setUploading(true)
-                      setMediaMsg(`${item.itemcode}: pipeline (studio+detail+maat)…`)
-                      try {
-                        const res = await fetch('/api/admin/photos/optimize/run', {
-                          method: 'POST',
-                          headers: { 'content-type': 'application/json' },
-                          body: JSON.stringify({ itemcode: item.itemcode }),
-                        })
-                        const data = await res.json()
-                        if (!res.ok || data.error) throw new Error(data.error || 'Mislukt')
-                        // herlaad item
-                        const r = await fetch(
-                          `/api/admin/catalog/${encodeURIComponent(item.itemcode)}`
-                        )
-                        const d = await r.json()
-                        if (d.item) setItem(d.item)
-                        setImgTick((t) => t + 1)
-                        setMediaMsg('Fotoset klaar: studio + detail + maat.')
-                      } catch (e) {
-                        setMediaMsg(e instanceof Error ? e.message : 'Pipeline mislukt')
-                      } finally {
-                        setUploading(false)
-                      }
-                    }}
-                  >
-                    {uploading ? 'Pipeline bezig…' : 'AI-fotoset genereren'}
-                  </button>
                   <label className="stera-cta stera-cta-secondary cursor-pointer text-sm">
                     {uploading ? 'Bezig…' : 'Studio handmatig uploaden'}
                     <input
@@ -595,11 +608,18 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                     </button>
                   ) : null}
                 </div>
-                <p className="mt-2 text-[11px] text-stera-ink-soft">
-                  Origineel blijft altijd bewaard in de database/cache. Studio wordt de
-                  catalogus-thumbnail en (later) de Shopify-hoofdfoto.
-                </p>
-                {mediaMsg ? <p className="mt-1 text-xs text-stera-green">{mediaMsg}</p> : null}
+                {mediaMsg ? (
+                  <p
+                    className={`mt-2 text-xs ${
+                      mediaMsg.toLowerCase().includes('fout') ||
+                      mediaMsg.toLowerCase().includes('mislukt')
+                        ? 'text-red-700'
+                        : 'text-stera-green'
+                    }`}
+                  >
+                    {mediaMsg}
+                  </p>
+                ) : null}
               </section>
 
               <button
