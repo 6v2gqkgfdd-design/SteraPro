@@ -17,7 +17,7 @@ import {
   PRICE_BANDS,
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
-import { LOCATION_FILTER_OPTIONS } from '@/lib/location'
+import { LOCATION_FILTER_OPTIONS, locationAppliesToType } from '@/lib/location'
 
 /** Lokale opslag zodat filters/pagina overleven bij re-render of per ongeluk refresh. */
 const STATE_KEY = 'stera-admin-catalog-v1'
@@ -49,6 +49,7 @@ type CatalogItem = {
   location?: string | null
   locations?: string[]
   locationSource?: string
+  locationRelevant?: boolean
   plantsoort?: string | null
   readyForShopify?: boolean
   changeId?: string
@@ -268,7 +269,14 @@ export default function FullCatalogClient() {
   }, [])
 
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
-    setFilters((f) => ({ ...f, [key]: value }))
+    setFilters((f) => {
+      const next = { ...f, [key]: value }
+      // Type zonder standplaats → locatiefilter resetten
+      if (key === 'type' && value && !locationAppliesToType(String(value))) {
+        next.location = ''
+      }
+      return next
+    })
     setPage(1)
   }
 
@@ -414,6 +422,9 @@ export default function FullCatalogClient() {
     filters.type === 'potten' ||
     filters.type === 'combinaties' ||
     filters.type === 'accessoires'
+  // Locatie-filter alleen tonen als type het toelaat (of type = alles)
+  const showLocationFilter =
+    !filters.type || locationAppliesToType(filters.type)
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -548,17 +559,23 @@ export default function FullCatalogClient() {
                 ))}
               </select>
 
-              <select
-                value={filters.location}
-                onChange={(e) => setFilter('location', e.target.value)}
-                className={selectClass}
-              >
-                {LOCATION_FILTER_OPTIONS.map((o) => (
-                  <option key={o.id || 'all'} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              {showLocationFilter ? (
+                <select
+                  value={filters.location}
+                  onChange={(e) => setFilter('location', e.target.value)}
+                  className={selectClass}
+                >
+                  {LOCATION_FILTER_OPTIONS.map((o) => (
+                    <option key={o.id || 'all'} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center rounded-lg border border-dashed border-stera-line bg-white/50 px-3 text-xs text-stera-ink-soft">
+                  Locatie n.v.t. voor dit type
+                </div>
+              )}
 
               <select
                 value={filters.stock}
@@ -800,16 +817,19 @@ export default function FullCatalogClient() {
                             Op bestelling
                           </span>
                         ) : null}
-                        {Array.isArray(it.locations) && it.locations.length > 0 ? (
-                          <span className="shrink-0 rounded-full border border-stera-line px-2 py-0.5 text-[10px] text-stera-ink-soft">
-                            {it.locations.join(' + ')}
-                            {it.locationSource === 'manual' ? ' · manueel' : ''}
-                          </span>
-                        ) : (
-                          <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                            Locatie?
-                          </span>
-                        )}
+                        {it.locationRelevant !== false &&
+                        locationAppliesToType(it.catalogType) ? (
+                          Array.isArray(it.locations) && it.locations.length > 0 ? (
+                            <span className="shrink-0 rounded-full border border-stera-line px-2 py-0.5 text-[10px] text-stera-ink-soft">
+                              {it.locations.join(' + ')}
+                              {it.locationSource === 'manual' ? ' · manueel' : ''}
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                              Locatie?
+                            </span>
+                          )
+                        ) : null}
                       </div>
                       <p className="text-xs text-stera-ink-soft">
                         {[it.mainGroup, it.productGroup, it.brand?.split('|')[0], it.plantsoort]

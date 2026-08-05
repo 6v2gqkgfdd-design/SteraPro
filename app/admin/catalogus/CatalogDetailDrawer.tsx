@@ -7,7 +7,11 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { setItemLocation, setItemMarginFactor, setItemOffered } from './actions'
-import type { LocationLabel, LocationSource } from '@/lib/location'
+import {
+  locationAppliesToType,
+  type LocationLabel,
+  type LocationSource,
+} from '@/lib/location'
 
 export type DetailItem = {
   itemcode: string
@@ -42,6 +46,7 @@ export type DetailItem = {
   locationsManual?: LocationLabel[] | string[]
   enrichmentBinnen?: boolean | null
   enrichmentBuiten?: boolean | null
+  catalogType?: string | null
   brands?: string[]
   collections?: string[]
   substrate?: string[]
@@ -388,112 +393,125 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                   : 'Aanbieden in webshop'}
               </button>
 
-              <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
-                  Standplaats (Binnen / Buiten)
-                </h3>
-                <p className="mb-2 text-[11px] text-stera-ink-soft">
-                  Bron Nieuwkoop: tag <code>Location</code> (NL: Binnen/Buiten). Ontbreekt die,
-                  vul je hier manueel in — dat blijft bewaard bij sync.
-                </p>
-                <Row label="Effectief">
-                  {item.locations?.length ? (
-                    <span>
-                      {item.locations.join(' + ')}
-                      <span className="ml-1 text-stera-ink-soft">
-                        (
-                        {item.locationSource === 'nieuwkoop'
-                          ? 'Nieuwkoop'
-                          : item.locationSource === 'manual'
-                            ? 'Stera manueel'
-                            : item.locationSource === 'rule'
-                              ? 'regel'
-                              : 'onbekend'}
-                        )
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="font-semibold text-amber-800">Ontbreekt</span>
-                  )}
-                </Row>
-                {item.locationsNieuwkoop && item.locationsNieuwkoop.length > 0 ? (
-                  <Row label="Nieuwkoop">{item.locationsNieuwkoop.join(' + ')}</Row>
-                ) : (
-                  <Row label="Nieuwkoop">
-                    <span className="text-amber-800">geen Location-tag</span>
-                  </Row>
-                )}
-
-                <div className="mt-3 space-y-2 border-t border-stera-line/60 pt-3">
-                  <p className="text-xs font-semibold text-stera-ink">
-                    Manueel instellen
-                    {item.locationSource === 'nieuwkoop' ? (
-                      <span className="ml-1 font-normal text-stera-ink-soft">
-                        (NK heeft voorrang; manueel = fallback als NK later leeg is)
-                      </span>
-                    ) : null}
+              {locationAppliesToType(item.catalogType) ? (
+                <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">
+                    Standplaats (Binnen / Buiten)
+                  </h3>
+                  <p className="mb-2 text-[11px] text-stera-ink-soft">
+                    Alleen relevant voor planten, potten, combinaties en mos. Bron Nieuwkoop:
+                    tag Location — anders manueel.
                   </p>
-                  <div className="flex flex-wrap gap-4 text-sm">
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={locBinnen}
-                        onChange={(e) => setLocBinnen(e.target.checked)}
-                      />
-                      Binnen
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={locBuiten}
-                        onChange={(e) => setLocBuiten(e.target.checked)}
-                      />
-                      Buiten
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={saveLocation}
-                      disabled={pending}
-                      className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
-                    >
-                      Locatie opslaan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLocBinnen(false)
-                        setLocBuiten(false)
-                        startTransition(async () => {
-                          const res = await setItemLocation(item.itemcode, {
-                            binnen: false,
-                            buiten: false,
-                          })
-                          if (!res.ok) setLocMsg(res.error)
-                          else {
-                            setLocMsg('Manuele locatie gewist.')
-                            try {
-                              const r = await fetch(
-                                `/api/admin/catalog/${encodeURIComponent(item.itemcode)}`
-                              )
-                              const data = await r.json()
-                              if (data.item) setItem(data.item)
-                            } catch {
-                              /* ignore */
+                  <Row label="Effectief">
+                    {item.locations?.length ? (
+                      <span>
+                        {item.locations.join(' + ')}
+                        <span className="ml-1 text-stera-ink-soft">
+                          (
+                          {item.locationSource === 'nieuwkoop'
+                            ? 'Nieuwkoop'
+                            : item.locationSource === 'manual'
+                              ? 'Stera manueel'
+                              : item.locationSource === 'rule'
+                                ? 'regel'
+                                : 'onbekend'}
+                          )
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-amber-800">Ontbreekt</span>
+                    )}
+                  </Row>
+                  {item.locationsNieuwkoop && item.locationsNieuwkoop.length > 0 ? (
+                    <Row label="Nieuwkoop">{item.locationsNieuwkoop.join(' + ')}</Row>
+                  ) : (
+                    <Row label="Nieuwkoop">
+                      <span className="text-amber-800">geen Location-tag</span>
+                    </Row>
+                  )}
+
+                  <div className="mt-3 space-y-2 border-t border-stera-line/60 pt-3">
+                    <p className="text-xs font-semibold text-stera-ink">
+                      Manueel instellen
+                      {item.locationSource === 'nieuwkoop' ? (
+                        <span className="ml-1 font-normal text-stera-ink-soft">
+                          (NK heeft voorrang; manueel = fallback)
+                        </span>
+                      ) : null}
+                    </p>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={locBinnen}
+                          onChange={(e) => setLocBinnen(e.target.checked)}
+                        />
+                        Binnen
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={locBuiten}
+                          onChange={(e) => setLocBuiten(e.target.checked)}
+                        />
+                        Buiten
+                      </label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={saveLocation}
+                        disabled={pending}
+                        className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+                      >
+                        Locatie opslaan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocBinnen(false)
+                          setLocBuiten(false)
+                          startTransition(async () => {
+                            const res = await setItemLocation(item.itemcode, {
+                              binnen: false,
+                              buiten: false,
+                            })
+                            if (!res.ok) setLocMsg(res.error)
+                            else {
+                              setLocMsg('Manuele locatie gewist.')
+                              try {
+                                const r = await fetch(
+                                  `/api/admin/catalog/${encodeURIComponent(item.itemcode)}`
+                                )
+                                const data = await r.json()
+                                if (data.item) setItem(data.item)
+                              } catch {
+                                /* ignore */
+                              }
                             }
-                          }
-                        })
-                      }}
-                      disabled={pending}
-                      className="stera-cta stera-cta-secondary text-sm disabled:opacity-50"
-                    >
-                      Wissen
-                    </button>
+                          })
+                        }}
+                        disabled={pending}
+                        className="stera-cta stera-cta-secondary text-sm disabled:opacity-50"
+                      >
+                        Wissen
+                      </button>
+                    </div>
+                    {locMsg ? <p className="text-xs text-stera-green">{locMsg}</p> : null}
                   </div>
-                  {locMsg ? <p className="text-xs text-stera-green">{locMsg}</p> : null}
-                </div>
-              </section>
+                </section>
+              ) : (
+                <section className="rounded-xl border border-dashed border-stera-line bg-white/60 p-3 text-sm text-stera-ink-soft">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-stera-ink-soft">
+                    Standplaats
+                  </p>
+                  <p className="mt-1 text-sm">
+                    N.v.t. voor dit type
+                    {item.catalogType ? ` (${item.catalogType})` : ''} — artificial,
+                    accessoires e.d. hebben geen Binnen/Buiten.
+                  </p>
+                </section>
+              )}
 
               <section className="rounded-xl border border-stera-line bg-white p-3 text-sm">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-stera-green">

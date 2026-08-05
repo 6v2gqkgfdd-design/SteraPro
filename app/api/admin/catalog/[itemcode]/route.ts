@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { classifyCatalogType, tagValues } from '@/lib/catalog-filters'
-import { resolveEffectiveLocation } from '@/lib/location'
+import { locationAppliesToType, resolveEffectiveLocation } from '@/lib/location'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -84,6 +84,8 @@ export async function GET(
   const light = tagValues(tags, 'LocationLight')
   const temp = tagValues(tags, 'Temperature')
 
+  const catalogType = classifyCatalogType(p)
+  const locRelevant = locationAppliesToType(catalogType)
   const loc = resolveEffectiveLocation({
     tags,
     location_binnen: enrichment?.location_binnen,
@@ -126,10 +128,10 @@ export async function GET(
       firstAvailable: stock?.first_available ?? null,
       offered: !!offeredRow?.offered,
       offeredUpdatedAt: offeredRow?.updated_at ?? null,
-      catalogType: classifyCatalogType(p),
-      /** Effectieve locatie (NK of manueel) */
-      locations: loc.locations,
-      locationSource: loc.source,
+      catalogType,
+      locationRelevant: locRelevant,
+      locations: locRelevant ? loc.locations : [],
+      locationSource: locRelevant ? loc.source : 'na',
       locationsNieuwkoop: loc.fromNieuwkoop,
       locationsManual: loc.fromEnrichment,
       enrichmentBinnen: enrichment?.location_binnen ?? null,

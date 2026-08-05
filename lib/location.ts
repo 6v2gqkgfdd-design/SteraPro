@@ -1,10 +1,29 @@
 /**
  * Effectieve standplaats (Binnen/Buiten): Nieuwkoop-tag eerst, anders Stera-enrichment.
+ *
+ * Niet elk producttype heeft een standplaats — artificial, accessoires e.d. vallen erbuiten.
  */
 
 export type LocationLabel = 'Binnen' | 'Buiten'
 
-export type LocationSource = 'nieuwkoop' | 'manual' | 'rule' | 'none'
+export type LocationSource = 'nieuwkoop' | 'manual' | 'rule' | 'none' | 'na'
+
+/** Catalogustypes waar Binnen/Buiten zinvol is. */
+export const LOCATION_RELEVANT_TYPES = [
+  'combinaties',
+  'planten',
+  'potten',
+  'mos',
+] as const
+
+export type LocationRelevantType = (typeof LOCATION_RELEVANT_TYPES)[number]
+
+export function locationAppliesToType(
+  catalogType: string | null | undefined
+): boolean {
+  if (!catalogType) return false
+  return (LOCATION_RELEVANT_TYPES as readonly string[]).includes(catalogType)
+}
 
 export type EffectiveLocation = {
   /** Effectieve labels voor filter/UI */
@@ -85,5 +104,8 @@ export const LOCATION_FILTER_OPTIONS = [
   { id: '', label: 'Locatie: alles' },
   { id: 'Binnen', label: 'Binnen' },
   { id: 'Buiten', label: 'Buiten' },
-  { id: 'missing', label: 'Locatie ontbreekt' },
+  {
+    id: 'missing',
+    label: 'Locatie ontbreekt (planten/potten/combis/mos)',
+  },
 ] as const
