@@ -55,10 +55,12 @@ export const OFFERED_OPTIONS = [
   { id: 'no', label: 'Nog niet aangeboden' },
 ]
 
+/** @deprecated gebruik LOCATION_FILTER_OPTIONS uit lib/location.ts */
 export const LOCATION_OPTIONS = [
   { id: '', label: 'Locatie: alles' },
   { id: 'Binnen', label: 'Binnen' },
   { id: 'Buiten', label: 'Buiten' },
+  { id: 'missing', label: 'Locatie ontbreekt' },
 ]
 
 /** Classificeer een productrij naar ons type-aanbod. */

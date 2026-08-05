@@ -12,12 +12,12 @@ import CatalogDetailDrawer from './CatalogDetailDrawer'
 import {
   CATALOG_TYPES,
   HEIGHT_BANDS,
-  LOCATION_OPTIONS,
   OFFERED_OPTIONS,
   PHOTO_OPTIONS,
   PRICE_BANDS,
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
+import { LOCATION_FILTER_OPTIONS } from '@/lib/location'
 
 /** Lokale opslag zodat filters/pagina overleven bij re-render of per ongeluk refresh. */
 const STATE_KEY = 'stera-admin-catalog-v1'
@@ -47,7 +47,10 @@ type CatalogItem = {
   catalogType?: string | null
   brand?: string | null
   location?: string | null
+  locations?: string[]
+  locationSource?: string
   plantsoort?: string | null
+  readyForShopify?: boolean
   changeId?: string
   changeType?: string
   summary?: string
@@ -550,7 +553,7 @@ export default function FullCatalogClient() {
                 onChange={(e) => setFilter('location', e.target.value)}
                 className={selectClass}
               >
-                {LOCATION_OPTIONS.map((o) => (
+                {LOCATION_FILTER_OPTIONS.map((o) => (
                   <option key={o.id || 'all'} value={o.id}>
                     {o.label}
                   </option>
@@ -797,6 +800,16 @@ export default function FullCatalogClient() {
                             Op bestelling
                           </span>
                         ) : null}
+                        {Array.isArray(it.locations) && it.locations.length > 0 ? (
+                          <span className="shrink-0 rounded-full border border-stera-line px-2 py-0.5 text-[10px] text-stera-ink-soft">
+                            {it.locations.join(' + ')}
+                            {it.locationSource === 'manual' ? ' · manueel' : ''}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Locatie?
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-stera-ink-soft">
                         {[it.mainGroup, it.productGroup, it.brand?.split('|')[0], it.plantsoort]

@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { classifyCatalogType, tagValues } from '@/lib/catalog-filters'
+import { resolveEffectiveLocation } from '@/lib/location'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,34 +38,44 @@ export async function GET(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!p) return NextResponse.json({ error: 'Niet gevonden' }, { status: 404 })
 
-  const [{ data: stock }, { data: offeredRow }, { data: margin }, { data: itemMargin }] =
-    await Promise.all([
-      supabase
-        .from('nieuwkoop_stock')
-        .select('stock_available, first_available')
-        .eq('itemcode', itemcode)
-        .maybeSingle(),
-      supabase
-        .from('shopify_offered_items')
-        .select('offered, updated_at')
-        .eq('itemcode', itemcode)
-        .maybeSingle(),
-      supabase
-        .from('v_nieuwkoop_with_margin')
-        .select('effective_margin_factor, cost_price')
-        .eq('itemcode', itemcode)
-        .maybeSingle(),
-      // Item-specifieke override (indien gezet)
-      supabase
-        .from('margin_config')
-        .select('margin_factor')
-        .eq('scope', 'item')
-        .eq('scope_value', itemcode)
-        .maybeSingle(),
-    ])
+  const [
+    { data: stock },
+    { data: offeredRow },
+    { data: margin },
+    { data: itemMargin },
+    { data: enrichment },
+  ] = await Promise.all([
+    supabase
+      .from('nieuwkoop_stock')
+      .select('stock_available, first_available')
+      .eq('itemcode', itemcode)
+      .maybeSingle(),
+    supabase
+      .from('shopify_offered_items')
+      .select('offered, updated_at')
+      .eq('itemcode', itemcode)
+      .maybeSingle(),
+    supabase
+      .from('v_nieuwkoop_with_margin')
+      .select('effective_margin_factor, cost_price')
+      .eq('itemcode', itemcode)
+      .maybeSingle(),
+    supabase
+      .from('margin_config')
+      .select('margin_factor')
+      .eq('scope', 'item')
+      .eq('scope_value', itemcode)
+      .maybeSingle(),
+    supabase
+      .from('product_enrichment')
+      .select(
+        'location_binnen, location_buiten, location_source, ready_for_shopify, notes'
+      )
+      .eq('itemcode', itemcode)
+      .maybeSingle(),
+  ])
 
   const tags = p.tags
-  const locations = tagValues(tags, 'Location')
   const brands = tagValues(tags, 'Brand')
   const collections = tagValues(tags, 'Collection')
   const substrate = tagValues(tags, 'SubstrateType')
@@ -72,6 +83,13 @@ export async function GET(
   const shapes = tagValues(tags, 'Shape')
   const light = tagValues(tags, 'LocationLight')
   const temp = tagValues(tags, 'Temperature')
+
+  const loc = resolveEffectiveLocation({
+    tags,
+    location_binnen: enrichment?.location_binnen,
+    location_buiten: enrichment?.location_buiten,
+    location_source: enrichment?.location_source,
+  })
 
   return NextResponse.json({
     ok: true,
@@ -81,9 +99,7 @@ export async function GET(
       detail: p.item_description_nl,
       costPrice: margin?.cost_price ?? p.sales_price,
       marginFactor: margin?.effective_margin_factor ?? null,
-      /** true = er staat een item-override in margin_config */
       marginIsCustom: itemMargin?.margin_factor != null,
-      /** Item-override factor (null = volgt groep/default) */
       itemMarginFactor:
         itemMargin?.margin_factor != null ? Number(itemMargin.margin_factor) : null,
       mainGroup: p.main_group_description_nl,
@@ -111,7 +127,15 @@ export async function GET(
       offered: !!offeredRow?.offered,
       offeredUpdatedAt: offeredRow?.updated_at ?? null,
       catalogType: classifyCatalogType(p),
-      locations,
+      /** Effectieve locatie (NK of manueel) */
+      locations: loc.locations,
+      locationSource: loc.source,
+      locationsNieuwkoop: loc.fromNieuwkoop,
+      locationsManual: loc.fromEnrichment,
+      enrichmentBinnen: enrichment?.location_binnen ?? null,
+      enrichmentBuiten: enrichment?.location_buiten ?? null,
+      readyForShopify: enrichment?.ready_for_shopify ?? false,
+      notes: enrichment?.notes ?? null,
       brands,
       collections,
       substrate,

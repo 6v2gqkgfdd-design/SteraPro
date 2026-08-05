@@ -133,6 +133,61 @@ export async function acknowledgeAllOpen(changeType?: string): Promise<Result> {
  * factor = null → item-override verwijderen (terug naar groep/default).
  * factor > 0 → upsert in margin_config.
  */
+/**
+ * Handmatige standplaats op product_enrichment.
+ * binnen/buiten: true/false; beide false = wissen van manuele locatie.
+ * Als Nieuwkoop al Location heeft, blijft die effectief primair — enrichment is fallback.
+ */
+export async function setItemLocation(
+  itemcode: string,
+  opts: { binnen: boolean; buiten: boolean }
+): Promise<Result> {
+  const { supabase, error: authErr } = await requireStaff()
+  if (authErr) return { ok: false, error: authErr }
+  const code = itemcode?.trim()
+  if (!code) return { ok: false, error: 'Geen itemcode' }
+
+  const binnen = !!opts.binnen
+  const buiten = !!opts.buiten
+
+  // Beide uit = enrichment-locatie wissen (niet de hele rij)
+  if (!binnen && !buiten) {
+    const { data: existing } = await supabase
+      .from('product_enrichment')
+      .select('itemcode, ready_for_shopify, notes')
+      .eq('itemcode', code)
+      .maybeSingle()
+    if (!existing) return { ok: true }
+    const { error } = await supabase
+      .from('product_enrichment')
+      .update({
+        location_binnen: null,
+        location_buiten: null,
+        location_source: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('itemcode', code)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/admin/catalogus')
+    return { ok: true }
+  }
+
+  const row = {
+    itemcode: code,
+    location_binnen: binnen,
+    location_buiten: buiten,
+    location_source: 'manual' as const,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error } = await supabase.from('product_enrichment').upsert(row, {
+    onConflict: 'itemcode',
+  })
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/admin/catalogus')
+  return { ok: true }
+}
+
 export async function setItemMarginFactor(
   itemcode: string,
   factor: number | null
