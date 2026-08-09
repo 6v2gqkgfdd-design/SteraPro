@@ -84,8 +84,9 @@ function assertImageMagic(buf: Buffer, contentType: string, label: string) {
 }
 
 /**
- * Upload binary veilig naar Storage (Blob + Uint8Array-kopie).
- * Daarna download + magic-check zodat we nooit “klaar” melden bij corruptie.
+ * Upload binary veilig naar Storage.
+ * Gebruikt ArrayBuffer (betrouwbaarder op Vercel dan bare Buffer/Blob).
+ * Verifieert via public URL — SDK-download kan stale/corrupt teruggeven.
  */
 async function upload(
   sb: ReturnType<typeof admin>,
@@ -95,33 +96,63 @@ async function upload(
 ) {
   assertImageMagic(buf, contentType, `upload ${path}`)
 
-  // Standalone kopie: voorkomt Buffer/fetch edge-cases op serverless (Vercel)
-  // die binary als UTF-8 kunnen manglen (0x89 → EF BF BD).
-  const bytes = new Uint8Array(buf.byteLength)
-  bytes.set(buf)
-  const body = new Blob([bytes], { type: contentType })
+  // Verse ArrayBuffer-kopie (niet shared Buffer pool)
+  const ab = buf.buffer.slice(
+    buf.byteOffset,
+    buf.byteOffset + buf.byteLength
+  ) as ArrayBuffer
 
-  const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, body, {
+  // Oude object weg → voorkomt sticky corrupte versies
+  await sb.storage.from(MEDIA_BUCKET).remove([path]).catch(() => null)
+
+  const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, ab, {
     contentType,
     upsert: true,
+    cacheControl: '3600',
   })
   if (error) throw new Error(`Storage ${path}: ${error.message}`)
 
-  const { data: dl, error: dlErr } = await sb.storage
-    .from(MEDIA_BUCKET)
-    .download(path)
-  if (dlErr || !dl) {
-    throw new Error(
-      `Storage verify ${path}: download mislukt (${dlErr?.message || 'geen data'})`
-    )
+  // Verify via public URL (niet SDK download — die gaf soms stale corrupt data)
+  const { data: pub } = sb.storage.from(MEDIA_BUCKET).getPublicUrl(path)
+  const url = `${pub.publicUrl}${pub.publicUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
+  let stored: Buffer | null = null
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 250 * attempt))
+    try {
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) continue
+      const body = Buffer.from(await res.arrayBuffer())
+      if (body.byteLength === buf.byteLength) {
+        try {
+          assertImageMagic(body, contentType, `verify ${path}`)
+          stored = body
+          break
+        } catch {
+          /* retry */
+        }
+      }
+    } catch {
+      /* retry */
+    }
   }
-  const stored = Buffer.from(await dl.arrayBuffer())
-  if (stored.byteLength !== buf.byteLength) {
-    throw new Error(
-      `Storage corrupt ${path}: size ${stored.byteLength} ≠ ${buf.byteLength}`
-    )
+  if (!stored) {
+    // Fallback: SDK download
+    const { data: dl, error: dlErr } = await sb.storage
+      .from(MEDIA_BUCKET)
+      .download(path)
+    if (dlErr || !dl) {
+      throw new Error(
+        `Storage verify ${path}: mislukt (${dlErr?.message || 'geen data'})`
+      )
+    }
+    stored = Buffer.from(await dl.arrayBuffer())
+    assertImageMagic(stored, contentType, `verify ${path}`)
+    if (stored.byteLength !== buf.byteLength) {
+      throw new Error(
+        `Storage corrupt ${path}: size ${stored.byteLength} ≠ ${buf.byteLength}`
+      )
+    }
   }
-  assertImageMagic(stored, contentType, `verify ${path}`)
 }
 
 /** Web-vriendelijke JPEG (veel lichter dan 4–8 MB PNG). */
@@ -175,7 +206,7 @@ function buildBackgroundRgb(): Buffer {
 }
 
 function potMetrics(alpha: Buffer, w: number, h: number) {
-  // bbox
+  // bbox van hele plant (voor centrering)
   let l = w
   let t = h
   let r = 0
@@ -190,8 +221,18 @@ function potMetrics(alpha: Buffer, w: number, h: number) {
       }
     }
   }
-  if (r < l || b < t) return { cx: Math.floor(w / 2), potW: Math.floor(w / 3) }
+  if (r < l || b < t) {
+    return {
+      cx: Math.floor(w / 2),
+      plantCx: Math.floor(w / 2),
+      potW: Math.floor(w / 3),
+    }
+  }
 
+  // plant-centrum = midden van volledige silhouette
+  const plantCx = Math.floor((l + r) / 2)
+
+  // pot-breedte uit onderste strook (voor schaduw)
   const y0 = Math.max(t, b - Math.max(4, Math.floor((b - t) * 0.04)))
   let xmin = Infinity
   let xmax = -Infinity
@@ -204,9 +245,112 @@ function potMetrics(alpha: Buffer, w: number, h: number) {
     }
   }
   if (!Number.isFinite(xmin)) {
-    return { cx: Math.floor((l + r) / 2), potW: Math.floor((r - l) / 3) }
+    return {
+      cx: plantCx,
+      plantCx,
+      potW: Math.floor((r - l) / 3),
+    }
   }
-  return { cx: Math.floor((xmin + xmax) / 2), potW: xmax - xmin }
+  // cx blijft pot-centrum voor schaduw; plantCx voor horizontale centrering
+  return {
+    cx: Math.floor((xmin + xmax) / 2),
+    plantCx,
+    potW: xmax - xmin,
+  }
+}
+
+/**
+ * Hercentreert onderwerp horizontaal op vierkant canvas (na AI kan compositie verschuiven).
+ * Achtergrond = warme beige; plant = pixels die genoeg afwijken van hoek-samples.
+ */
+async function recenterSubject(img: Buffer, size = DOEL): Promise<Buffer> {
+  const { data, info } = await sharp(img)
+    .resize(size, size, { fit: 'fill' })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const w = info.width
+  const h = info.height
+  const ch = info.channels
+
+  // Sample hoeken voor achtergrondkleur
+  const samples: number[][] = []
+  const corner = (x: number, y: number) => {
+    const i = (y * w + x) * ch
+    samples.push([data[i], data[i + 1], data[i + 2]])
+  }
+  for (let d = 2; d < 12; d++) {
+    corner(d, d)
+    corner(w - 1 - d, d)
+    corner(d, h - 1 - d)
+    corner(w - 1 - d, h - 1 - d)
+  }
+  const bg = [0, 0, 0]
+  for (const s of samples) {
+    bg[0] += s[0]
+    bg[1] += s[1]
+    bg[2] += s[2]
+  }
+  bg[0] /= samples.length
+  bg[1] /= samples.length
+  bg[2] /= samples.length
+  const thr = 48 * 48 // squared distance
+
+  let xmin = w
+  let xmax = 0
+  let ymin = h
+  let ymax = 0
+  let found = false
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * ch
+      const dr = data[i] - bg[0]
+      const dg = data[i + 1] - bg[1]
+      const db = data[i + 2] - bg[2]
+      if (dr * dr + dg * dg + db * db > thr) {
+        found = true
+        if (x < xmin) xmin = x
+        if (x > xmax) xmax = x
+        if (y < ymin) ymin = y
+        if (y > ymax) ymax = y
+      }
+    }
+  }
+  if (!found || xmax <= xmin) return sharp(img).resize(size, size).png().toBuffer()
+
+  const contentCx = (xmin + xmax) / 2
+  const shiftX = Math.round(w / 2 - contentCx)
+  if (Math.abs(shiftX) < 4) {
+    return sharp(img).resize(size, size).png().toBuffer()
+  }
+
+  // Verschuif op canvas met beige achtergrond
+  const bgRgb = await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 3,
+      background: {
+        r: Math.round(bg[0]),
+        g: Math.round(bg[1]),
+        b: Math.round(bg[2]),
+      },
+    },
+  })
+    .png()
+    .toBuffer()
+
+  const subject = await sharp(img).resize(size, size).png().toBuffer()
+  return sharp(bgRgb)
+    .composite([
+      {
+        input: subject,
+        left: shiftX,
+        top: 0,
+      },
+    ])
+    .png()
+    .toBuffer()
 }
 
 function potTopRow(alpha: Buffer, w: number, h: number, potW: number): number | null {
@@ -279,13 +423,16 @@ async function buildStudioFromCutout(cutoutPng: Buffer): Promise<{
   meta: StudioMeta
 }> {
   const { cutScaled, alpha, cutW, cutH } = await prepareCutout(cutoutPng)
-  const { cx: pcx, potW } = potMetrics(alpha, cutW, cutH)
+  const { cx: potCx, plantCx, potW } = potMetrics(alpha, cutW, cutH)
   const baseY = Math.round(SIZE * BASE_FRAC)
-  const pasteX = Math.floor(SIZE / 2 - pcx)
+  // Centreer hele plant (niet alleen de pot) in het frame
+  const pasteX = Math.floor(SIZE / 2 - plantCx)
   const pasteY = baseY - cutH
 
   const left = Math.max(0, Math.min(SIZE - cutW, pasteX))
   const top = Math.max(0, Math.min(SIZE - cutH, pasteY))
+  // potCx nog beschikbaar voor schaduw-offset indien nodig
+  void potCx
 
   const bgRaw = buildBackgroundRgb()
   let bg = await sharp(bgRaw, {
@@ -506,16 +653,19 @@ function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
   const baseY = Math.round(S * (meta.base_frac ?? BASE_FRAC))
   const topY = baseY - Math.round(S * PLANT_FRAC)
   const cmPx = (S * PLANT_FRAC) / m.total
-  const lw = Math.max(3, Math.round(S / 512))
-  const fs = Math.round(S * 0.02)
+  const lw = Math.max(4, Math.round(S / 400))
+  const fs = Math.max(28, Math.round(S * 0.028))
   const parts: string[] = []
+  // lichte stroke-achtergrond voor leesbaarheid op beige
+  const label = (txt: string, x: number, y: number, anchor = 'end') =>
+    `<text x="${x}" y="${y}" fill="${SAGE}" stroke="rgba(255,253,247,0.85)" stroke-width="${Math.max(3, lw)}" paint-order="stroke" font-size="${fs}" font-weight="600" font-family="Helvetica, Arial, sans-serif" text-anchor="${anchor}" dominant-baseline="middle">${txt}</text>`
 
   const x = Math.round(S * 0.915)
   parts.push(
     `<line x1="${x}" y1="${baseY}" x2="${x}" y2="${topY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
     `<line x1="${x - 5 * lw}" y1="${baseY}" x2="${x + 5 * lw}" y2="${baseY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
     `<line x1="${x - 5 * lw}" y1="${topY}" x2="${x + 5 * lw}" y2="${topY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-    `<text x="${x - 12}" y="${Math.round((baseY + topY) / 2)}" fill="${SAGE}" font-size="${fs}" font-family="Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">${Math.round(m.total)} cm</text>`
+    label(`${Math.round(m.total)} cm`, x - 12, Math.round((baseY + topY) / 2), 'end')
   )
 
   if (m.pot) {
@@ -528,7 +678,7 @@ function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
       `<line x1="${xp}" y1="${baseY}" x2="${xp}" y2="${potTop}" stroke="${SAGE}" stroke-width="${lw}"/>`,
       `<line x1="${xp - 5 * lw}" y1="${baseY}" x2="${xp + 5 * lw}" y2="${baseY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
       `<line x1="${xp - 5 * lw}" y1="${potTop}" x2="${xp + 5 * lw}" y2="${potTop}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      `<text x="${xp + 12}" y="${Math.round((baseY + potTop) / 2)}" fill="${SAGE}" font-size="${fs}" font-family="Helvetica, Arial, sans-serif" dominant-baseline="middle">${Math.round(m.pot)} cm</text>`
+      label(`${Math.round(m.pot)} cm`, xp + 12, Math.round((baseY + potTop) / 2), 'start')
     )
   }
 
@@ -550,7 +700,7 @@ function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
       `<line x1="${S / 2 - half}" y1="${yb}" x2="${S / 2 + half}" y2="${yb}" stroke="${SAGE}" stroke-width="${lw}"/>`,
       `<line x1="${S / 2 - half}" y1="${yb - 5 * lw}" x2="${S / 2 - half}" y2="${yb + 5 * lw}" stroke="${SAGE}" stroke-width="${lw}"/>`,
       `<line x1="${S / 2 + half}" y1="${yb - 5 * lw}" x2="${S / 2 + half}" y2="${yb + 5 * lw}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      `<text x="${S / 2}" y="${yb + Math.round(S * 0.022)}" fill="${SAGE}" font-size="${fs}" font-family="Helvetica, Arial, sans-serif" text-anchor="middle">${onderlbl}</text>`
+      label(onderlbl, S / 2, yb + Math.round(S * 0.028), 'middle')
     )
   }
 
@@ -559,7 +709,7 @@ function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
   )
 }
 
-/** Maten uit JSON-map, anders height/diameter uit nieuwkoop_products. */
+/** Maten uit JSON-map, anders height/diameter/width/pot uit nieuwkoop_products. */
 async function resolveMaatEntry(
   sb: ReturnType<typeof admin>,
   code: string
@@ -571,7 +721,7 @@ async function resolveMaatEntry(
 
   const { data } = await sb
     .from('nieuwkoop_products')
-    .select('height, diameter, length, width, height_culture_pot')
+    .select('height, diameter, length, width, height_culture_pot, pot_size')
     .eq('itemcode', code)
     .maybeSingle()
 
@@ -586,9 +736,21 @@ async function resolveMaatEntry(
   if (Number.isFinite(pot) && pot > 0) entry.pot = pot
   const l = Number(data.length)
   const w = Number(data.width)
+  // Breedte als plantdiameter als diameter ontbreekt (vaak zo bij hydro/planten)
+  if (!entry.diam && Number.isFinite(w) && w > 0) {
+    entry.diam = w
+  }
   if (!entry.diam && Number.isFinite(l) && l > 0) {
     entry.l = l
     if (Number.isFinite(w) && w > 0) entry.b = w
+  }
+  // pot_size tekst "19" of "Ø 19" → pot-hoogte als die nog ontbreekt
+  if (!entry.pot && data.pot_size) {
+    const m = String(data.pot_size).match(/(\d+(?:[.,]\d+)?)/)
+    if (m) {
+      const n = Number(m[1].replace(',', '.'))
+      if (Number.isFinite(n) && n > 0 && n < total) entry.pot = n
+    }
   }
   return entry
 }
@@ -637,6 +799,13 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
     console.warn('[photo-pipeline] pot-restore skipped', e)
   }
 
+  // Na AI opnieuw horizontaal centreren (Grok kan plant verschuiven)
+  try {
+    aiPng = await recenterSubject(aiPng, DOEL)
+  } catch (e) {
+    console.warn('[photo-pipeline] recenter skipped', e)
+  }
+
   const studioFinal = await sharp(aiPng)
     .resize(DOEL, DOEL, { kernel: sharp.kernel.lanczos3 })
     .sharpen({ sigma: 1.1, m1: 0.65, m2: 0.35 })
@@ -647,6 +816,12 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
   const maatEntry = await resolveMaatEntry(sb, code)
   if (!maatEntry) {
     console.warn(`[photo-pipeline] ${code}: geen maten (JSON noch DB) — maat = studio`)
+  } else {
+    console.log(
+      `[photo-pipeline] ${code}: maten total=${maatEntry.total}` +
+        (maatEntry.pot ? ` pot=${maatEntry.pot}` : '') +
+        (maatEntry.diam ? ` diam=${maatEntry.diam}` : '')
+    )
   }
 
   console.log(`[photo-pipeline] ${code}: detail + maat…`)

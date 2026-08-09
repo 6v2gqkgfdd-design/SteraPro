@@ -534,12 +534,25 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                       })
                       const data = await res.json()
                       if (!res.ok || data.error) throw new Error(data.error || 'Mislukt')
+                      // Hard refresh item + force image remount (nieuwe tick = nieuwe URL)
                       const r = await fetch(
-                        `/api/admin/catalog/${encodeURIComponent(item.itemcode)}`
+                        `/api/admin/catalog/${encodeURIComponent(item.itemcode)}?t=${Date.now()}`
                       )
                       const d = await r.json()
-                      if (d.item) setItem(d.item)
-                      setImgTick((t) => t + 1)
+                      if (d.item) {
+                        setItem({
+                          ...d.item,
+                          // expliciet paden uit pipeline als API die al heeft
+                          hasStudioImage: true,
+                          studioImagePath:
+                            data.paths?.studioPath || d.item.studioImagePath,
+                          detailImagePath:
+                            data.paths?.detailPath || d.item.detailImagePath,
+                          maatImagePath:
+                            data.paths?.maatPath || d.item.maatImagePath,
+                        })
+                      }
+                      setImgTick(Date.now())
                       setMediaMsg('Klaar: studio + detail + maat opgeslagen.')
                     } catch (e) {
                       setMediaMsg(e instanceof Error ? e.message : 'Pipeline mislukt')
@@ -615,12 +628,20 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
+                            key={`${slot.key}-${imgTick}`}
                             src={`${slot.thumb}${slot.thumb.includes('?') ? '&' : '?'}t=${imgTick}`}
                             alt={slot.label}
                             className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
                             onError={(e) => {
-                              e.currentTarget.onerror = null
-                              e.currentTarget.src = mediaPlaceholder('laden mislukt')
+                              // één retry met cache-bust, daarna placeholder
+                              const el = e.currentTarget
+                              if (!el.dataset.retried) {
+                                el.dataset.retried = '1'
+                                el.src = `${slot.thumb}${slot.thumb.includes('?') ? '&' : '?'}t=${Date.now()}`
+                                return
+                              }
+                              el.onerror = null
+                              el.src = mediaPlaceholder('laden mislukt')
                             }}
                           />
                         </button>
