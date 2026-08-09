@@ -85,8 +85,10 @@ function assertImageMagic(buf: Buffer, contentType: string, label: string) {
 
 /**
  * Upload binary veilig naar Storage.
- * Gebruikt ArrayBuffer (betrouwbaarder op Vercel dan bare Buffer/Blob).
- * Verifieert via public URL — SDK-download kan stale/corrupt teruggeven.
+ *
+ * BELANGRIJK: NOOIT bare ArrayBuffer/SharedArrayBuffer doorgeven — supabase-js
+ * kan die omzetten naar de string "[object SharedArrayBuffer]" (26 bytes).
+ * Wel: verse Uint8Array-kopie (werkt op Vercel + lokaal).
  */
 async function upload(
   sb: ReturnType<typeof admin>,
@@ -96,47 +98,48 @@ async function upload(
 ) {
   assertImageMagic(buf, contentType, `upload ${path}`)
 
-  // Verse ArrayBuffer-kopie (niet shared Buffer pool)
-  const ab = buf.buffer.slice(
-    buf.byteOffset,
-    buf.byteOffset + buf.byteLength
-  ) as ArrayBuffer
+  // Eigen kopie — geen shared underlying buffer
+  const bytes = new Uint8Array(buf.byteLength)
+  bytes.set(buf)
 
-  // Oude object weg → voorkomt sticky corrupte versies
   await sb.storage.from(MEDIA_BUCKET).remove([path]).catch(() => null)
 
-  const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, ab, {
+  const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, bytes, {
     contentType,
     upsert: true,
     cacheControl: '3600',
   })
   if (error) throw new Error(`Storage ${path}: ${error.message}`)
 
-  // Verify via public URL (niet SDK download — die gaf soms stale corrupt data)
+  // Verify via public URL
   const { data: pub } = sb.storage.from(MEDIA_BUCKET).getPublicUrl(path)
   const url = `${pub.publicUrl}${pub.publicUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
   let stored: Buffer | null = null
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 250 * attempt))
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 200 * attempt))
     try {
       const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) continue
       const body = Buffer.from(await res.arrayBuffer())
-      if (body.byteLength === buf.byteLength) {
-        try {
-          assertImageMagic(body, contentType, `verify ${path}`)
-          stored = body
-          break
-        } catch {
-          /* retry */
-        }
+      // Weiger de bekende stringificatie-fout
+      if (
+        body.byteLength < 100 ||
+        body.toString('utf8', 0, 10).startsWith('[object')
+      ) {
+        continue
+      }
+      try {
+        assertImageMagic(body, contentType, `verify ${path}`)
+        stored = body
+        break
+      } catch {
+        /* retry */
       }
     } catch {
       /* retry */
     }
   }
   if (!stored) {
-    // Fallback: SDK download
     const { data: dl, error: dlErr } = await sb.storage
       .from(MEDIA_BUCKET)
       .download(path)
@@ -146,12 +149,15 @@ async function upload(
       )
     }
     stored = Buffer.from(await dl.arrayBuffer())
-    assertImageMagic(stored, contentType, `verify ${path}`)
-    if (stored.byteLength !== buf.byteLength) {
+    if (
+      stored.byteLength < 100 ||
+      stored.toString('utf8', 0, 10).startsWith('[object')
+    ) {
       throw new Error(
-        `Storage corrupt ${path}: size ${stored.byteLength} ≠ ${buf.byteLength}`
+        `Storage corrupt ${path}: body is stringified object (geen binary image)`
       )
     }
+    assertImageMagic(stored, contentType, `verify ${path}`)
   }
 }
 
