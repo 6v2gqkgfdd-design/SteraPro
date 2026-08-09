@@ -12,6 +12,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import sharp from 'sharp'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -61,12 +62,43 @@ if (!existsSync(RUN_ONE)) {
 
 const sb = createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } })
 
+function assertImageMagic(buf, contentType, label) {
+  if (!buf || buf.byteLength < 8) throw new Error(`${label}: te klein`)
+  const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+  if (String(contentType).includes('png') && !isPng) {
+    throw new Error(`${label}: geen geldige PNG (head ${buf.subarray(0, 4).toString('hex')})`)
+  }
+  if (
+    (String(contentType).includes('jpeg') || String(contentType).includes('jpg')) &&
+    !isJpeg
+  ) {
+    throw new Error(`${label}: geen geldige JPEG (head ${buf.subarray(0, 4).toString('hex')})`)
+  }
+}
+
 async function upload(path, buf, contentType) {
-  const { error } = await sb.storage.from(BUCKET).upload(path, buf, {
+  assertImageMagic(buf, contentType, `upload ${path}`)
+  const bytes = new Uint8Array(buf.byteLength)
+  bytes.set(buf)
+  const body = new Blob([bytes], { type: contentType })
+  const { error } = await sb.storage.from(BUCKET).upload(path, body, {
     contentType,
     upsert: true,
   })
   if (error) throw new Error(`storage ${path}: ${error.message}`)
+
+  const { data: dl, error: dlErr } = await sb.storage.from(BUCKET).download(path)
+  if (dlErr || !dl) {
+    throw new Error(`storage verify ${path}: ${dlErr?.message || 'geen data'}`)
+  }
+  const stored = Buffer.from(await dl.arrayBuffer())
+  if (stored.byteLength !== buf.byteLength) {
+    throw new Error(
+      `storage corrupt ${path}: size ${stored.byteLength} ≠ ${buf.byteLength}`
+    )
+  }
+  assertImageMagic(stored, contentType, `verify ${path}`)
 }
 
 async function processOne(code) {
@@ -101,12 +133,29 @@ async function processOne(code) {
       if (!existsSync(f)) throw new Error(`Output ontbreekt: ${f}`)
     }
 
-    const studioPath = `studio/${code}.png`
-    const detailPath = `detail/${code}.png`
-    const maatPath = `maat/${code}.png`
-    await upload(studioPath, readFileSync(studioFile), 'image/png')
-    await upload(detailPath, readFileSync(detailFile), 'image/png')
-    await upload(maatPath, readFileSync(maatFile), 'image/png')
+    // Web-JPEG (lichter + sneller) i.p.v. zware PNG
+    const toJpeg = async (file) =>
+      sharp(readFileSync(file))
+        .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toBuffer()
+
+    const studioJpeg = await toJpeg(studioFile)
+    const detailJpeg = await toJpeg(detailFile)
+    const maatJpeg = await toJpeg(maatFile)
+
+    const studioPath = `studio/${code}.jpg`
+    const detailPath = `detail/${code}.jpg`
+    const maatPath = `maat/${code}.jpg`
+    await upload(studioPath, studioJpeg, 'image/jpeg')
+    await upload(detailPath, detailJpeg, 'image/jpeg')
+    await upload(maatPath, maatJpeg, 'image/jpeg')
+
+    // Oude PNG-paden opruimen
+    await sb.storage
+      .from(BUCKET)
+      .remove([`studio/${code}.png`, `detail/${code}.png`, `maat/${code}.png`])
+      .catch(() => null)
 
     const now = new Date().toISOString()
     const row = {

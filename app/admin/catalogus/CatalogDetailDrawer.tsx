@@ -17,7 +17,22 @@ import {
   type LocationLabel,
   type LocationSource,
 } from '@/lib/location'
-import { originalImageApiUrl, studioImageApiUrl } from '@/lib/product-media'
+import { ImageLightbox } from '@/components/image-lightbox'
+import {
+  originalImageApiUrl,
+  productMediaUrl,
+  studioImageApiUrl,
+} from '@/lib/product-media'
+
+/** Inline SVG-placeholder voor ontbrekende of kapotte productfoto’s. */
+function mediaPlaceholder(label: string): string {
+  return (
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">${label}</text></svg>`
+    )
+  )
+}
 
 export type DetailItem = {
   itemcode: string
@@ -150,6 +165,9 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
   const [mediaMsg, setMediaMsg] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [imgTick, setImgTick] = useState(0)
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
+    null
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -196,11 +214,14 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        if (lightbox) setLightbox(null)
+        else onClose()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, lightbox])
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -416,18 +437,33 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
           ) : item ? (
             <div className="space-y-4">
               <div className="flex gap-4">
-                {/* Primary = studio indien aanwezig, anders NK */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={
-                    (item.hasStudioImage
-                      ? studioImageApiUrl(item.itemcode)
-                      : originalImageApiUrl(item.itemcode)) +
-                    (item.hasStudioImage ? `&t=${imgTick}` : `?t=${imgTick}`)
-                  }
-                  alt=""
-                  className="h-32 w-32 shrink-0 rounded-xl object-cover shadow-sm sm:h-40 sm:w-40 bg-white"
-                />
+                {/* Primary thumb = klein; klik → full-res lightbox */}
+                <button
+                  type="button"
+                  className="shrink-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-stera-green/40"
+                  title="Klik voor grote foto"
+                  onClick={() => {
+                    const full = item.hasStudioImage
+                      ? `${studioImageApiUrl(item.itemcode, 'full')}&t=${imgTick}`
+                      : `${originalImageApiUrl(item.itemcode, 'full')}?t=${imgTick}`
+                    setLightbox({ src: full, alt: item.description })
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      item.hasStudioImage
+                        ? `${studioImageApiUrl(item.itemcode, 'thumb')}&t=${imgTick}`
+                        : `${originalImageApiUrl(item.itemcode, 'thumb')}&t=${imgTick}`
+                    }
+                    alt=""
+                    className="h-32 w-32 rounded-xl object-cover shadow-sm sm:h-40 sm:w-40 bg-white hover:opacity-95"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null
+                      e.currentTarget.src = mediaPlaceholder('foto mislukt')
+                    }}
+                  />
+                </button>
                 <div className="min-w-0 flex-1 space-y-2">
                   <h2 className="text-base font-semibold leading-snug text-stera-ink sm:text-lg">
                     {item.description}
@@ -520,70 +556,84 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                 </button>
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div>
-                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">
-                      Studio
-                      {item.hasStudioImage ? (
-                        <span className="ml-1 font-normal text-stera-green">· thumb</span>
-                      ) : null}
-                    </p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        item.hasStudioImage
-                          ? `${studioImageApiUrl(item.itemcode)}&t=${imgTick}`
-                          : 'data:image/svg+xml,' +
-                            encodeURIComponent(
-                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">geen studio</text></svg>`
-                            )
-                      }
-                      alt="Studio"
-                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">Detail</p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        item.detailImagePath
-                          ? `/api/product-media/${encodeURIComponent(item.itemcode)}?variant=detail&t=${imgTick}`
-                          : 'data:image/svg+xml,' +
-                            encodeURIComponent(
-                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">geen detail</text></svg>`
-                            )
-                      }
-                      alt="Detail"
-                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">Maat</p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        item.maatImagePath
-                          ? `/api/product-media/${encodeURIComponent(item.itemcode)}?variant=maat&t=${imgTick}`
-                          : 'data:image/svg+xml,' +
-                            encodeURIComponent(
-                              `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="50%" text-anchor="middle" fill="#9B9685" font-size="11" font-family="system-ui">geen maat</text></svg>`
-                            )
-                      }
-                      alt="Maat"
-                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-[11px] font-semibold text-stera-ink">
-                      Origineel (NK)
-                    </p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={originalImageApiUrl(item.itemcode)}
-                      alt="Nieuwkoop origineel"
-                      className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
-                    />
-                  </div>
+                  {(
+                    [
+                      {
+                        key: 'studio',
+                        label: 'Studio',
+                        has: !!item.hasStudioImage,
+                        thumb: productMediaUrl(item.itemcode, 'studio', 'thumb'),
+                        full: productMediaUrl(item.itemcode, 'studio', 'full'),
+                        empty: 'geen studio',
+                      },
+                      {
+                        key: 'detail',
+                        label: 'Detail',
+                        has: !!item.detailImagePath,
+                        thumb: productMediaUrl(item.itemcode, 'detail', 'thumb'),
+                        full: productMediaUrl(item.itemcode, 'detail', 'full'),
+                        empty: 'geen detail',
+                      },
+                      {
+                        key: 'maat',
+                        label: 'Maat',
+                        has: !!item.maatImagePath,
+                        thumb: productMediaUrl(item.itemcode, 'maat', 'thumb'),
+                        full: productMediaUrl(item.itemcode, 'maat', 'full'),
+                        empty: 'geen maat',
+                      },
+                      {
+                        key: 'original',
+                        label: 'Origineel (NK)',
+                        has: true,
+                        thumb: originalImageApiUrl(item.itemcode, 'thumb'),
+                        full: originalImageApiUrl(item.itemcode, 'full'),
+                        empty: 'geen origineel',
+                      },
+                    ] as const
+                  ).map((slot) => (
+                    <div key={slot.key}>
+                      <p className="mb-1 text-[11px] font-semibold text-stera-ink">
+                        {slot.label}
+                        {slot.has && slot.key === 'studio' ? (
+                          <span className="ml-1 font-normal text-stera-green">
+                            · klik = groot
+                          </span>
+                        ) : null}
+                      </p>
+                      {slot.has ? (
+                        <button
+                          type="button"
+                          className="block w-full focus:outline-none focus:ring-2 focus:ring-stera-green/40 rounded-lg"
+                          title="Klik voor grote foto"
+                          onClick={() =>
+                            setLightbox({
+                              src: `${slot.full}${slot.full.includes('?') ? '&' : '?'}t=${imgTick}`,
+                              alt: `${slot.label} ${item.itemcode}`,
+                            })
+                          }
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`${slot.thumb}${slot.thumb.includes('?') ? '&' : '?'}t=${imgTick}`}
+                            alt={slot.label}
+                            className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null
+                              e.currentTarget.src = mediaPlaceholder('laden mislukt')
+                            }}
+                          />
+                        </button>
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={mediaPlaceholder(slot.empty)}
+                          alt={slot.empty}
+                          className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -895,6 +945,13 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
           </button>
         </footer>
       </div>
+
+      <ImageLightbox
+        open={!!lightbox}
+        src={lightbox?.src || ''}
+        alt={lightbox?.alt || ''}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   )
 }

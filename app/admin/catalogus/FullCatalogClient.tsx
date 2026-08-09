@@ -18,7 +18,8 @@ import {
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
 import { LOCATION_FILTER_OPTIONS, locationAppliesToType } from '@/lib/location'
-import { catalogThumbUrl } from '@/lib/product-media'
+import { ImageLightbox } from '@/components/image-lightbox'
+import { catalogThumbUrl, productMediaUrl, originalImageApiUrl } from '@/lib/product-media'
 
 /** Lokale opslag zodat filters/pagina overleven bij re-render of per ongeluk refresh. */
 const STATE_KEY = 'stera-admin-catalog-v1'
@@ -189,6 +190,9 @@ export default function FullCatalogClient() {
   } | null>(null)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [photoMsg, setPhotoMsg] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
+    null
+  )
 
   // Bewaar progressie lokaal (filters/tab/pagina/scroll) — geen Next-router.
   useEffect(() => {
@@ -246,7 +250,11 @@ export default function FullCatalogClient() {
         return
       }
       if (data.warning) setWarning(data.warning)
-      if (data.error && !data.ok) setMsg(data.error)
+      if (data.error && !data.ok) {
+        setMsg(data.error)
+      } else if (data.ok !== false) {
+        setMsg(null)
+      }
       setItems(data.items || [])
       setTotal(data.total ?? 0)
       setPageSize(data.pageSize ?? 40)
@@ -965,22 +973,40 @@ export default function FullCatalogClient() {
                   />
                   <button
                     type="button"
+                    className="shrink-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-stera-green/40"
+                    title="Klik voor grote foto"
+                    onClick={() => {
+                      const full = it.hasStudioImage
+                        ? productMediaUrl(it.itemcode, 'studio', 'full')
+                        : originalImageApiUrl(it.itemcode, 'full')
+                      setLightbox({
+                        src: full,
+                        alt: it.description || it.itemcode,
+                      })
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={catalogThumbUrl(it.itemcode, !!it.hasStudioImage)}
+                      alt=""
+                      className="h-14 w-14 cursor-zoom-in rounded-lg object-cover bg-white ring-1 ring-stera-line/60"
+                      loading="lazy"
+                      onError={(e) => {
+                        const el = e.currentTarget
+                        el.onerror = null
+                        el.src =
+                          'data:image/svg+xml,' +
+                          encodeURIComponent(
+                            `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56"><rect fill="#F2EDE0" width="100%" height="100%"/><text x="50%" y="54%" text-anchor="middle" fill="#9B9685" font-size="8" font-family="system-ui">geen foto</text></svg>`
+                          )
+                      }}
+                    />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => openDetail(it.itemcode)}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
-                    {it.imageItemcode || it.hasStudioImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={catalogThumbUrl(it.itemcode, !!it.hasStudioImage)}
-                        alt=""
-                        className="h-14 w-14 shrink-0 rounded-lg object-cover bg-white"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-stera-line text-[10px] text-stera-ink-soft">
-                        geen foto
-                      </div>
-                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate font-medium text-stera-ink">{it.description}</p>
@@ -1066,6 +1092,13 @@ export default function FullCatalogClient() {
             onOfferedChange={onOfferedFromDrawer}
           />
         ) : null}
+
+        <ImageLightbox
+          open={!!lightbox}
+          src={lightbox?.src || ''}
+          alt={lightbox?.alt || ''}
+          onClose={() => setLightbox(null)}
+        />
 
         {!loading && items.length === 0 ? (
           <p className="text-center text-sm text-stera-ink-soft">

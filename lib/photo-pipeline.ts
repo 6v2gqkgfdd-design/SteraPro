@@ -53,17 +53,87 @@ function admin() {
   )
 }
 
+/** PNG/JPEG magic — vangt stille binary-corruptie (bv. UTF-8 mangling) op. */
+function assertImageMagic(buf: Buffer, contentType: string, label: string) {
+  if (buf.byteLength < 8) {
+    throw new Error(`${label}: bestand te klein (${buf.byteLength} B)`)
+  }
+  const isPng =
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+  if (contentType.includes('png') && !isPng) {
+    throw new Error(
+      `${label}: geen geldige PNG (head ${buf.subarray(0, 4).toString('hex')})`
+    )
+  }
+  if (
+    (contentType.includes('jpeg') || contentType.includes('jpg')) &&
+    !isJpeg
+  ) {
+    throw new Error(
+      `${label}: geen geldige JPEG (head ${buf.subarray(0, 4).toString('hex')})`
+    )
+  }
+  if (!contentType.includes('png') && !contentType.includes('jpeg') && !contentType.includes('jpg')) {
+    if (!isPng && !isJpeg) {
+      throw new Error(
+        `${label}: onbekend image-formaat (head ${buf.subarray(0, 4).toString('hex')})`
+      )
+    }
+  }
+}
+
+/**
+ * Upload binary veilig naar Storage (Blob + Uint8Array-kopie).
+ * Daarna download + magic-check zodat we nooit “klaar” melden bij corruptie.
+ */
 async function upload(
   sb: ReturnType<typeof admin>,
   path: string,
   buf: Buffer,
   contentType: string
 ) {
-  const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, buf, {
+  assertImageMagic(buf, contentType, `upload ${path}`)
+
+  // Standalone kopie: voorkomt Buffer/fetch edge-cases op serverless (Vercel)
+  // die binary als UTF-8 kunnen manglen (0x89 → EF BF BD).
+  const bytes = new Uint8Array(buf.byteLength)
+  bytes.set(buf)
+  const body = new Blob([bytes], { type: contentType })
+
+  const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, body, {
     contentType,
     upsert: true,
   })
   if (error) throw new Error(`Storage ${path}: ${error.message}`)
+
+  const { data: dl, error: dlErr } = await sb.storage
+    .from(MEDIA_BUCKET)
+    .download(path)
+  if (dlErr || !dl) {
+    throw new Error(
+      `Storage verify ${path}: download mislukt (${dlErr?.message || 'geen data'})`
+    )
+  }
+  const stored = Buffer.from(await dl.arrayBuffer())
+  if (stored.byteLength !== buf.byteLength) {
+    throw new Error(
+      `Storage corrupt ${path}: size ${stored.byteLength} ≠ ${buf.byteLength}`
+    )
+  }
+  assertImageMagic(stored, contentType, `verify ${path}`)
+}
+
+/** Web-vriendelijke JPEG (veel lichter dan 4–8 MB PNG). */
+async function toWebJpeg(buf: Buffer): Promise<Buffer> {
+  return sharp(buf)
+    .resize(DOEL, DOEL, {
+      fit: 'inside',
+      withoutEnlargement: true,
+      kernel: sharp.kernel.lanczos3,
+    })
+    .jpeg({ quality: 85, mozjpeg: true })
+    .toBuffer()
 }
 
 function smoothstep(a: number, b: number, x: number) {
@@ -430,9 +500,8 @@ async function makeDetail(hqPng: Buffer, meta: StudioMeta): Promise<Buffer> {
     .toBuffer()
 }
 
-function maatSvg(S: number, code: string, meta: StudioMeta): Buffer | null {
-  const m = MATEN[code]
-  if (!m?.total) return null
+function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
+  if (!m?.total || !Number.isFinite(m.total) || m.total <= 0) return null
 
   const baseY = Math.round(S * (meta.base_frac ?? BASE_FRAC))
   const topY = baseY - Math.round(S * PLANT_FRAC)
@@ -490,8 +559,46 @@ function maatSvg(S: number, code: string, meta: StudioMeta): Buffer | null {
   )
 }
 
-async function makeMaat(studioPng: Buffer, code: string, meta: StudioMeta): Promise<Buffer> {
-  const svg = maatSvg(DOEL, code, meta)
+/** Maten uit JSON-map, anders height/diameter uit nieuwkoop_products. */
+async function resolveMaatEntry(
+  sb: ReturnType<typeof admin>,
+  code: string
+): Promise<MaatEntry | null> {
+  const fromJson = MATEN[code]
+  if (fromJson?.total && Number.isFinite(fromJson.total) && fromJson.total > 0) {
+    return fromJson
+  }
+
+  const { data } = await sb
+    .from('nieuwkoop_products')
+    .select('height, diameter, length, width, height_culture_pot')
+    .eq('itemcode', code)
+    .maybeSingle()
+
+  if (!data) return null
+  const total = Number(data.height)
+  if (!Number.isFinite(total) || total <= 0) return null
+
+  const entry: MaatEntry = { total }
+  const diam = Number(data.diameter)
+  if (Number.isFinite(diam) && diam > 0) entry.diam = diam
+  const pot = Number(data.height_culture_pot)
+  if (Number.isFinite(pot) && pot > 0) entry.pot = pot
+  const l = Number(data.length)
+  const w = Number(data.width)
+  if (!entry.diam && Number.isFinite(l) && l > 0) {
+    entry.l = l
+    if (Number.isFinite(w) && w > 0) entry.b = w
+  }
+  return entry
+}
+
+async function makeMaat(
+  studioPng: Buffer,
+  maat: MaatEntry | null,
+  meta: StudioMeta
+): Promise<Buffer> {
+  const svg = maat ? maatSvg(DOEL, maat, meta) : null
   if (!svg) {
     return sharp(studioPng).resize(DOEL, DOEL).png().toBuffer()
   }
@@ -536,18 +643,36 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
     .png()
     .toBuffer()
 
-  console.log(`[photo-pipeline] ${code}: detail + maat…`)
-  const detailBuf = await makeDetail(studioFinal, meta)
-  const maatBuf = await makeMaat(studioFinal, code, meta)
-
-  const studioPath = `studio/${code}.png`
-  const detailPath = `detail/${code}.png`
-  const maatPath = `maat/${code}.png`
-
   const sb = admin()
-  await upload(sb, studioPath, studioFinal, 'image/png')
-  await upload(sb, detailPath, detailBuf, 'image/png')
-  await upload(sb, maatPath, maatBuf, 'image/png')
+  const maatEntry = await resolveMaatEntry(sb, code)
+  if (!maatEntry) {
+    console.warn(`[photo-pipeline] ${code}: geen maten (JSON noch DB) — maat = studio`)
+  }
+
+  console.log(`[photo-pipeline] ${code}: detail + maat…`)
+  const detailPng = await makeDetail(studioFinal, meta)
+  const maatPng = await makeMaat(studioFinal, maatEntry, meta)
+
+  // Web-JPEG: sneller laden + minder storage (i.p.v. 4–8 MB PNG)
+  const studioJpeg = await toWebJpeg(studioFinal)
+  const detailJpeg = await toWebJpeg(detailPng)
+  const maatJpeg = await toWebJpeg(maatPng)
+
+  const studioPath = `studio/${code}.jpg`
+  const detailPath = `detail/${code}.jpg`
+  const maatPath = `maat/${code}.jpg`
+
+  await upload(sb, studioPath, studioJpeg, 'image/jpeg')
+  await upload(sb, detailPath, detailJpeg, 'image/jpeg')
+  await upload(sb, maatPath, maatJpeg, 'image/jpeg')
+
+  // Oude .png-paden opruimen als die er nog hangen
+  const stale = [
+    `studio/${code}.png`,
+    `detail/${code}.png`,
+    `maat/${code}.png`,
+  ]
+  await sb.storage.from(MEDIA_BUCKET).remove(stale).catch(() => null)
 
   const now = new Date().toISOString()
   const { error } = await sb.from('product_enrichment').upsert(
@@ -563,6 +688,8 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
   )
   if (error) throw new Error(`enrichment: ${error.message}`)
 
-  console.log(`[photo-pipeline] ${code}: klaar`)
+  console.log(
+    `[photo-pipeline] ${code}: klaar (studio ${Math.round(studioJpeg.byteLength / 1024)} KB, detail ${Math.round(detailJpeg.byteLength / 1024)} KB, maat ${Math.round(maatJpeg.byteLength / 1024)} KB)`
+  )
   return { itemcode: code, studioPath, detailPath, maatPath }
 }

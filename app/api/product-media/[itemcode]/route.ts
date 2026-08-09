@@ -1,17 +1,19 @@
 /**
- * Serveert productmedia: studio (enrichment) of origineel (Nieuwkoop-cache).
+ * Serveert productmedia: studio / detail / maat / origineel.
  *
- * GET /api/product-media/{itemcode}?variant=studio|original
- *  - studio: path uit product_enrichment.studio_image_path in bucket nieuwkoop-images
- *  - original: redirect naar bestaande /api/nieuwkoop/image/{itemcode}
+ * GET /api/product-media/{itemcode}?variant=studio|detail|maat|original&size=thumb|full
+ *  - thumb: klein JPEG (~320px) voor snelle catalogus-thumbs
+ *  - full:  volledige resolutie
+ *  - studio/detail/maat uit product_enrichment + storage
+ *  - bij corrupte/ontbrekende studio → fallback origineel (NK)
  *
  * POST /api/product-media/{itemcode}  (staff, multipart field "file")
- *  - upload studiofoto → storage studio/{itemcode}.ext
- *  - update product_enrichment.studio_image_path
+ * DELETE /api/product-media/{itemcode}  (staff, verwijdert studio)
  */
 
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import sharp from 'sharp'
 import { createClient } from '@/lib/supabase/server'
 import { defaultStudioPath, MEDIA_BUCKET } from '@/lib/product-media'
 
@@ -19,6 +21,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const ITEMCODE_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+const THUMB_PX = 320
+const FULL_MAX_PX = 2048
 
 function admin() {
   return createAdmin(
@@ -26,6 +30,58 @@ function admin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
   )
+}
+
+function isValidImageMagic(buf: Buffer): boolean {
+  if (buf.byteLength < 4) return false
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+  const isPng =
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47
+  const isWebp =
+    buf.byteLength >= 12 &&
+    buf.toString('ascii', 0, 4) === 'RIFF' &&
+    buf.toString('ascii', 8, 12) === 'WEBP'
+  return isJpeg || isPng || isWebp
+}
+
+function nkFallbackUrl(itemcode: string, requestUrl: string, size: string) {
+  const u = new URL(
+    `/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`,
+    requestUrl
+  )
+  if (size === 'thumb') u.searchParams.set('size', 'thumb')
+  return u
+}
+
+async function resizeToJpeg(
+  buf: Buffer,
+  size: 'thumb' | 'full'
+): Promise<Buffer> {
+  const max = size === 'thumb' ? THUMB_PX : FULL_MAX_PX
+  const quality = size === 'thumb' ? 72 : 88
+  return sharp(buf)
+    .rotate()
+    .resize({
+      width: max,
+      height: max,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .flatten({ background: { r: 255, g: 253, b: 247 } })
+    .jpeg({ quality, mozjpeg: true })
+    .toBuffer()
+}
+
+function jpegResponse(buf: Buffer, size: 'thumb' | 'full', cacheSeconds: number) {
+  return new NextResponse(new Uint8Array(buf), {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'Content-Length': String(buf.byteLength),
+      'Cache-Control': `public, max-age=${cacheSeconds}, stale-while-revalidate=86400`,
+      'X-Image-Size': size,
+    },
+  })
 }
 
 export async function GET(
@@ -39,13 +95,12 @@ export async function GET(
   }
 
   const url = new URL(request.url)
-  const variant = url.searchParams.get('variant') || 'studio'
+  const variant = (url.searchParams.get('variant') || 'studio').toLowerCase()
+  const sizeParam = (url.searchParams.get('size') || 'full').toLowerCase()
+  const size: 'thumb' | 'full' = sizeParam === 'thumb' ? 'thumb' : 'full'
 
   if (variant === 'original') {
-    return NextResponse.redirect(
-      new URL(`/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`, request.url),
-      302
-    )
+    return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
   }
 
   const sb = admin()
@@ -61,33 +116,48 @@ export async function GET(
   else path = (enr?.studio_image_path as string) || null
 
   if (!path) {
-    // Geen studio/set → val terug op origineel (alleen zinvol voor studio)
     if (variant === 'studio') {
-      return NextResponse.redirect(
-        new URL(`/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`, request.url),
-        302
-      )
+      return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
     }
     return NextResponse.json({ error: `Geen ${variant}-foto` }, { status: 404 })
   }
 
-  const { data: signed, error } = await sb.storage
-    .from(MEDIA_BUCKET)
-    .createSignedUrl(path, 3600)
-
-  if (error || !signed?.signedUrl) {
-    // Publieke URL proberen
-    const { data: pub } = sb.storage.from(MEDIA_BUCKET).getPublicUrl(path)
-    if (pub?.publicUrl) {
-      return NextResponse.redirect(pub.publicUrl, 302)
+  // Download + integrity (geen pure redirect meer: thumbs + corruptie-check)
+  const { data: file, error: dlErr } = await sb.storage.from(MEDIA_BUCKET).download(path)
+  if (dlErr || !file) {
+    if (variant === 'studio') {
+      return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
     }
-    return NextResponse.redirect(
-      new URL(`/api/nieuwkoop/image/${encodeURIComponent(itemcode)}`, request.url),
-      302
+    return NextResponse.json(
+      { error: `Storage: ${dlErr?.message || 'download mislukt'}` },
+      { status: 404 }
     )
   }
 
-  return NextResponse.redirect(signed.signedUrl, 302)
+  const rawBuf = Buffer.from(await file.arrayBuffer())
+  if (!isValidImageMagic(rawBuf)) {
+    console.warn(
+      `[product-media] corrupt ${path} head=${rawBuf.subarray(0, 4).toString('hex')}`
+    )
+    // Corrupte studio/set → val terug op NK-origineel
+    if (variant === 'studio' || variant === 'detail' || variant === 'maat') {
+      return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
+    }
+    return NextResponse.json({ error: 'Corrupt image' }, { status: 422 })
+  }
+
+  try {
+    const out = await resizeToJpeg(rawBuf, size)
+    // thumbs: 1 dag cache; full: korter (content kan regenereren)
+    const cacheSec = size === 'thumb' ? 86400 : 3600
+    return jpegResponse(out, size, cacheSec)
+  } catch (e) {
+    console.error('[product-media] resize failed', e)
+    if (variant === 'studio') {
+      return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
+    }
+    return NextResponse.json({ error: 'Resize mislukt' }, { status: 500 })
+  }
 }
 
 export async function POST(
@@ -124,12 +194,33 @@ export async function POST(
   }
 
   const sb = admin()
-  const { error: upErr } = await sb.storage.from(MEDIA_BUCKET).upload(path, buf, {
+  const bytes = new Uint8Array(buf.byteLength)
+  bytes.set(buf)
+  const body = new Blob([bytes], { type: mime })
+  const { error: upErr } = await sb.storage.from(MEDIA_BUCKET).upload(path, body, {
     contentType: mime,
     upsert: true,
   })
   if (upErr) {
     return NextResponse.json({ error: upErr.message }, { status: 500 })
+  }
+
+  const { data: dl, error: dlErr } = await sb.storage.from(MEDIA_BUCKET).download(path)
+  if (dlErr || !dl) {
+    return NextResponse.json(
+      { error: `Upload verify mislukt: ${dlErr?.message || 'geen data'}` },
+      { status: 500 }
+    )
+  }
+  const stored = Buffer.from(await dl.arrayBuffer())
+  if (!isValidImageMagic(stored)) {
+    await sb.storage.from(MEDIA_BUCKET).remove([path])
+    return NextResponse.json(
+      {
+        error: `Bestand corrupt na upload (head ${stored.subarray(0, 4).toString('hex')})`,
+      },
+      { status: 500 }
+    )
   }
 
   const now = new Date().toISOString()
@@ -148,7 +239,7 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     path,
-    url: `/api/product-media/${encodeURIComponent(itemcode)}?variant=studio&t=${Date.now()}`,
+    url: `/api/product-media/${encodeURIComponent(itemcode)}?variant=studio&size=full&t=${Date.now()}`,
   })
 }
 

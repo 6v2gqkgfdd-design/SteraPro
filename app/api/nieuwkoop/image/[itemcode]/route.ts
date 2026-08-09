@@ -94,88 +94,193 @@ async function fetchFromNieuwkoop(itemcode: string, attempt = 0): Promise<Buffer
   }
 }
 
+/** Geldige JPEG/PNG magic — vangt UTF-8-gemangelde cache op. */
+function isValidImageMagic(buf: Buffer): boolean {
+  if (buf.byteLength < 4) return false
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff
+  const isPng =
+    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47
+  return isJpeg || isPng
+}
+
+/**
+ * Upload binary veilig (Blob + Uint8Array-kopie).
+ * Bare Buffer kan op Vercel serverless corrupt raken (UTF-8 mangling).
+ */
+async function uploadImage(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  fileName: string,
+  buf: Buffer
+): Promise<boolean> {
+  if (!isValidImageMagic(buf)) {
+    console.error(
+      `[nieuwkoop image] ${fileName}: weiger upload, ongeldige magic ${buf.subarray(0, 4).toString('hex')}`
+    )
+    return false
+  }
+  const bytes = new Uint8Array(buf.byteLength)
+  bytes.set(buf)
+  const body = new Blob([bytes], { type: 'image/jpeg' })
+  const { error } = await supabase.storage.from(BUCKET).upload(fileName, body, {
+    contentType: 'image/jpeg',
+    upsert: true,
+    cacheControl: '31536000',
+  })
+  if (error) {
+    console.error(`[nieuwkoop image] ${fileName}: upload error`, error.message)
+    return false
+  }
+  return true
+}
+
+/** Controleer of public URL een geldige JPEG/PNG is (niet alleen HTTP 200). */
+async function publicImageIsValid(publicUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(publicUrl, {
+      headers: { Range: 'bytes=0-15' },
+      cache: 'no-store',
+    })
+    if (!(res.ok || res.status === 206)) return false
+    const buf = Buffer.from(await res.arrayBuffer())
+    return isValidImageMagic(buf)
+  } catch {
+    return false
+  }
+}
+
 /**
  * Haal foto op, upload naar Storage, return public URL.
  * Returnt null bij definitieve fout. Wordt gededupliceerd via inflight Map.
  */
-async function ensureImageCached(itemcode: string, supabase: any, publicUrl: string): Promise<string | null> {
+async function ensureImageCached(
+  itemcode: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  publicUrl: string
+): Promise<string | null> {
   if (inflight.has(itemcode)) {
-    return inflight.get(itemcode)!;
+    return inflight.get(itemcode)!
   }
   const promise = (async () => {
-    const result = await fetchFromNieuwkoop(itemcode);
-    if (result === "404" || result === "error") return null;
+    const result = await fetchFromNieuwkoop(itemcode)
+    if (result === '404' || result === 'error') return null
     // Verklein vóór cachen (max 800px JPEG) — anders loopt de Storage vol
     // met foto's op volle resolutie. Valt terug op de originele buffer als
     // verkleinen onverwacht faalt.
-    let toStore: Buffer = result;
+    let toStore: Buffer = result
     try {
       toStore = await sharp(result)
         .rotate()
-        .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+        .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
         // Transparante PNG → JPEG zou zwart worden; vul de achtergrond met
         // de cream-kleur van de app (#FFFDF7) zodat foto's mooi inpassen.
         .flatten({ background: { r: 255, g: 253, b: 247 } })
         .jpeg({ quality: 72, mozjpeg: true })
-        .toBuffer();
-    } catch (e: any) {
-      console.error(`[nieuwkoop image] ${itemcode}: resize fout`, e?.message);
+        .toBuffer()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`[nieuwkoop image] ${itemcode}: resize fout`, msg)
     }
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(`${itemcode}.jpg`, toStore, {
-        contentType: "image/jpeg",
-        upsert: true,
-        cacheControl: "31536000",
-      });
-    if (error) {
-      console.error(`[nieuwkoop image] ${itemcode}: upload error`, error.message);
-      return null;
-    }
-    return publicUrl;
-  })();
-  inflight.set(itemcode, promise);
+    const ok = await uploadImage(supabase, `${itemcode}.jpg`, toStore)
+    if (!ok) return null
+    return publicUrl
+  })()
+  inflight.set(itemcode, promise)
   try {
-    return await promise;
+    return await promise
   } finally {
-    inflight.delete(itemcode);
+    inflight.delete(itemcode)
   }
 }
 
-export async function GET(_request: Request, context: any) {
-  const params = await Promise.resolve(context?.params);
-  const itemcode: string | undefined = params?.itemcode;
+async function fetchValidJpegBuffer(
+  publicUrl: string,
+  itemcode: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
+): Promise<Buffer | null> {
+  // Zorg dat cache geldig is
+  let url = publicUrl
+  if (!(await publicImageIsValid(publicUrl))) {
+    const cached = await ensureImageCached(itemcode, supabase, publicUrl)
+    if (!cached) return null
+    url = cached
+  }
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (!isValidImageMagic(buf)) return null
+    return buf
+  } catch {
+    return null
+  }
+}
+
+export async function GET(request: Request, context: any) {
+  const params = await Promise.resolve(context?.params)
+  const itemcode: string | undefined = params?.itemcode
 
   if (!itemcode || !ITEMCODE_PATTERN.test(itemcode)) {
-    return NextResponse.json({ error: "Invalid itemcode" }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid itemcode' }, { status: 400 })
   }
   if (!NK_BASE || !NK_USER || !NK_PASS || !SUPA_URL || !SUPA_SERVICE_KEY) {
-    return placeholderResponse("env-missing");
+    return placeholderResponse('env-missing')
   }
+
+  const size =
+    new URL(request.url).searchParams.get('size')?.toLowerCase() === 'thumb'
+      ? 'thumb'
+      : 'full'
 
   const supabase = createClient(SUPA_URL, SUPA_SERVICE_KEY, {
     auth: { persistSession: false },
-  });
+  })
 
-  const fileName = `${itemcode}.jpg`;
-  const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-  const publicUrl = publicUrlData.publicUrl;
+  const fileName = `${itemcode}.jpg`
+  const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(fileName)
+  const publicUrl = publicUrlData.publicUrl
 
-  // Stap 1: zit de foto al in Storage?
-  try {
-    const headRes = await fetch(publicUrl, { method: "HEAD" });
-    if (headRes.ok) {
-      return NextResponse.redirect(publicUrl, 302);
+  // Thumb: altijd via resize server-side (klein, snel)
+  if (size === 'thumb') {
+    const buf = await fetchValidJpegBuffer(publicUrl, itemcode, supabase)
+    if (!buf) return placeholderResponse('nieuwkoop-fetch-failed')
+    try {
+      const thumb = await sharp(buf)
+        .rotate()
+        .resize({
+          width: 320,
+          height: 320,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 72, mozjpeg: true })
+        .toBuffer()
+      return new NextResponse(new Uint8Array(thumb), {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': String(thumb.byteLength),
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=86400',
+          'X-Image-Size': 'thumb',
+        },
+      })
+    } catch {
+      return placeholderResponse('resize-failed')
     }
-  } catch {
-    // ga door naar fetch+upload
   }
 
-  // Stap 2: cachen (met dedup)
-  const cachedUrl = await ensureImageCached(itemcode, supabase, publicUrl);
+  // Full: redirect naar public cache (of hercache bij corruptie)
+  if (await publicImageIsValid(publicUrl)) {
+    return NextResponse.redirect(publicUrl, 302)
+  }
+
+  const cachedUrl = await ensureImageCached(itemcode, supabase, publicUrl)
   if (!cachedUrl) {
-    return placeholderResponse("nieuwkoop-fetch-failed");
+    return placeholderResponse('nieuwkoop-fetch-failed')
   }
 
-  return NextResponse.redirect(cachedUrl, 302);
+  const bust = publicUrl.includes('?') ? '&' : '?'
+  return NextResponse.redirect(`${cachedUrl}${bust}v=${Date.now()}`, 302)
 }

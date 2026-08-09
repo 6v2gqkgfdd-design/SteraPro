@@ -27,7 +27,20 @@ export async function GET(request: Request) {
   const type = (url.searchParams.get('type') || '').trim()
   const location = (url.searchParams.get('location') || '').trim()
   const stock = (url.searchParams.get('stock') || '').trim()
-  const photo = (url.searchParams.get('photo') || '').trim()
+  // Foto-filter: accepteer yes/no én UI-labels
+  let photo = (url.searchParams.get('photo') || '').trim().toLowerCase()
+  if (photo === 'met nk-foto' || photo === 'met_nk_foto' || photo === 'true' || photo === '1') {
+    photo = 'yes'
+  } else if (
+    photo === 'zonder nk-foto' ||
+    photo === 'zonder_nk_foto' ||
+    photo === 'false' ||
+    photo === '0'
+  ) {
+    photo = 'no'
+  } else if (photo !== 'yes' && photo !== 'no') {
+    photo = ''
+  }
   const offered = (url.searchParams.get('offered') || '').trim()
   const priceBand = (url.searchParams.get('price') || '').trim()
   const heightBand = (url.searchParams.get('height') || '').trim()
@@ -145,19 +158,34 @@ export async function GET(request: Request) {
   })
 
   if (error) {
-    return NextResponse.json({
-      ok: false,
-      error: error.message,
-      warning:
-        error.message.includes('admin_catalog_search') || error.message.includes('function')
-          ? 'Catalogus-zoekfunctie niet beschikbaar. Probeer opnieuw of contacteer support.'
-          : error.message,
+    console.error('[admin/catalog] RPC error', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      photo,
       tab,
-      page,
-      pageSize: PAGE_SIZE,
-      total: 0,
-      items: [],
     })
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error.message,
+        warning:
+          error.message.includes('admin_catalog_search') ||
+          error.message.includes('function') ||
+          error.message.includes('timeout') ||
+          error.message.includes('statement')
+            ? 'Catalogus-zoekfunctie traag of niet beschikbaar. Probeer “Foto: alles” of ververs over een paar seconden.'
+            : error.message,
+        tab,
+        page,
+        pageSize: PAGE_SIZE,
+        total: 0,
+        items: [],
+        debug: { photo, tab, page },
+      },
+      { status: 500 }
+    )
   }
 
   // Supabase kan jsonb al als object teruggeven, of als string.
