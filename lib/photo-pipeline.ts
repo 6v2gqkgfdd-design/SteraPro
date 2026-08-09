@@ -25,7 +25,11 @@ const WALL_MID: [number, number, number] = [246, 222, 189]
 const FLOOR_BOT: [number, number, number] = [236, 206, 170]
 const VIGNETTE = 0.955
 const SHADOW_RGB = { r: 120, g: 88, b: 58 }
-const SAGE = 'rgba(122,138,110,0.92)'
+/** Stera Pro brand — zachte maten-overlay */
+const STERA_GREEN = '#426F52'
+const STERA_GREEN_SOFT = '#608A6E'
+const STERA_CREAM = '#FFFDF7'
+const STERA_INK_SOFT = '#5C6B61'
 
 const PROMPT = `Re-render this exact image as a professional studio product photograph. CRITICAL: keep the composition IDENTICAL — same square 1:1 format, plant in the exact same position and size, same warm beige background colors, same margins. Do not zoom, crop, move or resize anything. The plant and pot must stay 100% identical: same leaves with the same variegation pattern, same pot shape and texture — this is a real product photo. The floor-wall transition must stay barely visible, very gradual. Lighting: one large soft light source from the upper front-left, giving the plant photographic depth and one very soft, diffuse natural shadow of plant and pot together falling slightly to the right on the floor. No hard shadow edges. Crisp sharp foliage. THE POT: you may light the pot naturally — highlights and soft shading from the light source are welcome — but its texture pattern, material, base color and color temperature must remain exactly as in the input image. Do not smooth, repaint or re-texture the pot and do not let the beige background tint it. Leaf colors must also stay true to the input. No props, no text.`
 
@@ -653,62 +657,101 @@ async function makeDetail(hqPng: Buffer, meta: StudioMeta): Promise<Buffer> {
     .toBuffer()
 }
 
+/**
+ * Maat-overlay in Stera Pro-stijl.
+ * - Alleen totale hoogte (+ optioneel pot-hoogte)
+ * - Geen diameter-balk (vaak onnauwkeurig t.o.v. de foto)
+ * - Zachtere lijnen, afgeronde ticks, pill-labels
+ */
 function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
   if (!m?.total || !Number.isFinite(m.total) || m.total <= 0) return null
 
   const baseY = Math.round(S * (meta.base_frac ?? BASE_FRAC))
   const topY = baseY - Math.round(S * PLANT_FRAC)
   const cmPx = (S * PLANT_FRAC) / m.total
-  const lw = Math.max(4, Math.round(S / 400))
-  const fs = Math.max(28, Math.round(S * 0.028))
-  const parts: string[] = []
-  // lichte stroke-achtergrond voor leesbaarheid op beige
-  const label = (txt: string, x: number, y: number, anchor = 'end') =>
-    `<text x="${x}" y="${y}" fill="${SAGE}" stroke="rgba(255,253,247,0.85)" stroke-width="${Math.max(3, lw)}" paint-order="stroke" font-size="${fs}" font-weight="600" font-family="Helvetica, Arial, sans-serif" text-anchor="${anchor}" dominant-baseline="middle">${txt}</text>`
 
-  const x = Math.round(S * 0.915)
+  const lw = Math.max(2.5, Math.round(S / 520))
+  const tick = Math.max(10, Math.round(S * 0.018))
+  const fs = Math.max(26, Math.round(S * 0.024))
+  const pillPadX = Math.round(fs * 0.55)
+  const pillPadY = Math.round(fs * 0.38)
+  const pillR = Math.round(fs * 0.55)
+
+  const stroke = STERA_GREEN_SOFT
+  const strokeDeep = STERA_GREEN
+  const ink = STERA_INK_SOFT
+
+  /** Verticale dimension line met zachte end-ticks */
+  const vDim = (x: number, y1: number, y2: number) => {
+    const ya = Math.min(y1, y2)
+    const yb = Math.max(y1, y2)
+    return [
+      // zachte halo
+      `<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb}" stroke="${STERA_CREAM}" stroke-width="${lw * 2.4}" stroke-linecap="round" opacity="0.75"/>`,
+      `<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb}" stroke="${stroke}" stroke-width="${lw}" stroke-linecap="round" opacity="0.88"/>`,
+      // ticks
+      `<line x1="${x - tick}" y1="${ya}" x2="${x + tick}" y2="${ya}" stroke="${STERA_CREAM}" stroke-width="${lw * 2.2}" stroke-linecap="round" opacity="0.75"/>`,
+      `<line x1="${x - tick}" y1="${ya}" x2="${x + tick}" y2="${ya}" stroke="${strokeDeep}" stroke-width="${lw}" stroke-linecap="round" opacity="0.9"/>`,
+      `<line x1="${x - tick}" y1="${yb}" x2="${x + tick}" y2="${yb}" stroke="${STERA_CREAM}" stroke-width="${lw * 2.2}" stroke-linecap="round" opacity="0.75"/>`,
+      `<line x1="${x - tick}" y1="${yb}" x2="${x + tick}" y2="${yb}" stroke="${strokeDeep}" stroke-width="${lw}" stroke-linecap="round" opacity="0.9"/>`,
+    ].join('')
+  }
+
+  /** Pill-label met cream backdrop */
+  const pillLabel = (
+    txt: string,
+    cx: number,
+    cy: number,
+    anchor: 'start' | 'middle' | 'end'
+  ) => {
+    const tw = Math.round(txt.length * fs * 0.52)
+    const th = fs
+    let rectX = cx - tw / 2 - pillPadX
+    if (anchor === 'end') rectX = cx - tw - pillPadX * 2
+    if (anchor === 'start') rectX = cx
+    const rectY = cy - th / 2 - pillPadY
+    const rectW = tw + pillPadX * 2
+    const rectH = th + pillPadY * 2
+    return [
+      `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${pillR}" ry="${pillR}" fill="${STERA_CREAM}" fill-opacity="0.9"/>`,
+      `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${pillR}" ry="${pillR}" fill="none" stroke="${stroke}" stroke-opacity="0.22" stroke-width="${Math.max(1, lw * 0.55)}"/>`,
+      `<text x="${cx}" y="${cy}" fill="${ink}" font-size="${fs}" font-weight="500" font-family="Georgia, 'Times New Roman', serif" text-anchor="${anchor}" dominant-baseline="middle">${txt}</text>`,
+    ].join('')
+  }
+
+  const parts: string[] = []
+
+  // Totale hoogte — rechts
+  const xH = Math.round(S * 0.92)
+  parts.push(vDim(xH, baseY, topY))
   parts.push(
-    `<line x1="${x}" y1="${baseY}" x2="${x}" y2="${topY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-    `<line x1="${x - 5 * lw}" y1="${baseY}" x2="${x + 5 * lw}" y2="${baseY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-    `<line x1="${x - 5 * lw}" y1="${topY}" x2="${x + 5 * lw}" y2="${topY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-    label(`${Math.round(m.total)} cm`, x - 12, Math.round((baseY + topY) / 2), 'end')
+    pillLabel(
+      `${Math.round(m.total)} cm`,
+      xH - tick - Math.round(fs * 0.35),
+      Math.round((baseY + topY) / 2),
+      'end'
+    )
   )
 
-  if (m.pot) {
-    const xp = Math.round(S * 0.085)
+  // Pot-hoogte — links (alleen als zinvol)
+  if (m.pot && m.pot > 0 && m.pot < m.total) {
+    const xp = Math.round(S * 0.08)
     const potTop =
       meta.pot_top_frac != null
         ? Math.round(S * meta.pot_top_frac)
         : baseY - Math.round(m.pot * cmPx)
+    parts.push(vDim(xp, baseY, potTop))
     parts.push(
-      `<line x1="${xp}" y1="${baseY}" x2="${xp}" y2="${potTop}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      `<line x1="${xp - 5 * lw}" y1="${baseY}" x2="${xp + 5 * lw}" y2="${baseY}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      `<line x1="${xp - 5 * lw}" y1="${potTop}" x2="${xp + 5 * lw}" y2="${potTop}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      label(`${Math.round(m.pot)} cm`, xp + 12, Math.round((baseY + potTop) / 2), 'start')
+      pillLabel(
+        `${Math.round(m.pot)} cm`,
+        xp + tick + Math.round(fs * 0.35),
+        Math.round((baseY + potTop) / 2),
+        'start'
+      )
     )
   }
 
-  let onderlbl: string | null = null
-  let onderCm: number | null = null
-  if (m.diam) {
-    onderlbl = `Ø ${Math.round(m.diam)} cm`
-    onderCm = m.diam
-  } else if (m.l) {
-    onderCm = m.l
-    onderlbl = m.b
-      ? `${Math.round(m.l)} × ${Math.round(m.b)} cm`
-      : `${Math.round(m.l)} cm`
-  }
-  if (onderlbl && onderCm) {
-    const yb = Math.round(S * 0.952)
-    const half = Math.round((onderCm * cmPx) / 2)
-    parts.push(
-      `<line x1="${S / 2 - half}" y1="${yb}" x2="${S / 2 + half}" y2="${yb}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      `<line x1="${S / 2 - half}" y1="${yb - 5 * lw}" x2="${S / 2 - half}" y2="${yb + 5 * lw}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      `<line x1="${S / 2 + half}" y1="${yb - 5 * lw}" x2="${S / 2 + half}" y2="${yb + 5 * lw}" stroke="${SAGE}" stroke-width="${lw}"/>`,
-      label(onderlbl, S / 2, yb + Math.round(S * 0.028), 'middle')
-    )
-  }
+  // Geen diameter-balk onderaan — die klopt visueel vaak niet.
 
   return Buffer.from(
     `<svg width="${S}" height="${S}" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`
