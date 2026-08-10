@@ -888,11 +888,339 @@ async function makeDetail(hqPng: Buffer, meta: StudioMeta): Promise<Buffer> {
     .toBuffer()
 }
 
+/** Layout van plant + pot op de studiofoto (voor maat-balken). */
+type PlantLayout = {
+  /** Top van bladeren / kroon */
+  plantTop: number
+  /** Onderkant pot (niet schaduw) */
+  potBottom: number
+  /** Bovenrand pot (rim) — alleen betrouwbaar als potOk */
+  potRim: number
+  potOk: boolean
+  xmin: number
+  xmax: number
+  potXmin: number
+  potXmax: number
+}
+
+function satLum(R: number, G: number, B: number) {
+  const max = Math.max(R, G, B)
+  const min = Math.min(R, G, B)
+  const sat = max === 0 ? 0 : (max - min) / max
+  const lum = 0.3 * R + 0.59 * G + 0.11 * B
+  return { sat, lum }
+}
+
+/** Warme studio-beige (muur/vloer) — mag nooit als plant tellen. */
+function isStudioBg(R: number, G: number, B: number): boolean {
+  const { sat, lum } = satLum(R, G, B)
+  if (
+    lum > 145 &&
+    sat < 0.42 &&
+    R > 155 &&
+    G > 125 &&
+    B > 95 &&
+    R >= G - 5 &&
+    G >= B - 15 &&
+    R - B < 90
+  ) {
+    return true
+  }
+  if (lum > 125 && sat < 0.22 && R > 140 && G > 120) return true
+  return false
+}
+
+function isPlantPx(R: number, G: number, B: number): boolean {
+  if (isStudioBg(R, G, B)) return false
+  const { sat, lum } = satLum(R, G, B)
+  if (sat < 0.09) return false
+  // groen / olijf
+  if (G > 45) {
+    const greenDom = G - Math.min(R, B)
+    if (G >= R - 5 && G >= B - 5 && greenDom > 12 && sat > 0.12) return true
+    if (G > R && G > B && greenDom > 8 && sat > 0.16) return true
+  }
+  // blauw / paars (bloemen)
+  if (B > 80 && B > R + 18 && B >= G - 5 && sat > 0.18) return true
+  // roze / coral stelen (niet beige)
+  if (
+    R > G + 40 &&
+    R > B + 25 &&
+    G < 165 &&
+    sat > 0.22 &&
+    lum > 50 &&
+    lum < 190
+  ) {
+    return true
+  }
+  // geel-groene variegatie
+  if (
+    G > 95 &&
+    R > 80 &&
+    B < G - 18 &&
+    sat > 0.16 &&
+    Math.abs(R - G) < 60
+  ) {
+    return true
+  }
+  // houten stam (bolboom)
+  if (
+    lum > 50 &&
+    lum < 140 &&
+    R > G + 10 &&
+    G > B + 5 &&
+    sat > 0.15 &&
+    sat < 0.55 &&
+    R < 180
+  ) {
+    return true
+  }
+  return false
+}
+
+function isPotPx(R: number, G: number, B: number): boolean {
+  if (isStudioBg(R, G, B)) return false
+  const { sat, lum } = satLum(R, G, B)
+  // donkere bladeren ≠ pot
+  if (G > R + 10 && G > B + 6) return false
+  // zwarte / navy cultuurpot
+  if (lum < 92 && sat < 0.55) return true
+  // terracotta
+  if (lum > 55 && lum < 145 && R > G + 22 && R > B + 28 && sat > 0.2) return true
+  return false
+}
+
+function isSoilPx(R: number, G: number, B: number): boolean {
+  if (isStudioBg(R, G, B)) return false
+  const { sat, lum } = satLum(R, G, B)
+  return (
+    lum > 40 &&
+    lum < 125 &&
+    R > G + 8 &&
+    R > B + 10 &&
+    sat > 0.15 &&
+    sat < 0.7
+  )
+}
+
 /**
- * Detecteer plant/pot-silhouet op de finale studiofoto.
- * Nodig omdat Grok de compositie licht kan verschuiven — maten moeten
- * op de échte plant staan, niet op de theoretische PLANT_FRAC.
+ * Detecteer plant-top, pot-bodem en pot-rand op de studiofoto.
+ *
+ * Gebruikt absolute kleurklassen i.p.v. “verschil met hoek-BG”:
+ * studio-vignette maakt het midden lichter dan de randen, wat de oude
+ * methode de hele canvas als foreground liet zien → balken tot aan de
+ * beeldrand.
  */
+async function detectPlantLayout(
+  img: Buffer,
+  size = DOEL
+): Promise<PlantLayout | null> {
+  const { data, info } = await sharp(img)
+    .resize(size, size, { fit: 'fill' })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const w = info.width
+  const h = info.height
+  const ch = info.channels
+
+  const xL = Math.floor(w * 0.1)
+  const xR = Math.floor(w * 0.9)
+  const cL = Math.floor(w * 0.3)
+  const cR = Math.floor(w * 0.7)
+
+  type Row = {
+    plant: number
+    pot: number
+    soil: number
+    cPlant: number
+    cPot: number
+    rmin: number
+    rmax: number
+    pmin: number
+    pmax: number
+    potSpan: number
+  }
+  const rows: Row[] = []
+
+  for (let y = 0; y < h; y++) {
+    let plant = 0
+    let pot = 0
+    let soil = 0
+    let cPlant = 0
+    let cPot = 0
+    let rmin = w
+    let rmax = 0
+    let pmin = w
+    let pmax = 0
+    for (let x = xL; x < xR; x++) {
+      const i = (y * w + x) * ch
+      const R = data[i]
+      const G = data[i + 1]
+      const B = data[i + 2]
+      const inC = x >= cL && x < cR
+      if (isPlantPx(R, G, B)) {
+        plant++
+        if (inC) cPlant++
+        if (x < rmin) rmin = x
+        if (x > rmax) rmax = x
+      } else if (isPotPx(R, G, B)) {
+        pot++
+        if (inC) cPot++
+        if (x < pmin) pmin = x
+        if (x > pmax) pmax = x
+        if (x < rmin) rmin = x
+        if (x > rmax) rmax = x
+      } else if (isSoilPx(R, G, B)) {
+        soil++
+        if (inC) cPot++
+        if (x < pmin) pmin = x
+        if (x > pmax) pmax = x
+      }
+    }
+    rows.push({
+      plant,
+      pot,
+      soil,
+      cPlant,
+      cPot,
+      rmin,
+      rmax,
+      pmin,
+      pmax,
+      potSpan: pot > 0 ? pmax - pmin : 0,
+    })
+  }
+
+  // --- plant top: eerste aanhoudende plant-pixels in het midden ---
+  let plantTop = -1
+  for (let y = 0; y < h - 4; y++) {
+    if (
+      rows[y].cPlant >= 6 &&
+      rows[y + 1].plant + rows[y + 1].cPlant >= 8 &&
+      rows[y + 2].plant >= 6
+    ) {
+      plantTop = y
+      break
+    }
+  }
+  if (plantTop < 0) {
+    for (let y = 0; y < h - 2; y++) {
+      if (rows[y].plant >= 12 && rows[y + 1].plant >= 10) {
+        plantTop = y
+        break
+      }
+    }
+  }
+  if (plantTop < 0) return null
+
+  // --- pot bottom: laatste rij met pot-pixels (geen vloerschaduw) ---
+  let potBottom = -1
+  for (let y = h - 1; y >= plantTop; y--) {
+    if (rows[y].cPot >= 5 || rows[y].pot >= 12) {
+      potBottom = y
+      break
+    }
+  }
+  if (potBottom < 0) {
+    for (let y = h - 1; y >= plantTop; y--) {
+      if (rows[y].plant >= 12) {
+        potBottom = y
+        break
+      }
+    }
+  }
+  if (potBottom < 0) return null
+
+  // --- pot rim: loop omhoog door pot-band; stop bij loof ---
+  // Beperk breedte: donkere bladeren naast de pot zijn breder dan de pot.
+  let basePotSpan = 0
+  {
+    const band = Math.max(3, Math.floor((potBottom - plantTop) * 0.04))
+    const spans: number[] = []
+    for (let y = potBottom - band; y <= potBottom; y++) {
+      if (y >= 0 && rows[y].potSpan > 0) spans.push(rows[y].potSpan)
+    }
+    spans.sort((a, b) => a - b)
+    basePotSpan = spans.length ? spans[Math.floor(spans.length / 2)] : 0
+  }
+
+  let potRim = potBottom
+  let seen = false
+  const plantH0 = Math.max(1, potBottom - plantTop)
+  const minY = potBottom - Math.floor(plantH0 * 0.55)
+  for (let y = potBottom; y >= Math.max(plantTop, minY); y--) {
+    const row = rows[y]
+    const potN = row.pot + row.soil
+    const widthOk =
+      basePotSpan <= 0 ||
+      row.potSpan <= 0 ||
+      row.potSpan <= basePotSpan * 1.45
+    const potLike =
+      potN >= 10 && potN >= row.plant * 0.65 && widthOk
+    if (potLike) {
+      potRim = y
+      seen = true
+    } else if (seen) {
+      if (y >= potRim - 5 && potN >= 4 && widthOk) {
+        potRim = y
+        continue
+      }
+      if (row.plant >= 12 && row.plant > potN + 5) break
+      if (y < potRim - 3 && potN < 3) break
+      // opeens veel breder → bladeren, geen pot
+      if (basePotSpan > 0 && row.potSpan > basePotSpan * 1.6) break
+    }
+  }
+  // aarde boven in pot telt mee als rim
+  for (
+    let y = potRim;
+    y >= Math.max(plantTop, potRim - Math.floor(plantH0 * 0.1));
+    y--
+  ) {
+    if (rows[y].soil >= 5) potRim = y
+  }
+
+  const plantH = Math.max(1, potBottom - plantTop)
+  const potH = potBottom - potRim
+  const potFrac = potH / plantH
+  const potOk = seen && potFrac >= 0.07 && potFrac <= 0.48 && potH >= 12
+
+  let xmin = w
+  let xmax = 0
+  for (let y = plantTop; y <= potBottom; y++) {
+    if (rows[y].plant + rows[y].pot < 8) continue
+    xmin = Math.min(xmin, rows[y].rmin)
+    xmax = Math.max(xmax, rows[y].rmax)
+  }
+  let potXmin = xmin
+  let potXmax = xmax
+  if (potOk) {
+    let best = -1
+    for (let y = potRim; y <= potBottom; y++) {
+      if (rows[y].potSpan > best && rows[y].pot >= 8) {
+        best = rows[y].potSpan
+        potXmin = rows[y].pmin
+        potXmax = rows[y].pmax
+      }
+    }
+  }
+
+  if (xmax <= xmin) return null
+
+  return {
+    plantTop,
+    potBottom,
+    potRim,
+    potOk,
+    xmin,
+    xmax,
+    potXmin,
+    potXmax,
+  }
+}
+
+/** @deprecated alias — detail-crop gebruikt nog bounds-vorm */
 async function detectSubjectBounds(
   img: Buffer,
   size = DOEL
@@ -904,86 +1232,16 @@ async function detectSubjectBounds(
   potXmin: number
   potXmax: number
 } | null> {
-  const { data, info } = await sharp(img)
-    .resize(size, size, { fit: 'fill' })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  const w = info.width
-  const h = info.height
-  const ch = info.channels
-
-  // Achtergrond ≈ hoek-samples (warme beige)
-  const samples: number[][] = []
-  const corner = (x: number, y: number) => {
-    const i = (y * w + x) * ch
-    samples.push([data[i], data[i + 1], data[i + 2]])
+  const layout = await detectPlantLayout(img, size)
+  if (!layout) return null
+  return {
+    xmin: layout.xmin,
+    xmax: layout.xmax,
+    ymin: layout.plantTop,
+    ymax: layout.potBottom,
+    potXmin: layout.potXmin,
+    potXmax: layout.potXmax,
   }
-  for (let d = 2; d < 14; d++) {
-    corner(d, d)
-    corner(w - 1 - d, d)
-    corner(d, h - 1 - d)
-    corner(w - 1 - d, h - 1 - d)
-  }
-  const bg = [0, 0, 0]
-  for (const s of samples) {
-    bg[0] += s[0]
-    bg[1] += s[1]
-    bg[2] += s[2]
-  }
-  bg[0] /= samples.length
-  bg[1] /= samples.length
-  bg[2] /= samples.length
-  const thr = 42 * 42
-
-  const isFg = (x: number, y: number) => {
-    const i = (y * w + x) * ch
-    const dr = data[i] - bg[0]
-    const dg = data[i + 1] - bg[1]
-    const db = data[i + 2] - bg[2]
-    return dr * dr + dg * dg + db * db > thr
-  }
-
-  let xmin = w
-  let xmax = 0
-  let ymin = h
-  let ymax = 0
-  let found = false
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!isFg(x, y)) continue
-      found = true
-      if (x < xmin) xmin = x
-      if (x > xmax) xmax = x
-      if (y < ymin) ymin = y
-      if (y > ymax) ymax = y
-    }
-  }
-  if (!found || xmax <= xmin || ymax <= ymin) return null
-
-  // Pot-breedte: breedste rij in onderste 18% van de silhouet
-  const bandTop = Math.max(ymin, ymax - Math.max(8, Math.floor((ymax - ymin) * 0.18)))
-  let potXmin = xmin
-  let potXmax = xmax
-  let bestSpan = -1
-  for (let y = bandTop; y <= ymax; y++) {
-    let rowMin = Infinity
-    let rowMax = -Infinity
-    for (let x = xmin; x <= xmax; x++) {
-      if (!isFg(x, y)) continue
-      if (x < rowMin) rowMin = x
-      if (x > rowMax) rowMax = x
-    }
-    if (!Number.isFinite(rowMin)) continue
-    const span = rowMax - rowMin
-    if (span > bestSpan) {
-      bestSpan = span
-      potXmin = rowMin
-      potXmax = rowMax
-    }
-  }
-
-  return { xmin, xmax, ymin, ymax, potXmin, potXmax }
 }
 
 /** Ingebedde serif (OFL) — SVG-tekst rendert betrouwbaar op Mac én Vercel. */
@@ -1007,8 +1265,8 @@ function maatFontFaceCss(): string {
 /**
  * Maat-overlay — Stera Pro.
  *
- *   • Totale hoogte (rechts) — balk planttop → potbodem
- *   • Pothoogte (links) — balk op de pot
+ *   • Totale hoogte (rechts) — planttop → potbodem (pixel-detectie)
+ *   • Pothoogte (links) — pot-rim → potbodem (detectie, of catalogus-proportie)
  *   • Diameter onderaan als tekst “Ø 27 cm” (geen balk, geen pill)
  *
  * Alleen Stera-groen + elegante serif. Geen witte pills.
@@ -1017,30 +1275,52 @@ function maatSvg(
   S: number,
   m: MaatEntry,
   meta: StudioMeta,
-  bounds: {
-    xmin: number
-    xmax: number
-    ymin: number
-    ymax: number
-    potXmin: number
-    potXmax: number
-  } | null
+  layout: PlantLayout | null
 ): Buffer | null {
   if (!m?.total || !Number.isFinite(m.total) || m.total <= 0) return null
 
   const fallbackBase = Math.round(S * (meta.base_frac ?? BASE_FRAC))
   const fallbackTop = fallbackBase - Math.round(S * PLANT_FRAC)
 
-  // Silhouet = ankers voor de balken
-  const baseY = bounds ? bounds.ymax : fallbackBase
-  const topY = bounds ? bounds.ymin : fallbackTop
+  // Ankers: pixel-layout van de échte plant (niet PLANT_FRAC / meta-schatten)
+  const topY = layout?.plantTop ?? fallbackTop
+  const baseY = layout?.potBottom ?? fallbackBase
   const plantH = Math.max(1, baseY - topY)
-  const cmPx = plantH / m.total
+
+  // Catalogus-proportionele pot-top (fallback + sanity check)
+  const propPotTop =
+    m.pot && m.pot > 0 && m.pot < m.total
+      ? baseY - Math.round(plantH * (m.pot / m.total))
+      : null
+
+  // Staande plant: pot-rim via detectie (+ catalogus-sanity), anders proportioneel
+  let potTop: number | null = null
+  if (!(meta.hanging && meta.pot_top_frac != null)) {
+    if (layout?.potOk) {
+      const det = layout.potRim
+      if (propPotTop != null) {
+        const drift = Math.abs(det - propPotTop) / plantH
+        // Detectie te ver van catalogus-verhouding → meng (donker loof ≠ pot)
+        potTop =
+          drift > 0.1
+            ? Math.round(det * 0.4 + propPotTop * 0.6)
+            : det
+      } else {
+        potTop = det
+      }
+    } else if (propPotTop != null) {
+      potTop = propPotTop
+    }
+    if (potTop != null) {
+      potTop = Math.max(topY + 4, Math.min(baseY - 8, potTop))
+    }
+  }
 
   const edgePad = Math.round(S * 0.028)
-  const plantLeft = bounds?.xmin ?? Math.round(S * 0.22)
-  const plantRight = bounds?.xmax ?? Math.round(S * 0.78)
+  const plantLeft = layout?.xmin ?? Math.round(S * 0.22)
+  const plantRight = layout?.xmax ?? Math.round(S * 0.78)
   const gap = Math.round(S * 0.04)
+  // Balken net naast de plant, binnen het kader
   const xH = Math.min(S - edgePad, plantRight + gap)
   const xP = Math.max(edgePad, plantLeft - gap)
 
@@ -1061,7 +1341,6 @@ function maatSvg(
     ].join('')
   }
 
-  // Alleen groene tekst — géén rect/pill
   const label = (
     txt: string,
     x: number,
@@ -1075,7 +1354,7 @@ function maatSvg(
 
   const parts: string[] = []
 
-  // Totale hoogte rechts
+  // Totale hoogte rechts: planttop → potbodem
   parts.push(vDim(xH, topY, baseY))
   parts.push(
     label(
@@ -1089,31 +1368,23 @@ function maatSvg(
   // Pot-hoogte links
   if (m.pot && m.pot > 0 && m.pot < m.total) {
     if (meta.hanging && meta.pot_top_frac != null) {
-      const potBottom = Math.round(S * meta.pot_top_frac)
-      const potY1 = topY
-      const potY2 = Math.min(baseY - 4, Math.max(topY + 4, potBottom))
-      if (potY2 - potY1 > 4) {
-        parts.push(vDim(xP, potY1, potY2))
+      // Hangpot: pot hangt bovenaan; balk van planttop tot onderkant pot
+      const hangPotBottom = Math.min(
+        baseY - 4,
+        Math.max(topY + 4, Math.round(S * meta.pot_top_frac))
+      )
+      if (hangPotBottom - topY > 4) {
+        parts.push(vDim(xP, topY, hangPotBottom))
         parts.push(
           label(
             `${Math.round(m.pot)} cm`,
             xP + tick + Math.round(fs * 0.35),
-            Math.round((potY1 + potY2) / 2),
+            Math.round((topY + hangPotBottom) / 2),
             'start'
           )
         )
       }
-    } else {
-      let potTop: number
-      if (meta.pot_top_frac != null) {
-        potTop = Math.round(S * meta.pot_top_frac)
-        potTop = Math.min(baseY - 4, Math.max(topY + 4, potTop))
-      } else {
-        potTop = baseY - Math.round(m.pot * cmPx)
-      }
-      if (baseY - potTop > plantH * 0.55) {
-        potTop = baseY - Math.round(m.pot * cmPx)
-      }
+    } else if (potTop != null && baseY - potTop > 4) {
       parts.push(vDim(xP, potTop, baseY))
       parts.push(
         label(
@@ -1224,19 +1495,19 @@ async function makeMaat(
   const base = await sharp(studioPng).resize(DOEL, DOEL).png().toBuffer()
   if (!maat) return base
 
-  let bounds: Awaited<ReturnType<typeof detectSubjectBounds>> = null
+  let layout: PlantLayout | null = null
   try {
-    bounds = await detectSubjectBounds(base, DOEL)
+    layout = await detectPlantLayout(base, DOEL)
   } catch (e) {
-    console.warn('[photo-pipeline] subject-bounds failed, fallback meta', e)
+    console.warn('[photo-pipeline] plant-layout failed, fallback meta', e)
   }
 
-  const svg = maatSvg(DOEL, maat, meta, bounds)
+  const svg = maatSvg(DOEL, maat, meta, layout)
   if (!svg) return base
 
   // Rasteriseer overlay apart (embedded font + tekst), daarna composieten.
-  // Voorkomt “lege witte pills” / ontbrekende labels op sommige runtimes.
-  const overlay = await sharp(svg, { density: 144 })
+  // density 72: SVG is al in DOEL-pixels; 144 schaalde overlay 2× (verkeerde balken).
+  const overlay = await sharp(svg, { density: 72 })
     .resize(DOEL, DOEL)
     .png()
     .toBuffer()
