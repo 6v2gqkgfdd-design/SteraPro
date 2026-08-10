@@ -10,6 +10,7 @@
 
 import ical from 'node-ical'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { matchCompanyId as matchCompanyFromText } from '@/lib/company-match'
 
 export const APP_EVENT_UID_PREFIX = 'stera-visit-'
 export const APP_EVENT_UID_DOMAIN = 'sterapro.be'
@@ -290,7 +291,7 @@ export async function syncIcsIntoVisits(
 
   const events = await parseIcsEvents(text)
 
-  // Bedrijfsnamen voor zachte matching op titel
+  // Bedrijfsnamen — slimme match (BV/spaties/tokens), zie lib/company-match.ts
   const { data: companies } = await supabase
     .from('companies')
     .select('id, name')
@@ -299,17 +300,7 @@ export async function syncIcsIntoVisits(
   const companyList = (companies ?? []) as { id: string; name: string }[]
 
   function matchCompanyId(summary: string, description: string | null): string | null {
-    const hay = `${summary} ${description || ''}`.toLowerCase()
-    // Langste match wint (voorkomt dat "Stera" wint van "Stera HQ")
-    let best: { id: string; len: number } | null = null
-    for (const c of companyList) {
-      const n = (c.name || '').trim().toLowerCase()
-      if (n.length < 3) continue
-      if (hay.includes(n) && (!best || n.length > best.len)) {
-        best = { id: c.id, len: n.length }
-      }
-    }
-    return best?.id ?? null
+    return matchCompanyFromText(summary, description, companyList)
   }
 
   // Bestaande geïmporteerde visits
@@ -318,10 +309,24 @@ export async function syncIcsIntoVisits(
     .select('id, calendar_uid, status, scheduled_start, title, company_id')
     .eq('calendar_source', 'iphone')
 
-  const byUid = new Map<string, { id: string; status: string }>()
+  const byUid = new Map<
+    string,
+    { id: string; status: string; company_id: string | null }
+  >()
   for (const row of existingRows ?? []) {
-    const uid = (row as { calendar_uid: string | null }).calendar_uid
-    if (uid) byUid.set(uid, { id: (row as { id: string }).id, status: (row as { status: string }).status })
+    const r = row as {
+      calendar_uid: string | null
+      id: string
+      status: string
+      company_id: string | null
+    }
+    if (r.calendar_uid) {
+      byUid.set(r.calendar_uid, {
+        id: r.id,
+        status: r.status,
+        company_id: r.company_id,
+      })
+    }
   }
 
   let created = 0
@@ -372,13 +377,16 @@ export async function syncIcsIntoVisits(
         skipped++
         continue
       }
+      // company_id: match wint; anders bestaande koppeling behouden
+      const nextCompany = companyId || existing.company_id || null
+
       const { error } = await supabase
         .from('maintenance_visits')
         .update({
           title: ev.summary,
           scheduled_start: scheduledStart,
           scheduled_end: scheduledEnd,
-          company_id: companyId,
+          company_id: nextCompany,
           internal_notes: notes,
           status: 'scheduled',
           updated_at: new Date().toISOString(),

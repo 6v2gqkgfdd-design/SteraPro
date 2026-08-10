@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import PlantThumb from '@/components/plant-thumb'
 import {
   plantStatusClass,
   plantStatusLabel,
@@ -110,12 +111,7 @@ export default async function CompanyPlantsPage({
                     className="flex items-center gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
                   >
                     {plant.photo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={plant.photo_url}
-                        alt={name}
-                        className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                      />
+                      <PlantThumb src={plant.photo_url} alt={name} size={56} />
                     ) : (
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-stera-cream-deep text-lg">
                         {plant.is_artificial ? '🪴' : '🌿'}

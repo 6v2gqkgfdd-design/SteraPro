@@ -5,6 +5,7 @@ import VisitConsumables from './visit-consumables'
 import VisitManagement from './visit-management'
 import { applyStandardMaintenance } from './standard-actions'
 import { RowMenu } from '@/components/row-menu'
+import PlantThumb from '@/components/plant-thumb'
 import { formatRoomLabel } from '@/lib/rooms'
 
 type FollowupItem = {
@@ -471,11 +472,10 @@ export default async function MaintenanceDetailPage({
                 className="flex flex-wrap gap-3 rounded-lg border border-stera-line bg-stera-cream-deep p-3 transition hover:border-stera-green"
               >
                 {item.photo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <PlantThumb
                     src={item.photo_url}
                     alt="Foto van plant tijdens onderhoud"
-                    className="h-20 w-20 shrink-0 rounded object-cover"
+                    size={80}
                   />
                 ) : null}
                 <div className="min-w-0 flex-1">
