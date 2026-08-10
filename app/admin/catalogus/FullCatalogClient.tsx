@@ -17,6 +17,7 @@ import {
   PRICE_BANDS,
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
+import { PLANT_FORM_OPTIONS } from '@/lib/plant-form'
 import {
   LOCATION_FILTER_OPTIONS,
   locationAppliesToType,
@@ -113,6 +114,8 @@ type Filters = {
   brand: string
   plantsoort: string
   optimized: string
+  /** Plantvorm: hang | toef | bush | stam | … */
+  form: string
 }
 
 const EMPTY_FILTERS: Filters = {
@@ -127,6 +130,7 @@ const EMPTY_FILTERS: Filters = {
   brand: '',
   plantsoort: '',
   optimized: '',
+  form: '',
 }
 
 function loadSavedState(): {
@@ -247,6 +251,7 @@ export default function FullCatalogClient() {
         brand: filters.brand,
         plantsoort: filters.plantsoort,
         optimized: filters.optimized,
+        form: filters.form,
       })
       const res = await fetch(`/api/admin/catalog?${params}`)
       const data = await res.json()
@@ -781,6 +786,19 @@ export default function FullCatalogClient() {
                 className={selectClass}
               >
                 {HEIGHT_BANDS.map((o) => (
+                  <option key={o.id || 'all'} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.form}
+                onChange={(e) => setFilter('form', e.target.value)}
+                className={selectClass}
+                title="Filter op plantvorm (hangplant, toef, stam, …)"
+              >
+                {PLANT_FORM_OPTIONS.map((o) => (
                   <option key={o.id || 'all'} value={o.id}>
                     {o.label}
                   </option>

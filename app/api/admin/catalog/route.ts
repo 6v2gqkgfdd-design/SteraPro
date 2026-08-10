@@ -1,6 +1,6 @@
 /**
  * Staff catalogus-API met MVP-filters.
- * GET /api/admin/catalog?tab=&type=&location=&stock=&photo=&offered=&price=&height=&brand=&plantsoort=&q=&page=
+ * GET /api/admin/catalog?tab=&type=&location=&stock=&photo=&offered=&price=&height=&brand=&plantsoort=&form=&q=&page=
  */
 
 import { NextResponse } from 'next/server'
@@ -47,6 +47,8 @@ export async function GET(request: Request) {
   const brand = (url.searchParams.get('brand') || '').trim()
   const plantsoort = (url.searchParams.get('plantsoort') || '').trim()
   const optimized = (url.searchParams.get('optimized') || '').trim()
+  // Plantvorm: hang | toef | bush | stam | bol | piramide | zuil | bonsai | vertakt | klim
+  const form = (url.searchParams.get('form') || '').trim().toLowerCase()
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1)
 
   // --- Tab Nieuw: open change-events (aparte query) ---
@@ -155,6 +157,7 @@ export async function GET(request: Request) {
     p_page: page,
     p_page_size: PAGE_SIZE,
     p_optimized: optimized || null,
+    p_form: form || null,
   })
 
   if (error) {
