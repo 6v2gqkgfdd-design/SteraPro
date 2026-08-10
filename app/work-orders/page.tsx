@@ -190,23 +190,6 @@ export default async function WorkOrdersPage({
           })}
         </div>
 
-        <div className="sticky top-0 z-20 -mx-5 flex flex-wrap gap-2 bg-stera-cream/95 px-5 py-2 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-          {TAB_ORDER.map((s) => (
-            <Link
-              key={s}
-              href={`/work-orders?tab=${s}`}
-              className={
-                activeTab === s
-                  ? 'rounded-full bg-stera-green px-4 py-2.5 text-sm font-semibold text-white'
-                  : 'rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green'
-              }
-            >
-              {STATUS_LABEL[s]}
-              <span className="ml-2 opacity-70">{groups[s].length}</span>
-            </Link>
-          ))}
-        </div>
-
         {missingWorkOrder.length > 0 ? (
           <details className="stera-card border-amber-200 bg-amber-50/60 open:bg-amber-50">
             <summary className="cursor-pointer list-none">
