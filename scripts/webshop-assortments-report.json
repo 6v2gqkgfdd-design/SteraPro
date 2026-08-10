@@ -1,0 +1,410 @@
+{
+  "createdAt": "2026-08-10T20:19:41.876Z",
+  "report": [
+    {
+      "key": "kantoorhelden",
+      "title": "Kantoorhelden",
+      "handle": "kantoorhelden",
+      "blurb": "De onverwoestbare basis voor elk kantoor. Weinig licht, onregelmatig water, toch fris groen. Ideaal voor bureaus, open offices en onderhoudscontracten.",
+      "count": 12,
+      "items": [
+        {
+          "itemcode": "CC0055689",
+          "description": "Sansevieria zeylanica in Terra Antica",
+          "stock": 100,
+          "speciesKey": "sansevieria zeylanica in"
+        },
+        {
+          "itemcode": "CC0055365",
+          "description": "Sansevieria zeylanica in Mineral",
+          "stock": 100,
+          "speciesKey": "sansevieria zeylanica in"
+        },
+        {
+          "itemcode": "CC0055695",
+          "description": "Sansevieria trifasciata 'Laurentii' in Terra Antica",
+          "stock": 100,
+          "speciesKey": "sansevieria trifasciata 'laurentii'"
+        },
+        {
+          "itemcode": "1SALATU34",
+          "description": "Sansevieria trifasciata 'Laurentii'",
+          "stock": 100,
+          "speciesKey": "sansevieria trifasciata 'laurentii'"
+        },
+        {
+          "itemcode": "4SASPTU19",
+          "description": "Sansevieria cylindrica 'Spikes'",
+          "stock": 100,
+          "speciesKey": "sansevieria cylindrica 'spikes'"
+        },
+        {
+          "itemcode": "4SASPTU15",
+          "description": "Sansevieria cylindrica 'Spikes'",
+          "stock": 9,
+          "speciesKey": "sansevieria cylindrica 'spikes'"
+        },
+        {
+          "itemcode": "1SACTTU15",
+          "description": "Sansevieria cylindrica tower",
+          "stock": 100,
+          "speciesKey": "sansevieria cylindrica tower"
+        },
+        {
+          "itemcode": "1SACTTU20",
+          "description": "Sansevieria cylindrica tower",
+          "stock": 86,
+          "speciesKey": "sansevieria cylindrica tower"
+        },
+        {
+          "itemcode": "4SACYTU04",
+          "description": "Sansevieria cylindrica 'Tower'",
+          "stock": 100,
+          "speciesKey": "sansevieria cylindrica 'tower'"
+        },
+        {
+          "itemcode": "1SACTTU16",
+          "description": "Sansevieria cylindrica 'Tower'",
+          "stock": 100,
+          "speciesKey": "sansevieria cylindrica 'tower'"
+        },
+        {
+          "itemcode": "1SASMTU15",
+          "description": "Sansevieria trifasciata 'Silver Mist'",
+          "stock": 100,
+          "speciesKey": "sansevieria trifasciata 'silver"
+        },
+        {
+          "itemcode": "1SASMTU18",
+          "description": "Sansevieria trifasciata 'Silver Mist'",
+          "stock": 100,
+          "speciesKey": "sansevieria trifasciata 'silver"
+        }
+      ]
+    },
+    {
+      "key": "receptie-statement",
+      "title": "Receptie & statement",
+      "handle": "receptie-statement",
+      "blurb": "Hoogte en allure bij de inkom, liftlobby of boardroom. Eén sterke plant maakt de ruimte af.",
+      "count": 12,
+      "items": [
+        {
+          "itemcode": "1DRBU3S20",
+          "description": "Dracaena fragrans 'Burundii'",
+          "stock": 100,
+          "speciesKey": "dracaena fragrans 'burundii'"
+        },
+        {
+          "itemcode": "4DRJB3S15",
+          "description": "Dracaena fragrans 'Burundii'",
+          "stock": 100,
+          "speciesKey": "dracaena fragrans 'burundii'"
+        },
+        {
+          "itemcode": "2DRCOKO10",
+          "description": "Dracaena fragrans 'Compacta'",
+          "stock": 100,
+          "speciesKey": "dracaena fragrans 'compacta'"
+        },
+        {
+          "itemcode": "1DRCOKO10",
+          "description": "Dracaena fragrans 'Compacta'",
+          "stock": 100,
+          "speciesKey": "dracaena fragrans 'compacta'"
+        },
+        {
+          "itemcode": "CC0064879",
+          "description": "Ficus elastica 'Abidjan' in Baq Seren",
+          "stock": 100,
+          "speciesKey": "ficus elastica 'abidjan'"
+        },
+        {
+          "itemcode": "4FIEA3T12",
+          "description": "Ficus elastica 'Abidjan'",
+          "stock": 100,
+          "speciesKey": "ficus elastica 'abidjan'"
+        },
+        {
+          "itemcode": "CC0057703",
+          "description": "Ficus lyrata in Baq Tortuga",
+          "stock": 100,
+          "speciesKey": "ficus lyrata in"
+        },
+        {
+          "itemcode": "CC0011106",
+          "description": "Ficus lyrata in Grigio",
+          "stock": 100,
+          "speciesKey": "ficus lyrata in"
+        },
+        {
+          "itemcode": "1DRJG3S20",
+          "description": "Dracaena fragrans 'Janet Craig'",
+          "stock": 100,
+          "speciesKey": "dracaena fragrans 'janet"
+        },
+        {
+          "itemcode": "1DRJG2K10",
+          "description": "Dracaena fragrans 'Janet Craig'",
+          "stock": 100,
+          "speciesKey": "dracaena fragrans 'janet"
+        },
+        {
+          "itemcode": "8EE419840",
+          "description": "Strelitzia",
+          "stock": 100,
+          "speciesKey": "strelitzia"
+        },
+        {
+          "itemcode": "8EE419841",
+          "description": "Strelitzia",
+          "stock": 100,
+          "speciesKey": "strelitzia"
+        }
+      ]
+    },
+    {
+      "key": "palmen-workspace",
+      "title": "Palmen voor de workspace",
+      "handle": "palmen-workspace",
+      "blurb": "Zachte, tropische sfeer zonder vakantiegevoel. Kentia, Areca en Chamaedorea blijven favoriet in Belgische kantoren.",
+      "count": 12,
+      "items": [
+        {
+          "itemcode": "4RHEXB024",
+          "description": "Rhapis excelsa",
+          "stock": 100,
+          "speciesKey": "rhapis excelsa"
+        },
+        {
+          "itemcode": "4RHEXB015",
+          "description": "Rhapis excelsa",
+          "stock": 100,
+          "speciesKey": "rhapis excelsa"
+        },
+        {
+          "itemcode": "4CAMIBU68",
+          "description": "Caryota mitis",
+          "stock": 100,
+          "speciesKey": "caryota mitis"
+        },
+        {
+          "itemcode": "4CAMIBU81",
+          "description": "Caryota mitis",
+          "stock": 35,
+          "speciesKey": "caryota mitis"
+        },
+        {
+          "itemcode": "4LICHMS28",
+          "description": "Livistona chinensis",
+          "stock": 100,
+          "speciesKey": "livistona chinensis"
+        },
+        {
+          "itemcode": "1LICHMS25",
+          "description": "Livistona chinensis",
+          "stock": 20,
+          "speciesKey": "livistona chinensis"
+        },
+        {
+          "itemcode": "1ARLUTU59",
+          "description": "Dypsis (Areca) lutescens",
+          "stock": 100,
+          "speciesKey": "dypsis (areca) lutescens"
+        },
+        {
+          "itemcode": "4CHLUB001",
+          "description": "Dypsis (Areca) lutescens",
+          "stock": 100,
+          "speciesKey": "dypsis (areca) lutescens"
+        },
+        {
+          "itemcode": "4CAMIBU58",
+          "description": "Caryota mitis (220-280)",
+          "stock": 100,
+          "speciesKey": "caryota mitis (220-280)"
+        },
+        {
+          "itemcode": "4PHROR002",
+          "description": "Phoenix roebelenii (140-160cm)",
+          "stock": 100,
+          "speciesKey": "phoenix roebelenii (140-160cm)"
+        },
+        {
+          "itemcode": "4PHROR003",
+          "description": "Phoenix roebelenii (180-200cm)",
+          "stock": 100,
+          "speciesKey": "phoenix roebelenii (180-200cm)"
+        },
+        {
+          "itemcode": "4PHROR004",
+          "description": "Phoenix roebelenii (200-225cm)",
+          "stock": 100,
+          "speciesKey": "phoenix roebelenii (200-225cm)"
+        }
+      ]
+    },
+    {
+      "key": "hang-cascade",
+      "title": "Hang & cascade",
+      "handle": "hang-cascade",
+      "blurb": "Hangplanten en klimmers voor planken, kasten en scheidingswanden. Volumemakers met weinig footprint.",
+      "count": 12,
+      "items": [
+        {
+          "itemcode": "1PHGBBP10",
+          "description": "Philodendron scandens 'Brasil'",
+          "stock": 100,
+          "speciesKey": "philodendron scandens 'brasil'"
+        },
+        {
+          "itemcode": "2PHGBHA10",
+          "description": "Philodendron scandens 'Brasil'",
+          "stock": 100,
+          "speciesKey": "philodendron scandens 'brasil'"
+        },
+        {
+          "itemcode": "4PHSCHA03",
+          "description": "Philodendron scandens (50-60)",
+          "stock": 100,
+          "speciesKey": "philodendron scandens (50-60)"
+        },
+        {
+          "itemcode": "2SCAUHA10",
+          "description": "Scindapsus (Epipremnum) 'Aureum'",
+          "stock": 100,
+          "speciesKey": "scindapsus (epipremnum) 'aureum'"
+        },
+        {
+          "itemcode": "1SCAUHA10",
+          "description": "Scindapsus (Epipremnum) 'Aureum'",
+          "stock": 100,
+          "speciesKey": "scindapsus (epipremnum) 'aureum'"
+        },
+        {
+          "itemcode": "1SCGPHA10",
+          "description": "Scindapsus (Epipremnum) 'Golden pothos'",
+          "stock": 100,
+          "speciesKey": "scindapsus (epipremnum) 'golden"
+        },
+        {
+          "itemcode": "2SCGPBP10",
+          "description": "Scindapsus (Epipremnum) 'Golden pothos'",
+          "stock": 100,
+          "speciesKey": "scindapsus (epipremnum) 'golden"
+        },
+        {
+          "itemcode": "8EE426073",
+          "description": "Hoya Kerrii",
+          "stock": 100,
+          "speciesKey": "hoya kerrii"
+        },
+        {
+          "itemcode": "8EE423125",
+          "description": "Scindapsus",
+          "stock": 100,
+          "speciesKey": "scindapsus"
+        },
+        {
+          "itemcode": "8FW1397FR",
+          "description": "Scindapsus",
+          "stock": 88,
+          "speciesKey": "scindapsus"
+        },
+        {
+          "itemcode": "1PHSCHA16",
+          "description": "Philodendron scandens",
+          "stock": 100,
+          "speciesKey": "philodendron scandens"
+        },
+        {
+          "itemcode": "1PHSCHA10",
+          "description": "Philodendron scandens",
+          "stock": 100,
+          "speciesKey": "philodendron scandens"
+        }
+      ]
+    },
+    {
+      "key": "designbladeren",
+      "title": "Designbladeren",
+      "handle": "designbladeren",
+      "blurb": "Patroon, kleur en vorm voor designkantoren en showrooms. Calathea, Alocasia en opvallende Philodendron-soorten.",
+      "count": 12,
+      "items": [
+        {
+          "itemcode": "8FW01112N",
+          "description": "Calathea",
+          "stock": 100,
+          "speciesKey": "calathea"
+        },
+        {
+          "itemcode": "8FW1014N",
+          "description": "Calathea",
+          "stock": 33,
+          "speciesKey": "calathea"
+        },
+        {
+          "itemcode": "2MOOBBP10",
+          "description": "Monstera obliqua",
+          "stock": 100,
+          "speciesKey": "monstera obliqua"
+        },
+        {
+          "itemcode": "1MOOBBP10",
+          "description": "Monstera obliqua",
+          "stock": 100,
+          "speciesKey": "monstera obliqua"
+        },
+        {
+          "itemcode": "8EE422993",
+          "description": "Monstera",
+          "stock": 100,
+          "speciesKey": "monstera"
+        },
+        {
+          "itemcode": "8EE422177",
+          "description": "Monstera",
+          "stock": 100,
+          "speciesKey": "monstera"
+        },
+        {
+          "itemcode": "1ANJOBP15",
+          "description": "Anthurium andraeanum 'Joli'",
+          "stock": 100,
+          "speciesKey": "anthurium andraeanum 'joli'"
+        },
+        {
+          "itemcode": "2ANJOBP13",
+          "description": "Anthurium andraeanum 'Joli'",
+          "stock": 100,
+          "speciesKey": "anthurium andraeanum 'joli'"
+        },
+        {
+          "itemcode": "1MOKAHA10",
+          "description": "Monstera karstenianum",
+          "stock": 100,
+          "speciesKey": "monstera karstenianum"
+        },
+        {
+          "itemcode": "2ANSIBP05",
+          "description": "Anthurium andraeanum 'Sierra'",
+          "stock": 100,
+          "speciesKey": "anthurium andraeanum 'sierra'"
+        },
+        {
+          "itemcode": "CC0006494",
+          "description": "Anthurium andraeanum 'Sierra' in Lechuza Delta 20",
+          "stock": 100,
+          "speciesKey": "anthurium andraeanum 'sierra'"
+        },
+        {
+          "itemcode": "2CAMABP13",
+          "description": "Calathea 'Makoyana'",
+          "stock": 100,
+          "speciesKey": "calathea 'makoyana'"
+        }
+      ]
+    }
+  ]
+}
