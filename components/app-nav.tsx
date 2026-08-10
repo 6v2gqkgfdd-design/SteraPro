@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 type Tab = {
   href: string
   label: string
-  icon: 'home' | 'maintenance' | 'quotes' | 'companies' | 'webshop'
+  icon: 'home' | 'maintenance' | 'quotes' | 'billing' | 'companies' | 'webshop'
   matches: (path: string) => boolean
 }
 
@@ -21,12 +21,18 @@ const TABS: Tab[] = [
     href: '/maintenance',
     label: 'Onderhoud',
     icon: 'maintenance',
-    // Werkbonnen horen bij het onderhoud en lichten dus de Onderhoud-tab op.
     matches: (p) =>
       p.startsWith('/maintenance') ||
-      p.startsWith('/work-orders') ||
       p === '/scan' ||
       p.startsWith('/plants/search'),
+  },
+  {
+    href: '/facturatie',
+    label: 'Facturatie',
+    icon: 'billing',
+    // Werkbonnen-pipeline: te versturen → tekenen → goedkeuren → factureren
+    matches: (p) =>
+      p.startsWith('/facturatie') || p.startsWith('/work-orders'),
   },
   {
     href: '/quotes',
@@ -197,6 +203,15 @@ function NavIcon({ name }: { name: Tab['icon'] }) {
           <path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
           <path d="M3 9h18" />
           <path d="M9 9v3a3 3 0 0 0 6 0V9" />
+        </svg>
+      )
+    case 'billing':
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 10h18" />
+          <path d="M7 15h4" />
+          <path d="M14 15h3" />
         </svg>
       )
   }

@@ -132,16 +132,65 @@ export default async function WorkOrdersPage({
 
   const active = groups[activeTab]
 
+  const actionNeeded =
+    groups.draft.length + groups.sent.length + groups.signed.length
+
   return (
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-8 sm:pt-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div className="sticky top-0 z-20 -mx-5 -mt-3 flex flex-wrap gap-2 bg-stera-cream/95 px-5 pt-3 pb-3 backdrop-blur sm:static sm:mx-0 sm:mt-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-          <Link
-            href="/maintenance"
-            className="rounded-full border border-stera-line bg-white px-4 py-2.5 text-sm font-medium text-stera-ink hover:border-stera-green"
-          >
-            ← Onderhoud
-          </Link>
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-stera-ink">
+            Facturatie
+          </h1>
+          <p className="text-sm text-stera-ink-soft">
+            Overzicht van werkbonnen: versturen, laten tekenen, goedkeuren en
+            factureren. Gearchiveerde bonnen horen bij een onderhoudscontract
+            (al gedekt, niet apart factureren).
+          </p>
+          {actionNeeded > 0 ? (
+            <p className="text-sm font-medium text-amber-800">
+              {actionNeeded} werkbon
+              {actionNeeded === 1 ? '' : 'nen'} wacht
+              {actionNeeded === 1 ? '' : 'en'} op actie
+            </p>
+          ) : null}
+        </header>
+
+        {/* Status-kaarten — snel overzicht */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {TAB_ORDER.map((s) => {
+            const n = groups[s].length
+            const active = activeTab === s
+            return (
+              <Link
+                key={s}
+                href={`/work-orders?tab=${s}`}
+                className={`rounded-xl border px-3 py-3 transition ${
+                  active
+                    ? 'border-stera-green bg-stera-green text-white shadow-sm'
+                    : 'border-stera-line bg-white text-stera-ink hover:border-stera-green/50'
+                }`}
+              >
+                <p
+                  className={`text-2xl font-semibold tabular-nums ${
+                    active ? 'text-white' : 'text-stera-ink'
+                  }`}
+                >
+                  {n}
+                </p>
+                <p
+                  className={`mt-0.5 text-[11px] font-medium leading-snug ${
+                    active ? 'text-white/90' : 'text-stera-ink-soft'
+                  }`}
+                >
+                  {STATUS_LABEL[s]}
+                </p>
+              </Link>
+            )
+          })}
+        </div>
+
+        <div className="sticky top-0 z-20 -mx-5 flex flex-wrap gap-2 bg-stera-cream/95 px-5 py-2 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           {TAB_ORDER.map((s) => (
             <Link
               key={s}
@@ -238,7 +287,7 @@ export default async function WorkOrdersPage({
               {activeTab === 'invoiced' &&
                 'Gefactureerde werkbonnen archiveer je hier voor je administratie.'}
               {activeTab === 'archived' &&
-                'Werkbonnen van contract-klanten worden automatisch gearchiveerd.'}
+                'Contract-klanten: werkbonnen worden hier gearchiveerd — al gedekt door het onderhoudscontract, niet apart factureren.'}
             </p>
           </div>
         ) : (
