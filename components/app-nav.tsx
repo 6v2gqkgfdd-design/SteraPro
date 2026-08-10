@@ -6,10 +6,12 @@ import { usePathname } from 'next/navigation'
 type Tab = {
   href: string
   label: string
-  icon: 'home' | 'maintenance' | 'quotes' | 'billing' | 'companies' | 'webshop'
+  icon: 'home' | 'maintenance' | 'billing' | 'companies' | 'webshop'
   matches: (path: string) => boolean
 }
 
+// Offertes/vervangingen staan niet meer in de nav: de klant kiest dode
+// planten in het portaal en krijgt een voorstel via de Shopify-shop.
 const TABS: Tab[] = [
   {
     href: '/dashboard',
@@ -33,13 +35,6 @@ const TABS: Tab[] = [
     // Werkbonnen-pipeline: te versturen → tekenen → goedkeuren → factureren
     matches: (p) =>
       p.startsWith('/facturatie') || p.startsWith('/work-orders'),
-  },
-  {
-    href: '/quotes',
-    label: 'Offertes',
-    icon: 'quotes',
-    // /catalog is de kies-UI vanuit offertes (niet de admin-webshop-catalogus).
-    matches: (p) => p.startsWith('/quotes') || p.startsWith('/catalog'),
   },
   {
     href: '/companies',
@@ -177,15 +172,6 @@ function NavIcon({ name }: { name: Tab['icon'] }) {
           <path d="M3 10h18" />
           <path d="M8 3v4M16 3v4" />
           <path d="m9 15 2 2 4-4" />
-        </svg>
-      )
-    case 'quotes':
-      return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-          <path d="M14 3v5h5" />
-          <path d="M14.5 11.6a2.4 2.4 0 1 0 0 4.8" />
-          <path d="M8.6 13.2h4.4M8.6 14.8h4.4" />
         </svg>
       )
     case 'companies':

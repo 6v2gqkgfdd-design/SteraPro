@@ -23,6 +23,11 @@ function toneClass(tone: Tile['tone'], has: boolean) {
   }
 }
 
+/**
+ * Compacte werkbon-pipeline op Home.
+ * Geen snelle navigatie-links (die zitten al in de sidebar) en geen
+ * offertes/vervangingen meer — die gaan via portaal → Shopify.
+ */
 export default function OpsActionBoard({
   ops,
   compact = false,
@@ -31,13 +36,6 @@ export default function OpsActionBoard({
   compact?: boolean
 }) {
   const tiles: Tile[] = [
-    {
-      href: '/maintenance?tab=planned',
-      label: 'Vandaag',
-      count: ops.visitsToday,
-      hint: 'onderhoud',
-      tone: ops.visitsToday > 0 ? 'green' : 'default',
-    },
     {
       href: '/work-orders?tab=draft',
       label: 'Te versturen',
@@ -59,20 +57,6 @@ export default function OpsActionBoard({
       hint: 'goedgekeurd',
       tone: ops.woSigned > 0 ? 'amber' : 'default',
     },
-    {
-      href: '/quotes',
-      label: 'Offertes open',
-      count: ops.quotesDraft + ops.quotesSent,
-      hint: 'concept + verstuurd',
-      tone: ops.quotesDraft + ops.quotesSent > 0 ? 'blue' : 'default',
-    },
-    {
-      href: '/quotes',
-      label: 'Vervangingen',
-      count: ops.openProposals,
-      hint: 'zonder offerte',
-      tone: ops.openProposals > 0 ? 'amber' : 'default',
-    },
   ]
 
   return (
@@ -81,15 +65,15 @@ export default function OpsActionBoard({
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
-              Actiecentrum
+              Werkbonnen
             </p>
             <p className="text-sm text-stera-ink-soft">
-              Alles wat openstaat — klik door naar de juiste module.
+              Openstaande stappen in de facturatie-pipeline.
             </p>
           </div>
-          {ops.actionTotal > 0 ? (
+          {ops.woDraft + ops.woSent + ops.woSigned > 0 ? (
             <p className="text-sm font-semibold text-amber-800">
-              {ops.actionTotal} open punt{ops.actionTotal === 1 ? '' : 'en'}
+              {ops.woDraft + ops.woSent + ops.woSigned} open
             </p>
           ) : (
             <p className="text-sm font-medium text-stera-green">Alles bij</p>
@@ -97,7 +81,7 @@ export default function OpsActionBoard({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2">
         {tiles.map((t) => (
           <Link
             key={t.href + t.label}
@@ -114,33 +98,6 @@ export default function OpsActionBoard({
             <p className="mt-0.5 text-[10px] opacity-70">{t.hint}</p>
           </Link>
         ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 pt-1">
-        <Link
-          href="/companies"
-          className="rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs font-medium text-stera-ink hover:border-stera-green"
-        >
-          Alle klanten →
-        </Link>
-        <Link
-          href="/facturatie"
-          className="rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs font-medium text-stera-ink hover:border-stera-green"
-        >
-          Facturatie →
-        </Link>
-        <Link
-          href="/maintenance"
-          className="rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs font-medium text-stera-ink hover:border-stera-green"
-        >
-          Onderhoud →
-        </Link>
-        <Link
-          href="/quotes"
-          className="rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs font-medium text-stera-ink hover:border-stera-green"
-        >
-          Offertes →
-        </Link>
       </div>
     </section>
   )

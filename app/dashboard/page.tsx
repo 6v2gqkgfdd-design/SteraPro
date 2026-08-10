@@ -6,6 +6,36 @@ import { getTodaysWeather } from '@/lib/weather'
 import OpsActionBoard from '@/components/ops-action-board'
 import { loadOpsSnapshot } from '@/lib/ops-overview'
 
+type VisitRow = {
+  id: string
+  title: string | null
+  status: string
+  scheduled_start: string
+  location_id: string | null
+  calendar_source?: string | null
+  locations: unknown
+  companies?: unknown
+}
+
+type AgendaItem = {
+  key: string
+  href: string
+  line: string
+  sub: string | null
+  scheduled_start: string
+  badge?: string | null
+}
+
+/** Maandag 00:00 van de week waarin `d` valt (lokale server-tijd, zoals de rest van Home). */
+function startOfWeekMonday(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  const day = x.getDay() // 0 = zo … 6 = za
+  const diff = day === 0 ? -6 : 1 - day
+  x.setDate(x.getDate() + diff)
+  return x
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 
@@ -24,59 +54,57 @@ export default async function DashboardPage() {
   startOfToday.setHours(0, 0, 0, 0)
   const startOfTomorrow = new Date(startOfToday)
   startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
-  const sevenDaysLater = new Date(startOfToday)
-  sevenDaysLater.setDate(sevenDaysLater.getDate() + 8)
 
-  const startOfTodayIso = startOfToday.toISOString()
-  const startOfTomorrowIso = startOfTomorrow.toISOString()
-  const sevenDaysLaterIso = sevenDaysLater.toISOString()
+  // Einde van deze kalenderweek (ma–zo): maandag + 7 dagen
+  const weekStart = startOfWeekMonday(startOfToday)
+  const startOfNextWeek = new Date(weekStart)
+  startOfNextWeek.setDate(startOfNextWeek.getDate() + 7)
+
+  // Eerste dag van volgende maand
+  const startOfNextMonth = new Date(
+    startOfToday.getFullYear(),
+    startOfToday.getMonth() + 1,
+    1
+  )
+  startOfNextMonth.setHours(0, 0, 0, 0)
+
+  // Agenda reikt minstens tot eind maand; als de week over de maandgrens
+  // loopt, tot eind van die week.
+  const agendaEnd =
+    startOfNextWeek > startOfNextMonth ? startOfNextWeek : startOfNextMonth
+
+  const visitSelect = `id, title, status, scheduled_start, location_id, calendar_source,
+         companies ( name ),
+         locations ( name, street, number, postal_code, city, companies ( name ) )`
 
   const [
-    { data: todaysVisits },
-    { data: upcomingVisits },
-    { data: flaggedVisitPlants },
+    { data: agendaVisits },
+    { data: agendaDeliveries },
     { data: openReports },
     { data: newlySignedWorkOrders },
     weather,
     ops,
   ] = await Promise.all([
-    // Vandaag — alleen open beurten (geen voltooide/geannuleerde)
     supabase
       .from('maintenance_visits')
-      .select(
-        `id, title, status, scheduled_start, location_id,
-         locations ( name, street, number, postal_code, city, companies ( name ) )`
-      )
-      .gte('scheduled_start', startOfTodayIso)
-      .lt('scheduled_start', startOfTomorrowIso)
+      .select(visitSelect)
+      .gte('scheduled_start', startOfToday.toISOString())
+      .lt('scheduled_start', agendaEnd.toISOString())
       .in('status', ['scheduled', 'in_progress', 'paused'])
       .order('scheduled_start', { ascending: true }),
 
-    // Komende 7 dagen (na vandaag)
     supabase
-      .from('maintenance_visits')
+      .from('shopify_orders')
       .select(
-        `id, title, status, scheduled_start, location_id,
-         locations ( name, companies ( name ) )`
+        `id, name, shopify_order_number, scheduled_start, company_id,
+         companies ( name ),
+         locations ( name, street, number, postal_code, city )`
       )
-      .gte('scheduled_start', startOfTomorrowIso)
-      .lt('scheduled_start', sevenDaysLaterIso)
-      .in('status', ['scheduled', 'in_progress', 'paused'])
-      .order('scheduled_start', { ascending: true })
-      .limit(5),
+      .gte('scheduled_start', startOfToday.toISOString())
+      .lt('scheduled_start', agendaEnd.toISOString())
+      .in('delivery_status', ['scheduled', 'in_progress'])
+      .order('scheduled_start', { ascending: true }),
 
-    // Planten met aandacht nodig
-    supabase
-      .from('maintenance_visit_plants')
-      .select(
-        `id, plant_id, scanned_at, health_status, notes,
-         plants ( id, nickname, species, reference_code )`
-      )
-      .in('health_status', ['needs-attention', 'dying'])
-      .order('scanned_at', { ascending: false })
-      .limit(20),
-
-    // Openstaande klantmeldingen
     supabase
       .from('plant_reports')
       .select(
@@ -87,8 +115,6 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: false })
       .limit(10),
 
-    // Net goedgekeurde werkbonnen die Jelle nog niet heeft gezien.
-    // Acknowledged_at wordt gezet zodra hij de werkbon-detailpagina opent.
     supabase
       .from('work_orders')
       .select(
@@ -103,20 +129,11 @@ export default async function DashboardPage() {
       .order('signed_at', { ascending: false })
       .limit(10),
 
-    // Weersverwachting (faalveilig — null als API down is)
     getTodaysWeather(),
     loadOpsSnapshot(supabase),
   ])
 
-  // Dedupe op plant_id: alleen de laatst geziene status telt
-  const seenPlantIds = new Set<string>()
-  const flaggedPlants: any[] = []
-  for (const row of flaggedVisitPlants ?? []) {
-    if (!row.plant_id || seenPlantIds.has(row.plant_id)) continue
-    seenPlantIds.add(row.plant_id)
-    flaggedPlants.push(row)
-    if (flaggedPlants.length >= 5) break
-  }
+  const visits = (agendaVisits ?? []) as VisitRow[]
 
   function formatDay(date: string | null) {
     if (!date) return ''
@@ -137,15 +154,22 @@ export default async function DashboardPage() {
     })
   }
 
-  function locationLine(visit: any) {
+  function locationLine(visit: VisitRow) {
     const loc = visit.locations as any
     const locName = Array.isArray(loc) ? loc[0]?.name : loc?.name
-    const company = Array.isArray(loc) ? loc[0]?.companies : loc?.companies
-    const companyName = Array.isArray(company) ? company[0]?.name : company?.name
-    return [companyName, locName].filter(Boolean).join(' · ') || 'Onbekende locatie'
+    const companyFromLoc = Array.isArray(loc) ? loc[0]?.companies : loc?.companies
+    const companyFromVisit = visit.companies as any
+    const companyName =
+      (Array.isArray(companyFromLoc) ? companyFromLoc[0]?.name : companyFromLoc?.name) ||
+      (Array.isArray(companyFromVisit) ? companyFromVisit[0]?.name : companyFromVisit?.name)
+    return (
+      [companyName, locName].filter(Boolean).join(' · ') ||
+      visit.title ||
+      'Agenda-afspraak'
+    )
   }
 
-  function locationAddress(visit: any): string | null {
+  function locationAddress(visit: VisitRow): string | null {
     const loc = visit.locations as any
     const l = Array.isArray(loc) ? loc[0] : loc
     if (!l) return null
@@ -156,13 +180,64 @@ export default async function DashboardPage() {
     return parts.join(', ')
   }
 
+  function visitToAgenda(visit: VisitRow): AgendaItem {
+    return {
+      key: `visit-${visit.id}`,
+      href: `/maintenance/${visit.id}`,
+      line: locationLine(visit),
+      sub: visit.title,
+      scheduled_start: visit.scheduled_start,
+      badge: visit.calendar_source === 'iphone' ? 'iPhone' : null,
+    }
+  }
+
+  function deliveryToAgenda(o: any): AgendaItem {
+    const company = Array.isArray(o.companies) ? o.companies[0] : o.companies
+    const loc = Array.isArray(o.locations) ? o.locations[0] : o.locations
+    const line =
+      [company?.name, loc?.name].filter(Boolean).join(' · ') ||
+      o.name ||
+      'Levering'
+    return {
+      key: `delivery-${o.id}`,
+      href: o.company_id
+        ? `/companies/${o.company_id}/bestellingen`
+        : '/companies',
+      line,
+      sub: `Levering ${o.name || o.shopify_order_number || ''}`.trim(),
+      scheduled_start: o.scheduled_start,
+      badge: 'Levering',
+    }
+  }
+
+  const agendaItems: AgendaItem[] = [
+    ...visits.map(visitToAgenda),
+    ...(agendaDeliveries ?? []).map(deliveryToAgenda),
+  ].sort(
+    (a, b) =>
+      new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
+  )
+
+  function inRange(iso: string, from: Date, to: Date) {
+    const t = new Date(iso).getTime()
+    return t >= from.getTime() && t < to.getTime()
+  }
+
+  const todaysItems = agendaItems.filter((i) =>
+    inRange(i.scheduled_start, startOfToday, startOfTomorrow)
+  )
+  const thisWeekItems = agendaItems.filter((i) =>
+    inRange(i.scheduled_start, startOfTomorrow, startOfNextWeek)
+  )
+  const restOfMonthItems = agendaItems.filter((i) =>
+    inRange(i.scheduled_start, startOfNextWeek, startOfNextMonth)
+  )
+
   /**
-   * Bouw een Google Maps directions-URL met alle adressen van vandaag
-   * als waypoints. Op iPhone/Android opent dit de Maps-app als die
-   * geïnstalleerd is, anders de webversie.
+   * Google Maps directions-URL met alle adressen van vandaag als waypoints.
    */
-  function buildRouteUrl(visits: any[]): string | null {
-    const stops = visits
+  function buildRouteUrl(dayVisits: VisitRow[]): string | null {
+    const stops = dayVisits
       .map(locationAddress)
       .filter((a): a is string => Boolean(a && a.trim()))
     if (stops.length === 0) return null
@@ -185,10 +260,12 @@ export default async function DashboardPage() {
     return url.toString()
   }
 
-  const routeUrl = buildRouteUrl(todaysVisits ?? [])
+  const todaysVisitsOnly = visits.filter((v) =>
+    inRange(v.scheduled_start, startOfToday, startOfTomorrow)
+  )
+  const routeUrl = buildRouteUrl(todaysVisitsOnly)
 
   const greeting = (() => {
-    // Brussels uur, niet de Vercel-UTC.
     const brusselsHour = Number(
       now.toLocaleString('en-GB', {
         timeZone: 'Europe/Brussels',
@@ -210,24 +287,10 @@ export default async function DashboardPage() {
     month: 'long',
   })
 
-  const todaysCount = todaysVisits?.length ?? 0
-  const flaggedCount = flaggedPlants.length
-  const reportCount = openReports?.length ?? 0
-
-  const summaryLine = (() => {
-    const parts: string[] = []
-    if (todaysCount === 0) parts.push('Geen afspraken vandaag')
-    else if (todaysCount === 1) parts.push('1 afspraak vandaag')
-    else parts.push(`${todaysCount} afspraken vandaag`)
-
-    if (flaggedCount === 1) parts.push('1 plant heeft aandacht nodig')
-    else if (flaggedCount > 1) parts.push(`${flaggedCount} planten hebben aandacht nodig`)
-
-    if (reportCount === 1) parts.push('1 nieuwe klantmelding')
-    else if (reportCount > 1) parts.push(`${reportCount} nieuwe klantmeldingen`)
-
-    return parts.join(' · ')
-  })()
+  const monthLabel = now.toLocaleDateString('nl-BE', {
+    timeZone: 'Europe/Brussels',
+    month: 'long',
+  })
 
   const REPORT_LABELS: Record<string, string> = {
     replace: 'Plant moet vervangen worden',
@@ -237,10 +300,64 @@ export default async function DashboardPage() {
     other: 'Andere opmerking',
   }
 
+  function renderAgendaList(
+    items: AgendaItem[],
+    empty: string,
+    showDay = false
+  ) {
+    if (items.length === 0) {
+      return (
+        <div className="rounded-xl border border-dashed border-stera-line p-3 text-center text-xs text-stera-ink-soft">
+          {empty}
+        </div>
+      )
+    }
+    return (
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li key={item.key}>
+            <Link
+              href={item.href}
+              className="flex items-center justify-between gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-stera-ink">
+                  {item.line}
+                  {item.badge ? (
+                    <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-stera-ink-soft">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </p>
+                {item.sub ? (
+                  <p className="truncate text-xs text-stera-ink-soft">{item.sub}</p>
+                ) : null}
+              </div>
+              {showDay ? (
+                <div className="shrink-0 text-right text-xs">
+                  <span className="block font-medium text-stera-ink">
+                    {formatDay(item.scheduled_start)}
+                  </span>
+                  <span className="text-stera-ink-soft">
+                    {formatTime(item.scheduled_start)}
+                  </span>
+                </div>
+              ) : (
+                <span className="shrink-0 text-sm font-medium text-stera-green">
+                  {formatTime(item.scheduled_start)}
+                </span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
   return (
     <main className="stera-page-pb bg-stera-cream px-5 pt-3 sm:px-8 sm:pt-10">
       <div className="mx-auto max-w-4xl space-y-3 sm:space-y-6">
-        {/* Begroeting en weer op één lijn */}
+        {/* Begroeting en weer */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
@@ -251,13 +368,13 @@ export default async function DashboardPage() {
           {weather ? <WeatherPill weather={weather} /> : null}
         </div>
 
-        {/* Actiecentrum — onderhoud / facturatie / offertes in één oogopslag */}
+        {/* Werkbon-pipeline — geen snelle nav-links, geen offertes/vervangingen */}
         <OpsActionBoard ops={ops} />
 
         {/* Net goedgekeurde werkbonnen — melding tot Jelle ze opent */}
         {newlySignedWorkOrders && newlySignedWorkOrders.length > 0 ? (
           <section className="rounded-xl border border-stera-green/40 bg-stera-green/5 p-3 sm:p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-green mb-2">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stera-green">
               {newlySignedWorkOrders.length === 1
                 ? '1 werkbon goedgekeurd'
                 : `${newlySignedWorkOrders.length} werkbonnen goedgekeurd`}
@@ -301,63 +418,7 @@ export default async function DashboardPage() {
           </section>
         ) : null}
 
-        {/* KPI-tegels */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <Link
-            href="/maintenance?tab=planned"
-            className="rounded-xl border border-stera-line bg-white p-2.5 transition hover:border-stera-green"
-          >
-            <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
-              Vandaag
-            </p>
-            <p className="font-serif text-3xl italic text-stera-green">
-              {todaysCount}
-            </p>
-          </Link>
-          <Link
-            href="/maintenance?tab=planned"
-            className={`rounded-xl border p-2.5 transition ${
-              flaggedCount > 0
-                ? 'border-amber-200 bg-amber-50 hover:border-amber-400'
-                : 'border-stera-line bg-white hover:border-stera-green'
-            }`}
-          >
-            <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
-              Aandacht
-            </p>
-            <p
-              className={`font-serif text-3xl italic ${
-                flaggedCount > 0 ? 'text-amber-800' : 'text-stera-green'
-              }`}
-            >
-              {flaggedCount}
-            </p>
-          </Link>
-          {reportCount > 0 ? (
-            <a
-              href="#meldingen"
-              className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 transition hover:border-amber-400"
-            >
-              <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
-                Meldingen
-              </p>
-              <p className="font-serif text-3xl italic text-amber-800">
-                {reportCount}
-              </p>
-            </a>
-          ) : (
-            <div className="rounded-xl border border-stera-line bg-white p-2.5">
-              <p className="text-[10px] uppercase tracking-wider text-stera-ink-soft">
-                Meldingen
-              </p>
-              <p className="font-serif text-3xl italic text-stera-green">
-                {reportCount}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Openstaande klantmeldingen — klik door naar de plant */}
+        {/* Openstaande klantmeldingen */}
         {openReports && openReports.length > 0 ? (
           <section
             id="meldingen"
@@ -438,107 +499,94 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        {/* Vandaag — compact, max 2 zichtbaar zodat alles in 1 scherm past */}
-        <section className="space-y-2">
-          <div className="flex items-end justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
-              Vandaag
-            </p>
-            {routeUrl ? (
-              <a
-                href={routeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+        {/* Agenda: vandaag · deze week · rest van de maand */}
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+                Agenda
+              </p>
+              <p className="text-sm text-stera-ink-soft">
+                Geplande bezoeken — vandaag, deze week en de rest van {monthLabel}.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <Link
+                href="/settings/agenda"
                 className="text-xs font-medium text-stera-green underline-offset-4 hover:underline"
               >
-                Route in Maps →
-              </a>
-            ) : null}
-          </div>
-
-          {todaysVisits && todaysVisits.length > 0 ? (
-            <ul className="space-y-2">
-              {todaysVisits.slice(0, 2).map((visit: any) => (
-                <li key={visit.id}>
-                  <Link
-                    href={`/maintenance/${visit.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-stera-ink">
-                        {locationLine(visit)}
-                      </p>
-                      <p className="truncate text-xs text-stera-ink-soft">
-                        {visit.title}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-sm font-medium text-stera-green">
-                      {formatTime(visit.scheduled_start)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-              {todaysVisits.length > 2 ? (
-                <li>
-                  <Link
-                    href="/maintenance?tab=planned"
-                    className="block rounded-xl border border-dashed border-stera-line bg-white p-2 text-center text-xs text-stera-ink-soft hover:border-stera-green hover:text-stera-green"
-                  >
-                    +{todaysVisits.length - 2} meer afspraken vandaag →
-                  </Link>
-                </li>
-              ) : null}
-            </ul>
-          ) : (
-            <div className="rounded-xl border border-dashed border-stera-line p-3 text-center text-xs text-stera-ink-soft">
-              Geen afspraken vandaag.
-            </div>
-          )}
-        </section>
-
-        {/* Komende week — compact */}
-        {upcomingVisits && upcomingVisits.length > 0 ? (
-          <section className="space-y-2">
-            <div className="flex items-end justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
-                Komende week
-              </p>
+                iPhone-koppeling
+              </Link>
               <Link
-                href="/maintenance"
+                href="/maintenance?tab=planned"
                 className="text-xs font-medium text-stera-green underline-offset-4 hover:underline"
               >
                 Alle afspraken →
               </Link>
             </div>
-            <ul className="space-y-2">
-              {upcomingVisits.map((visit: any) => (
-                <li key={visit.id}>
-                  <Link
-                    href={`/maintenance/${visit.id}`}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-stera-line bg-white p-3 transition hover:border-stera-green"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-stera-ink">
-                        {locationLine(visit)}
-                      </p>
-                      <p className="truncate text-xs text-stera-ink-soft">
-                        {visit.title}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right text-xs">
-                      <span className="block font-medium text-stera-ink">
-                        {formatDay(visit.scheduled_start)}
-                      </span>
-                      <span className="text-stera-ink-soft">
-                        {formatTime(visit.scheduled_start)}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+          </div>
+
+          {/* Vandaag */}
+          <div className="space-y-2">
+            <div className="flex items-end justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+                Vandaag
+                {todaysItems.length > 0 ? (
+                  <span className="ml-1.5 font-normal normal-case tracking-normal text-stera-ink-soft">
+                    · {todaysItems.length}
+                  </span>
+                ) : null}
+              </p>
+              {routeUrl ? (
+                <a
+                  href={routeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-stera-green underline-offset-4 hover:underline"
+                >
+                  Route in Maps →
+                </a>
+              ) : null}
+            </div>
+            {renderAgendaList(todaysItems, 'Geen afspraken vandaag.')}
+          </div>
+
+          {/* Deze week (na vandaag) */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+              Deze week
+              {thisWeekItems.length > 0 ? (
+                <span className="ml-1.5 font-normal normal-case tracking-normal text-stera-ink-soft">
+                  · {thisWeekItems.length}
+                </span>
+              ) : null}
+            </p>
+            {renderAgendaList(
+              thisWeekItems,
+              'Geen verdere afspraken deze week.',
+              true
+            )}
+          </div>
+
+          {/* Rest van de maand (na deze week) */}
+          {startOfNextWeek < startOfNextMonth ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-stera-ink-soft">
+                Rest van {monthLabel}
+                {restOfMonthItems.length > 0 ? (
+                  <span className="ml-1.5 font-normal normal-case tracking-normal text-stera-ink-soft">
+                    · {restOfMonthItems.length}
+                  </span>
+                ) : null}
+              </p>
+              {renderAgendaList(
+                restOfMonthItems,
+                `Geen afspraken meer in ${monthLabel} na deze week.`,
+                true
+              )}
+            </div>
+          ) : null}
+        </section>
       </div>
     </main>
   )

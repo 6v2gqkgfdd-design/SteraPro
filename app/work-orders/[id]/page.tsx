@@ -75,10 +75,14 @@ function formatDateOnly(value: string | null) {
 
 export default async function WorkOrderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ from?: string }>
 }) {
   const { id } = await params
+  const sp = searchParams ? await searchParams : {}
+  const from = sp.from && sp.from.startsWith('/') ? sp.from : null
   const supabase = await createClient()
 
   const {
@@ -227,9 +231,23 @@ export default async function WorkOrderDetailPage({
   const proto = hdrs.get('x-forwarded-proto') || 'https'
   const signingUrl = `${proto}://${host}/sign/${workOrder.signing_token}`
 
+  const backHref =
+    from ||
+    (company?.id ? `/companies/${company.id}/werkbonnen` : null)
+
   return (
     <main className="bg-stera-cream px-5 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-3xl space-y-6">
+        {backHref ? (
+          <p className="text-xs text-stera-ink-soft">
+            <Link
+              href={backHref}
+              className="font-medium text-stera-green hover:underline"
+            >
+              ← Terug naar werkbonnen
+            </Link>
+          </p>
+        ) : null}
         <div>
           <p className="stera-eyebrow mb-2">Werkbon</p>
           <h1 className="text-3xl font-bold tracking-tight text-stera-ink sm:text-4xl">

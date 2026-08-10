@@ -21,10 +21,14 @@ type PlantRow = PlantOverviewPlant & {
 
 export default async function PlantDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ from?: string }>
 }) {
   const { id } = await params
+  const sp = searchParams ? await searchParams : {}
+  const from = sp.from && sp.from.startsWith('/') ? sp.from : null
   const supabase = await createClient()
 
   const {
@@ -39,7 +43,7 @@ export default async function PlantDetailPage({
   const { data: plant, error: plantError } = await supabase
     .from('plants')
     .select(
-      'id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips, is_artificial'
+      'id, company_id, qr_slug, nickname, plant_code, reference_code, species, status, notes, photo_url, location_id, room_id, is_dead, is_dying, needs_replacement, care_tips, is_artificial'
     )
     .eq('id', id)
     .maybeSingle()
@@ -152,10 +156,27 @@ export default async function PlantDetailPage({
     (latestPhotoRow as { photo_url?: string | null } | null)?.photo_url ?? null
   const displayPhotoUrl = maintenancePhotoUrl ?? typedPlant.photo_url
 
+  const companyId = (typedPlant as { company_id?: string | null }).company_id
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-        {typedPlant.room_id && room ? (
+        {from ? (
+          <p className="text-xs text-stera-ink-soft">
+            <Link href={from} className="font-medium text-stera-green hover:underline">
+              ← Terug
+            </Link>
+          </p>
+        ) : companyId ? (
+          <p className="text-xs text-stera-ink-soft">
+            <Link
+              href={`/companies/${companyId}/planten`}
+              className="font-medium text-stera-green hover:underline"
+            >
+              ← Planten van deze klant
+            </Link>
+          </p>
+        ) : typedPlant.room_id && room ? (
           <p className="text-xs text-stera-ink-soft">
             <Link
               href={`/rooms/${typedPlant.room_id}`}

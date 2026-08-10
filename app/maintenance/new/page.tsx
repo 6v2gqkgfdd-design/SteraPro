@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatRoomLabel } from '@/lib/rooms'
 
@@ -27,6 +27,8 @@ type Room = {
 export default function NewMaintenancePage() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const prefillCompany = searchParams.get('company') || ''
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -35,7 +37,11 @@ export default function NewMaintenancePage() {
   const [loadingLocations, setLoadingLocations] = useState(false)
   const [loadingRooms, setLoadingRooms] = useState(false)
 
-  const [companyId, setCompanyId] = useState('')
+  const [companyId, setCompanyId] = useState(prefillCompany)
+
+  useEffect(() => {
+    if (prefillCompany && !companyId) setCompanyId(prefillCompany)
+  }, [prefillCompany, companyId])
   const [locationId, setLocationId] = useState('')
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([])
   const [title, setTitle] = useState('')

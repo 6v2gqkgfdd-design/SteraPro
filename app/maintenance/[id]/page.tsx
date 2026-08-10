@@ -34,10 +34,14 @@ const LIGHT_LABELS: Record<'high' | 'medium' | 'low', string> = {
 
 export default async function MaintenanceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ from?: string }>
 }) {
   const { id } = await params
+  const sp = searchParams ? await searchParams : {}
+  const from = sp.from && sp.from.startsWith('/') ? sp.from : null
   const supabase = await createClient()
 
   // Drie onafhankelijke queries parallel ophalen scheelt laadtijd.
@@ -254,15 +258,30 @@ export default async function MaintenanceDetailPage({
       count: followupCounts.treat,
     })
 
+  const companyForBack = Array.isArray(visit.companies)
+    ? visit.companies[0]
+    : visit.companies
+  const backHref =
+    from ||
+    (companyForBack?.id ? `/companies/${companyForBack.id}/onderhoud` : null)
+
   return (
     <main className="bg-stera-cream p-6">
       <div className="mx-auto max-w-4xl space-y-6">
+        {backHref ? (
+          <p className="text-xs text-stera-ink-soft">
+            <Link
+              href={backHref}
+              className="font-medium text-stera-green hover:underline"
+            >
+              ← Terug naar onderhoud
+            </Link>
+          </p>
+        ) : null}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="font-serif text-3xl leading-none text-stera-green sm:text-4xl">
-              {(Array.isArray(visit.companies)
-                ? visit.companies[0]?.name
-                : visit.companies?.name) || 'Onbekende klant'}
+              {companyForBack?.name || 'Onbekende klant'}
             </h1>
             <p className="mt-1 text-sm text-stera-ink-soft">
               {[

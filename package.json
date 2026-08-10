@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.105.0",
     "html5-qrcode": "^2.3.8",
     "next": "16.2.4",
+    "node-ical": "^0.27.1",
     "openai": "^6.35.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
