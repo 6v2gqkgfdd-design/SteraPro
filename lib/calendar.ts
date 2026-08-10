@@ -10,7 +10,11 @@
 
 import ical from 'node-ical'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { matchCompanyId as matchCompanyFromText } from '@/lib/company-match'
+import {
+  matchCompanyId as matchCompanyFromText,
+  matchLocationId as matchLocationFromText,
+  type LocationMatchInput,
+} from '@/lib/company-match'
 
 export const APP_EVENT_UID_PREFIX = 'stera-visit-'
 export const APP_EVENT_UID_DOMAIN = 'sterapro.be'
@@ -291,27 +295,47 @@ export async function syncIcsIntoVisits(
 
   const events = await parseIcsEvents(text)
 
-  // Bedrijfsnamen — slimme match (BV/spaties/tokens), zie lib/company-match.ts
-  const { data: companies } = await supabase
-    .from('companies')
-    .select('id, name')
-    .order('name', { ascending: true })
+  // Bedrijven + locaties — slimme match, zie lib/company-match.ts
+  const [{ data: companies }, { data: locations }] = await Promise.all([
+    supabase.from('companies').select('id, name').order('name', { ascending: true }),
+    supabase
+      .from('locations')
+      .select('id, company_id, name, street, number, city, postal_code'),
+  ])
 
   const companyList = (companies ?? []) as { id: string; name: string }[]
+  const locationList = (locations ?? []) as LocationMatchInput[]
 
   function matchCompanyId(summary: string, description: string | null): string | null {
     return matchCompanyFromText(summary, description, companyList)
   }
 
+  function matchLocation(
+    companyId: string | null,
+    summary: string,
+    description: string | null,
+    icsLocation: string | null
+  ): string | null {
+    return matchLocationFromText(
+      { companyId, summary, description, icsLocation },
+      locationList
+    )
+  }
+
   // Bestaande geïmporteerde visits
   const { data: existingRows } = await supabase
     .from('maintenance_visits')
-    .select('id, calendar_uid, status, scheduled_start, title, company_id')
+    .select('id, calendar_uid, status, scheduled_start, title, company_id, location_id')
     .eq('calendar_source', 'iphone')
 
   const byUid = new Map<
     string,
-    { id: string; status: string; company_id: string | null }
+    {
+      id: string
+      status: string
+      company_id: string | null
+      location_id: string | null
+    }
   >()
   for (const row of existingRows ?? []) {
     const r = row as {
@@ -319,12 +343,14 @@ export async function syncIcsIntoVisits(
       id: string
       status: string
       company_id: string | null
+      location_id: string | null
     }
     if (r.calendar_uid) {
       byUid.set(r.calendar_uid, {
         id: r.id,
         status: r.status,
         company_id: r.company_id,
+        location_id: r.location_id,
       })
     }
   }
@@ -343,6 +369,12 @@ export async function syncIcsIntoVisits(
     seenUids.add(ev.uid)
 
     const companyId = matchCompanyId(ev.summary, ev.description)
+    const locationId = matchLocation(
+      companyId,
+      ev.summary,
+      ev.description,
+      ev.location
+    )
     const scheduledStart = ev.start.toISOString()
     const scheduledEnd = ev.end ? ev.end.toISOString() : null
     const notes = [
@@ -377,8 +409,13 @@ export async function syncIcsIntoVisits(
         skipped++
         continue
       }
-      // company_id: match wint; anders bestaande koppeling behouden
+      // Match wint; anders bestaande koppeling behouden
       const nextCompany = companyId || existing.company_id || null
+      // Locatie opnieuw matchen met definitieve company
+      const nextLocation =
+        matchLocation(nextCompany, ev.summary, ev.description, ev.location) ||
+        existing.location_id ||
+        null
 
       const { error } = await supabase
         .from('maintenance_visits')
@@ -387,6 +424,7 @@ export async function syncIcsIntoVisits(
           scheduled_start: scheduledStart,
           scheduled_end: scheduledEnd,
           company_id: nextCompany,
+          location_id: nextLocation,
           internal_notes: notes,
           status: 'scheduled',
           updated_at: new Date().toISOString(),
@@ -399,7 +437,7 @@ export async function syncIcsIntoVisits(
         scheduled_start: scheduledStart,
         scheduled_end: scheduledEnd,
         company_id: companyId,
-        location_id: null,
+        location_id: locationId,
         status: 'scheduled',
         calendar_uid: ev.uid,
         calendar_source: 'iphone',

@@ -126,3 +126,99 @@ export function matchCompanyId(
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
+
+export type LocationMatchInput = {
+  id: string
+  company_id: string
+  name: string | null
+  street: string | null
+  number: string | null
+  city: string | null
+  postal_code: string | null
+}
+
+/**
+ * Vind de best passende locatie voor een agenda-event.
+ *
+ * Prioriteit:
+ * 1. Adresmatch (straat + huisnummer) in LOCATION / titel / beschrijving
+ * 2. Locatienaam of stad
+ * 3. Enige locatie van de gekoppelde klant (standaard)
+ */
+export function matchLocationId(
+  opts: {
+    companyId: string | null
+    summary: string
+    description: string | null | undefined
+    icsLocation: string | null | undefined
+  },
+  locations: LocationMatchInput[]
+): string | null {
+  const { companyId, summary, description, icsLocation } = opts
+  const hayNorm = normalizeText(
+    `${summary} ${description || ''} ${icsLocation || ''}`
+  )
+  const hayCompact = compactText(hayNorm)
+
+  const pool = companyId
+    ? locations.filter((l) => l.company_id === companyId)
+    : locations
+
+  if (pool.length === 0) return null
+
+  let best: { id: string; score: number } | null = null
+
+  for (const loc of pool) {
+    let score = 0
+    const street = normalizeText(loc.street || '')
+    const number = normalizeText(String(loc.number || '').replace(/\//g, ' '))
+    const city = normalizeText(loc.city || '')
+    const name = normalizeText(loc.name || '')
+    const postal = normalizeText(loc.postal_code || '')
+
+    // Straat + nummer (sterkste signaal, bv. "Gistelsesteenweg 300")
+    if (street.length >= 3) {
+      const streetInHay = hayNorm.includes(street)
+      if (streetInHay && number) {
+        // nummer mag "300" of "265 0202" zijn
+        const numToken = number.split(' ')[0]
+        if (numToken && hayNorm.includes(numToken)) {
+          score = Math.max(score, 120 + street.length)
+        } else {
+          score = Math.max(score, 70 + street.length)
+        }
+      } else if (streetInHay) {
+        score = Math.max(score, 70 + street.length)
+      }
+      // compact: gistelsesteenweg300
+      const streetNumCompact = compactText(`${loc.street || ''} ${loc.number || ''}`)
+      if (streetNumCompact.length >= 5 && hayCompact.includes(streetNumCompact)) {
+        score = Math.max(score, 130)
+      }
+    }
+
+    if (name.length >= 3 && hayNorm.includes(name)) {
+      score = Math.max(score, 50 + name.length)
+    }
+    if (city.length >= 3 && hayNorm.includes(city)) {
+      score = Math.max(score, 30 + city.length)
+    }
+    if (postal.length >= 4 && hayNorm.includes(postal)) {
+      score = Math.max(score, 40)
+    }
+
+    if (score > 0 && (!best || score > best.score)) {
+      best = { id: loc.id, score }
+    }
+  }
+
+  if (best) return best.id
+
+  // Standaard: enige locatie van deze klant
+  if (companyId && pool.length === 1) {
+    return pool[0].id
+  }
+
+  // Geen company maar exact 1 locatie-match wereldwijd is riskant → skip
+  return null
+}
