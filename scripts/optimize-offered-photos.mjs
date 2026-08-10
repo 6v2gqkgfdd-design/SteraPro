@@ -14,10 +14,58 @@
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  readFileSync,
+  mkdtempSync,
+  rmSync,
+  mkdirSync,
+  copyFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+// NAS-archief (full-res). Skip stil als NAS niet gemount is.
+// Zelfde conventie als lib/nas-archive.ts
+const NAS_ROOT = (process.env.STERAPRO_NAS_ROOT || '/Volumes/Documenten-Jellie/SteraPro').replace(
+  /\/$/,
+  ''
+)
+
+function archiveToNas(code, studioFile, detailFile, maatFile, meta) {
+  try {
+    if (!existsSync(NAS_ROOT)) {
+      console.log('  · NAS niet gemount — full-res alleen tijdelijk lokaal')
+      return
+    }
+    const dir = join(NAS_ROOT, 'photos/generated/by-itemcode', code)
+    mkdirSync(dir, { recursive: true })
+    for (const [name, src] of [
+      ['studio', studioFile],
+      ['detail', detailFile],
+      ['maat', maatFile],
+    ]) {
+      if (src && existsSync(src)) copyFileSync(src, join(dir, `${name}.png`))
+    }
+    writeFileSync(
+      join(dir, 'meta.json'),
+      JSON.stringify(
+        {
+          itemcode: code,
+          archived_at: new Date().toISOString(),
+          ...meta,
+        },
+        null,
+        2
+      )
+    )
+    console.log('  ✓ full-res → NAS', dir)
+  } catch (e) {
+    console.warn('  ⚠ NAS-archief mislukt:', e?.message || e)
+  }
+}
 
 const DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(DIR, '..')
@@ -140,6 +188,12 @@ async function processOne(code) {
         .jpeg({ quality: 85, mozjpeg: true })
         .toBuffer()
 
+    // Full-res PNG → NAS (eigen archief); web-JPEG → Supabase
+    archiveToNas(code, studioFile, detailFile, maatFile, {
+      description: prod?.description || null,
+      pipeline: 'optimize-offered-photos',
+    })
+
     const studioJpeg = await toJpeg(studioFile)
     const detailJpeg = await toJpeg(detailFile)
     const maatJpeg = await toJpeg(maatFile)
@@ -191,6 +245,7 @@ console.log('Force:         ', FORCE)
 console.log('Force AI:      ', FORCE_AI)
 console.log('Mark optimized:', MARK_OPT)
 console.log('Limit:         ', LIMIT || 'geen')
+console.log('NAS-archief:   ', existsSync(NAS_ROOT) ? NAS_ROOT : `(niet gemount) ${NAS_ROOT}`)
 
 let codes = explicitCodes
 if (!codes.length) {

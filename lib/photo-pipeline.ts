@@ -15,6 +15,7 @@ import path from 'path'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { MEDIA_BUCKET } from '@/lib/product-media'
+import { archivePhotosetToNas } from '@/lib/nas-archive'
 import matenByItemcode from '@/scripts/photo-pipeline/maten-by-itemcode.json'
 
 const SIZE = 1024
@@ -1660,6 +1661,23 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
   console.log(`[photo-pipeline] ${code}: detail + maat…`)
   const detailPng = await makeDetail(studioFinal, meta)
   const maatPng = await makeMaat(studioFinal, maatEntry, meta)
+
+  // Full-res PNG → NAS (lokaal gemount); op Vercel wordt dit overgeslagen.
+  try {
+    const nas = archivePhotosetToNas({
+      itemcode: code,
+      studio: studioFinal,
+      detail: detailPng,
+      maat: maatPng,
+      ext: 'png',
+      meta: { pipeline: 'photo-pipeline', doel: DOEL },
+    })
+    if (!nas.skipped) {
+      console.log(`[photo-pipeline] ${code}: NAS ${nas.message}`)
+    }
+  } catch (e) {
+    console.warn('[photo-pipeline] NAS-archief overgeslagen', e)
+  }
 
   // Web-JPEG: sneller laden + minder storage (i.p.v. 4–8 MB PNG)
   const studioJpeg = await toWebJpeg(studioFinal)

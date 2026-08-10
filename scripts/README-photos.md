@@ -8,7 +8,15 @@
 2. **`build-studio-v2.py`** — warme perzik-beige studio, plant 100% echt  
 3. **Grok Imagine** — zelfde prompt als `pipeline-fotos.mjs`  
 4. **`maak-fotoset.py`** — studio-final + detail + maat (2048px)  
-5. Upload naar Storage + `product_enrichment`
+5. **Full-res PNG → NAS** (`/Volumes/Documenten-Jellie/SteraPro/photos/generated/by-itemcode/{code}/`)  
+6. Web-JPEG → Supabase Storage + `product_enrichment`
+
+### NAS-archief
+
+- Standaardroot: `/Volumes/Documenten-Jellie/SteraPro`  
+- Override: `STERAPRO_NAS_ROOT=...` in `.env.local`  
+- NAS moet gemount zijn (share **Documenten-Jellie**). Zonder mount gaat de pipeline gewoon door; alleen cloud-JPEG wordt geschreven.  
+- Layout: zie `README.txt` op de NAS.
 
 Vereist lokaal: **python3 + Pillow**, `XAI_API_KEY`, Nieuwkoop + Supabase env.
 
