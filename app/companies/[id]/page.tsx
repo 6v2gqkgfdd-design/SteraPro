@@ -78,30 +78,44 @@ export default async function CompanyDetailPage({
     .eq('status', 'dead')
     .order('updated_at', { ascending: false })
 
-  // ── 360°-klantbeeld: tellingen + offertes ──────────────────────────
+  // ── 360°-klantbeeld: tellingen + open acties ──────────────────────────
   const { data: visits } = await supabase
     .from('maintenance_visits')
-    .select('id, status, scheduled_start, ended_at')
+    .select('id, status, scheduled_start, ended_at, title')
     .eq('company_id', id)
+    .order('scheduled_start', { ascending: false })
   const visitIds = (visits ?? []).map((v: any) => v.id)
+
+  const plannedVisits = (visits ?? []).filter((v: any) =>
+    ['scheduled', 'in_progress', 'paused'].includes(v.status)
+  )
 
   const { count: plantsCount } = await supabase
     .from('plants')
     .select('id', { count: 'exact', head: true })
     .eq('company_id', id)
 
-  let workOrdersCount = 0
+  let workOrders: any[] = []
   if (visitIds.length > 0) {
-    const { count } = await supabase
+    const { data: wo } = await supabase
       .from('work_orders')
-      .select('id', { count: 'exact', head: true })
+      .select(
+        'id, status, reference_number, signed_name, signed_at, created_at, visit_id'
+      )
       .in('visit_id', visitIds)
-    workOrdersCount = count ?? 0
+      .order('created_at', { ascending: false })
+    workOrders = wo ?? []
+  }
+  const workOrdersCount = workOrders.length
+  const openWo = {
+    draft: workOrders.filter((w) => w.status === 'draft'),
+    sent: workOrders.filter((w) => w.status === 'sent'),
+    signed: workOrders.filter((w) => w.status === 'signed'),
   }
 
   const { data: quotes } = await supabase
     .from('quotes')
-    .select('id, status, created_at')
+    .select('id, status, created_at, reference_number, subtotal_cents')
     .eq('company_id', id)
     .order('created_at', { ascending: false })
 
@@ -224,19 +238,106 @@ export default async function CompanyDetailPage({
           </ul>
         )}
 
-        {/* 360°-klantbeeld */}
+        {/* 360-klantbeeld */}
         <section className="space-y-3">
           <p className="stera-eyebrow text-stera-green">Klantoverzicht</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <OverviewCard label="Onderhoudsbeurten" value={visits?.length ?? 0} href="/maintenance" />
+            <OverviewCard
+              label="Gepland onderhoud"
+              value={plannedVisits.length}
+              href="/maintenance?tab=planned"
+              hint={`${visits?.length ?? 0} beurten totaal`}
+            />
             <OverviewCard label="Planten" value={plantsCount ?? 0} />
-            <OverviewCard label="Werkbonnen" value={workOrdersCount} href="/work-orders" />
-            <OverviewCard label="Offertes" value={quotes?.length ?? 0} />
-            <OverviewCard label="Bestellingen" value="—" hint="via Shopify (binnenkort)" />
-            <OverviewCard label="Facturen" value="—" hint="via Shopify (binnenkort)" />
-            <OverviewCard label="Leveringen" value="—" hint="module volgt" />
+            <OverviewCard
+              label="Te factureren"
+              value={openWo.signed.length}
+              href="/work-orders?tab=signed"
+              hint={`${workOrdersCount} werkbonnen totaal`}
+            />
+            <OverviewCard
+              label="Open offertes"
+              value={(quotes ?? []).filter((q: any) =>
+                ['draft', 'sent', 'accepted'].includes(q.status)
+              ).length}
+              href="/quotes"
+            />
           </div>
         </section>
+
+        {(openWo.draft.length > 0 ||
+          openWo.sent.length > 0 ||
+          openWo.signed.length > 0 ||
+          plannedVisits.length > 0) && (
+          <section className="space-y-3">
+            <p className="stera-eyebrow text-amber-800">Open acties</p>
+            <ul className="space-y-2">
+              {openWo.draft.map((w) => (
+                <li key={w.id}>
+                  <Link
+                    href={`/work-orders/${w.id}`}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm hover:border-amber-400"
+                  >
+                    <span className="font-medium text-stera-ink">
+                      {w.reference_number || 'Werkbon'} · te versturen
+                    </span>
+                    <span className="text-xs text-amber-800">Open →</span>
+                  </Link>
+                </li>
+              ))}
+              {openWo.sent.map((w) => (
+                <li key={w.id}>
+                  <Link
+                    href={`/work-orders/${w.id}`}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2.5 text-sm hover:border-blue-400"
+                  >
+                    <span className="font-medium text-stera-ink">
+                      {w.reference_number || 'Werkbon'} · wacht op handtekening
+                    </span>
+                    <span className="text-xs text-blue-800">Open →</span>
+                  </Link>
+                </li>
+              ))}
+              {openWo.signed.map((w) => (
+                <li key={w.id}>
+                  <Link
+                    href={`/work-orders/${w.id}`}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm hover:border-amber-400"
+                  >
+                    <span className="font-medium text-stera-ink">
+                      {w.reference_number || 'Werkbon'} · te factureren
+                      {w.signed_name ? ` (door ${w.signed_name})` : ''}
+                    </span>
+                    <span className="text-xs text-amber-900">Factureer →</span>
+                  </Link>
+                </li>
+              ))}
+              {plannedVisits.slice(0, 3).map((v: any) => (
+                <li key={v.id}>
+                  <Link
+                    href={`/maintenance/${v.id}`}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-stera-line bg-white px-3 py-2.5 text-sm hover:border-stera-green"
+                  >
+                    <span className="font-medium text-stera-ink">
+                      {v.title || 'Onderhoud'} · gepland
+                      {v.scheduled_start
+                        ? ` · ${new Date(v.scheduled_start).toLocaleDateString(
+                            'nl-BE',
+                            {
+                              timeZone: 'Europe/Brussels',
+                              day: 'numeric',
+                              month: 'short',
+                            }
+                          )}`
+                        : ''}
+                    </span>
+                    <span className="text-xs text-stera-green">Open →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Offertes & prijsaanvragen */}
         <section className="space-y-3">

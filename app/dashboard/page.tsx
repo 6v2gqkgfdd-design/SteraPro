@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import WeatherPill from '@/components/weather-pill'
 import { getTodaysWeather } from '@/lib/weather'
+import OpsActionBoard from '@/components/ops-action-board'
+import { loadOpsSnapshot } from '@/lib/ops-overview'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -36,6 +38,7 @@ export default async function DashboardPage() {
     { data: openReports },
     { data: newlySignedWorkOrders },
     weather,
+    ops,
   ] = await Promise.all([
     // Vandaag — alleen open beurten (geen voltooide/geannuleerde)
     supabase
@@ -102,6 +105,7 @@ export default async function DashboardPage() {
 
     // Weersverwachting (faalveilig — null als API down is)
     getTodaysWeather(),
+    loadOpsSnapshot(supabase),
   ])
 
   // Dedupe op plant_id: alleen de laatst geziene status telt
@@ -246,6 +250,9 @@ export default async function DashboardPage() {
           </div>
           {weather ? <WeatherPill weather={weather} /> : null}
         </div>
+
+        {/* Actiecentrum — onderhoud / facturatie / offertes in één oogopslag */}
+        <OpsActionBoard ops={ops} />
 
         {/* Net goedgekeurde werkbonnen — melding tot Jelle ze opent */}
         {newlySignedWorkOrders && newlySignedWorkOrders.length > 0 ? (
