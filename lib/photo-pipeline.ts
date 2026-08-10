@@ -10,6 +10,8 @@
  * Lokaal batch met Python blijft via: npm run optimize-photos
  */
 
+import fs from 'fs'
+import path from 'path'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { MEDIA_BUCKET } from '@/lib/product-media'
@@ -25,13 +27,13 @@ const WALL_MID: [number, number, number] = [246, 222, 189]
 const FLOOR_BOT: [number, number, number] = [236, 206, 170]
 const VIGNETTE = 0.955
 const SHADOW_RGB = { r: 120, g: 88, b: 58 }
-/** Stera Pro brand — zachte maten-overlay */
+/** Stera Pro brand — maat-overlay tekst & lijnen */
 const STERA_GREEN = '#426F52'
-const STERA_GREEN_SOFT = '#608A6E'
-const STERA_CREAM = '#FFFDF7'
-const STERA_INK_SOFT = '#5C6B61'
 
 const PROMPT = `Re-render this exact image as a professional studio product photograph. CRITICAL: keep the composition IDENTICAL — same square 1:1 format, plant in the exact same position and size, same warm beige background colors, same margins. Do not zoom, crop, move or resize anything. The plant and pot must stay 100% identical: same leaves with the same variegation pattern, same pot shape and texture — this is a real product photo. The floor-wall transition must stay barely visible, very gradual. Lighting: one large soft light source from the upper front-left, giving the plant photographic depth and one very soft, diffuse natural shadow of plant and pot together falling slightly to the right on the floor. No hard shadow edges. Crisp sharp foliage. THE POT: you may light the pot naturally — highlights and soft shading from the light source are welcome — but its texture pattern, material, base color and color temperature must remain exactly as in the input image. Do not smooth, repaint or re-texture the pot and do not let the beige background tint it. Leaf colors must also stay true to the input. No props, no text.`
+
+/** Extra instructie voor hangplanten — pot hangt bovenaan, bladeren vallen naar beneden. */
+const PROMPT_HANGING = `Re-render this exact image as a professional studio product photograph of a HANGING plant. CRITICAL: keep the composition IDENTICAL — same square 1:1 format, plant in the exact same position and size, same warm beige background colors, same margins. Do not zoom, crop, move or resize anything. The plant MUST look suspended from above: the pot or hanging basket stays near the TOP of the frame; foliage trails and cascades DOWNWARD. Do NOT place the pot on the floor. The plant and pot must stay 100% identical: same leaves with the same variegation pattern, same pot shape and texture — this is a real product photo. Soft ambient studio lighting from upper front-left; one very soft diffuse shadow of the trailing foliage falling slightly downward/right on the background — no hard floor contact shadow under a standing pot. Crisp sharp foliage. THE POT: may receive natural highlights but texture, material and color must remain exactly as in the input. No props, no extra chains or hooks unless already in the input, no text.`
 
 type MaatEntry = { total: number; pot?: number; diam?: number; l?: number; b?: number }
 const MATEN = matenByItemcode as Record<string, MaatEntry>
@@ -40,7 +42,13 @@ type StudioMeta = {
   base_frac: number
   pot_w_frac: number
   pot_top_frac?: number
+  /** true = hangplant: pot bovenaan, bladeren hangend */
+  hanging?: boolean
 }
+
+/** Top-marge voor hangplant (ophangpunt / pot bovenaan). */
+const HANG_TOP_FRAC = 0.07
+const HANG_PLANT_FRAC = 0.84
 
 export type PhotosetResult = {
   itemcode: string
@@ -111,7 +119,8 @@ async function upload(
   const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, bytes, {
     contentType,
     upsert: true,
-    cacheControl: '3600',
+    // Korte CDN-cache: content wordt hergebruikt onder hetzelfde pad na regeneratie
+    cacheControl: '60',
   })
   if (error) throw new Error(`Storage ${path}: ${error.message}`)
 
@@ -393,7 +402,45 @@ function potTopRow(alpha: Buffer, w: number, h: number, potW: number): number | 
   return null
 }
 
-async function prepareCutout(cutoutPng: Buffer) {
+/**
+ * Is dit een hangplant volgens Nieuwkoop-specs?
+ * - item_variety_nl: "Hanger", "Hangplant", …
+ * - PlantShape-tag: Hang / Ranker / Retombante
+ * - beschrijving: hangplant / hanger / hanging / ampel
+ */
+export function detectIsHanger(row: {
+  item_variety_nl?: string | null
+  description?: string | null
+  tags?: unknown
+}): boolean {
+  const variety = (row.item_variety_nl || '').toLowerCase()
+  if (/\bhangers?\b|\bhangplant\b|\bhanging\b|\bampel/.test(variety)) return true
+
+  const desc = (row.description || '').toLowerCase()
+  if (
+    /\bhangplant\b|\bhanger\b|\bhanging\s+plant\b|\bampelplant\b|\bhanging\b/.test(
+      desc
+    )
+  ) {
+    return true
+  }
+
+  if (Array.isArray(row.tags)) {
+    type Tag = {
+      Code?: string
+      Values?: Array<{ Description_NL?: string | null; Description_EN?: string | null }>
+    }
+    const shape = (row.tags as Tag[]).find((t) => t?.Code === 'PlantShape')
+    for (const v of shape?.Values ?? []) {
+      const s = `${v.Description_NL || ''} ${v.Description_EN || ''}`.toLowerCase()
+      // NK: NL "Hang", EN "Hang", DE "Ranker", FR "Retombante"
+      if (/\bhang\b|\branker\b|\bretomb|\bampel|\btrailing\b/.test(s)) return true
+    }
+  }
+  return false
+}
+
+async function prepareCutout(cutoutPng: Buffer, plantFrac = PLANT_FRAC) {
   const trimmed = await sharp(cutoutPng)
     .ensureAlpha()
     .trim({ threshold: 8 })
@@ -406,7 +453,7 @@ async function prepareCutout(cutoutPng: Buffer) {
   const meta0 = await sharp(trimmed).metadata()
   const srcH = meta0.height || 1
   const srcW = meta0.width || 1
-  const targetH = Math.round(SIZE * PLANT_FRAC)
+  const targetH = Math.round(SIZE * plantFrac)
   const scale = targetH / srcH
   const cutW = Math.max(1, Math.round(srcW * scale))
   const cutH = targetH
@@ -427,22 +474,69 @@ async function prepareCutout(cutoutPng: Buffer) {
   return { cutScaled, alpha, cutW, cutH }
 }
 
-async function buildStudioFromCutout(cutoutPng: Buffer): Promise<{
+/**
+ * Pot-onderkant bij hangplanten: pot zit bovenaan de cutout.
+ * Scan van boven naar beneden tot de silhouet plots smaller wordt (overgang pot → bladeren).
+ */
+function hangPotBottomRow(
+  alpha: Buffer,
+  w: number,
+  h: number,
+  potW: number
+): number | null {
+  let runMax = 0
+  let minW: number | null = null
+  let minY: number | null = null
+  const yMax = Math.floor(h * 0.55)
+  for (let y = 0; y < yMax; y++) {
+    let xMin = Infinity
+    let xMax = -Infinity
+    for (let x = 0; x < w; x++) {
+      if (alpha[y * w + x] > 40) {
+        if (x < xMin) xMin = x
+        if (x > xMax) xMax = x
+      }
+    }
+    if (!Number.isFinite(xMin)) continue
+    const breedte = xMax - xMin
+    if (runMax > potW * 0.85) {
+      if (breedte < runMax * 0.45) return y
+      if (breedte < runMax * 0.92) {
+        if (minW === null || breedte < minW) {
+          minW = breedte
+          minY = y
+        }
+      }
+      if (minW !== null && breedte > minW * 1.35) return minY
+    }
+    runMax = Math.max(runMax, breedte)
+  }
+  return minY
+}
+
+async function buildStudioFromCutout(
+  cutoutPng: Buffer,
+  opts: { hanging?: boolean } = {}
+): Promise<{
   studioPng: Buffer
   potMaskPng: Buffer | null
   meta: StudioMeta
 }> {
-  const { cutScaled, alpha, cutW, cutH } = await prepareCutout(cutoutPng)
+  const hanging = !!opts.hanging
+  const plantFrac = hanging ? HANG_PLANT_FRAC : PLANT_FRAC
+  const { cutScaled, alpha, cutW, cutH } = await prepareCutout(cutoutPng, plantFrac)
   const { cx: potCx, plantCx, potW } = potMetrics(alpha, cutW, cutH)
+  void potCx
+
+  // Staande plant: pot op de vloer. Hangplant: pot/ophangpunt bovenaan.
   const baseY = Math.round(SIZE * BASE_FRAC)
-  // Centreer hele plant (niet alleen de pot) in het frame
   const pasteX = Math.floor(SIZE / 2 - plantCx)
-  const pasteY = baseY - cutH
+  const pasteY = hanging
+    ? Math.round(SIZE * HANG_TOP_FRAC)
+    : baseY - cutH
 
   const left = Math.max(0, Math.min(SIZE - cutW, pasteX))
   const top = Math.max(0, Math.min(SIZE - cutH, pasteY))
-  // potCx nog beschikbaar voor schaduw-offset indien nodig
-  void potCx
 
   const bgRaw = buildBackgroundRgb()
   let bg = await sharp(bgRaw, {
@@ -451,11 +545,28 @@ async function buildStudioFromCutout(cutoutPng: Buffer): Promise<{
     .png()
     .toBuffer()
 
-  // Zachte contactschaduw + silhouet-ellips
+  const cx = SIZE / 2
   const ew = Math.round(potW * 1.5)
   const eh = Math.max(14, Math.round(ew * 0.18))
-  const cx = SIZE / 2
-  const shadowSvg = Buffer.from(`
+
+  // Schaduw: staand = contact op de vloer; hangend = zachte schaduw onder hangende massa
+  const shadowSvg = hanging
+    ? Buffer.from(`
+    <svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="b" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="28"/>
+        </filter>
+      </defs>
+      <ellipse cx="${cx + 10}" cy="${Math.min(SIZE - 40, top + Math.round(cutH * 0.72))}"
+        rx="${Math.round(ew * 0.75)}" ry="${Math.round(eh * 3.2)}"
+        fill="rgb(${SHADOW_RGB.r},${SHADOW_RGB.g},${SHADOW_RGB.b})" opacity="0.16" filter="url(#b)"/>
+      <ellipse cx="${cx}" cy="${Math.min(SIZE - 24, top + Math.round(cutH * 0.88))}"
+        rx="${Math.round(ew * 0.45)}" ry="${Math.round(eh * 1.6)}"
+        fill="rgb(${SHADOW_RGB.r},${SHADOW_RGB.g},${SHADOW_RGB.b})" opacity="0.12" filter="url(#b)"/>
+    </svg>
+  `)
+    : Buffer.from(`
     <svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <filter id="b" x="-80%" y="-80%" width="260%" height="260%">
@@ -479,22 +590,45 @@ async function buildStudioFromCutout(cutoutPng: Buffer): Promise<{
     .png()
     .toBuffer()
 
-  const pt = potTopRow(alpha, cutW, cutH, potW)
   const meta: StudioMeta = {
-    base_frac: BASE_FRAC,
+    base_frac: hanging
+      ? Math.min(0.96, (top + cutH) / SIZE)
+      : BASE_FRAC,
     pot_w_frac: potW / SIZE,
-  }
-  if (pt !== null) {
-    const frac = (pasteY + pt) / SIZE
-    const pothoogte = BASE_FRAC - frac
-    if (pothoogte > 0.06 && pothoogte < 0.55) meta.pot_top_frac = frac
+    hanging,
   }
 
+  // Pot-masker: staand van onder; hangend van boven (pot bovenaan)
   let potMaskPng: Buffer | null = null
-  if (meta.pot_top_frac != null && pt !== null) {
+  let potEdgeRow: number | null = null
+
+  if (hanging) {
+    potEdgeRow = hangPotBottomRow(alpha, cutW, cutH, potW)
+    if (potEdgeRow !== null) {
+      // pot_top_frac = onderkant van hangpot (waar bladeren beginnen)
+      const frac = (top + potEdgeRow) / SIZE
+      if (frac > HANG_TOP_FRAC + 0.02 && frac < 0.55) meta.pot_top_frac = frac
+    }
+  } else {
+    potEdgeRow = potTopRow(alpha, cutW, cutH, potW)
+    if (potEdgeRow !== null) {
+      const frac = (pasteY + potEdgeRow) / SIZE
+      const pothoogte = BASE_FRAC - frac
+      if (pothoogte > 0.06 && pothoogte < 0.55) meta.pot_top_frac = frac
+    }
+  }
+
+  if (potEdgeRow !== null && meta.pot_top_frac != null) {
     const potAlpha = Buffer.from(alpha)
-    for (let y = 0; y < Math.max(0, pt - 4); y++) {
-      potAlpha.fill(0, y * cutW, (y + 1) * cutW)
+    if (hanging) {
+      // maskeer alles ONDER de pot-onderkant (alleen pot blijft)
+      for (let y = potEdgeRow + 4; y < cutH; y++) {
+        potAlpha.fill(0, y * cutW, (y + 1) * cutW)
+      }
+    } else {
+      for (let y = 0; y < Math.max(0, potEdgeRow - 4); y++) {
+        potAlpha.fill(0, y * cutW, (y + 1) * cutW)
+      }
     }
     const potRgba = Buffer.alloc(cutW * cutH * 4)
     for (let i = 0; i < cutW * cutH; i++) {
@@ -543,12 +677,16 @@ async function fetchNieuwkoopCutout(code: string): Promise<Buffer> {
   return Buffer.from(b64, 'base64')
 }
 
-async function aiEditGrok(inputPng: Buffer): Promise<Buffer> {
+async function aiEditGrok(
+  inputPng: Buffer,
+  opts: { hanging?: boolean } = {}
+): Promise<Buffer> {
   const key = process.env.XAI_API_KEY
   if (!key) throw new Error('XAI_API_KEY ontbreekt (Grok Imagine)')
 
   const model = process.env.AI_MODEL || 'grok-imagine-image-quality'
   const resolution = (process.env.AI_RESOLUTION || '1k') === '2k' ? '2k' : '1k'
+  const prompt = opts.hanging ? PROMPT_HANGING : PROMPT
 
   const r = await fetch('https://api.x.ai/v1/images/edits', {
     method: 'POST',
@@ -558,7 +696,7 @@ async function aiEditGrok(inputPng: Buffer): Promise<Buffer> {
     },
     body: JSON.stringify({
       model,
-      prompt: PROMPT,
+      prompt,
       image: { url: `data:image/png;base64,${inputPng.toString('base64')}`, type: 'image_url' },
       aspect_ratio: '1:1',
       resolution,
@@ -631,25 +769,118 @@ async function restorePot(
   return sharp(out, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer()
 }
 
+/**
+ * Detailcrop: strak op de bladmassa / bovenkant van de plant.
+ * Vroeger: verticaal gecentreerd tussen planttop en potrand → te veel pot/stam.
+ * Nu: verankerd aan de top van de plant, horizontaal op de silhouet, zodat
+ * bladeren mooi vullen.
+ */
 async function makeDetail(hqPng: Buffer, meta: StudioMeta): Promise<Buffer> {
   const metaImg = await sharp(hqPng).metadata()
   const S = metaImg.width || DOEL
-  const top = Math.round(S * (meta.base_frac - PLANT_FRAC))
-  const onder = Math.round(S * (meta.pot_top_frac ?? meta.base_frac - 0.25))
-  const zijde = Math.min(
-    Math.round(S * 0.5),
-    Math.max(Math.round(S * 0.3), onder - top)
+
+  // Fallback op compositie-meta (pre-AI)
+  let plantTop = Math.round(S * ((meta.base_frac ?? BASE_FRAC) - PLANT_FRAC))
+  let potTop = Math.round(
+    S * (meta.pot_top_frac ?? (meta.base_frac ?? BASE_FRAC) - 0.25)
   )
-  const y0 = Math.max(0, top + Math.floor((onder - top - zijde) / 2))
-  const x0 = Math.floor(S / 2 - zijde / 2)
-  const safe = Math.min(zijde, S - Math.max(0, x0), S - Math.max(0, y0))
+  let plantLeft = Math.round(S * 0.22)
+  let plantRight = Math.round(S * 0.78)
+  let plantBottom = Math.round(S * (meta.base_frac ?? BASE_FRAC))
+
+  // Na AI: echte silhouet gebruiken (plant kan licht verschoven zijn)
+  try {
+    const bounds = await detectSubjectBounds(hqPng, S)
+    if (bounds) {
+      plantTop = bounds.ymin
+      plantBottom = bounds.ymax
+      plantLeft = bounds.xmin
+      plantRight = bounds.xmax
+      if (meta.pot_top_frac != null) {
+        const metaPot = Math.round(S * meta.pot_top_frac)
+        // alleen gebruiken als die binnen de silhouet valt
+        if (metaPot > plantTop + 8 && metaPot < plantBottom - 4) {
+          potTop = metaPot
+        } else {
+          // ~55% van silhouet-hoogte ≈ overgang bladeren → pot
+          potTop = Math.round(plantTop + (plantBottom - plantTop) * 0.55)
+        }
+      } else {
+        potTop = Math.round(plantTop + (plantBottom - plantTop) * 0.55)
+      }
+    }
+  } catch {
+    /* meta-fallback */
+  }
+
+  // Bladzone
+  // - Staand: van planttop tot potrand (bovenkant)
+  // - Hangend: pot zit bovenaan → focus op hangende bladeren ONDER de pot
+  let leafTop: number
+  let leafBottom: number
+  if (meta.hanging) {
+    // potTop meta = onderkant hangpot; bladeren daaronder
+    leafTop = Math.min(plantBottom - 8, Math.max(plantTop, potTop))
+    leafBottom = Math.min(
+      plantBottom,
+      Math.round(leafTop + (plantBottom - leafTop) * 0.72)
+    )
+  } else {
+    leafTop = plantTop
+    leafBottom = Math.max(
+      plantTop + Math.round(S * 0.18),
+      Math.min(potTop, Math.round(plantTop + (plantBottom - plantTop) * 0.58))
+    )
+  }
+  const leafH = Math.max(1, leafBottom - leafTop)
+  const leafW = Math.max(1, plantRight - plantLeft)
+  const leafCx = Math.round((plantLeft + plantRight) / 2)
+
+  // Vierkante crop: vult de bladzone, iets ruimer horizontaal voor uitwaaierende bladeren
+  let zijde = Math.round(
+    Math.min(
+      S * 0.56,
+      Math.max(S * 0.34, leafH * 0.98, leafW * 0.95)
+    )
+  )
+  zijde = Math.min(zijde, S)
+
+  // Verticaal: vast aan de TOP van de bladzone (+ lichte ademruimte)
+  const padTop = Math.round(S * 0.018)
+  let y0 = Math.max(0, leafTop - padTop)
+  const maxBottom = Math.min(
+    S,
+    meta.hanging
+      ? leafBottom + Math.round(S * 0.06)
+      : potTop + Math.round(S * 0.04)
+  )
+  if (y0 + zijde > maxBottom) {
+    y0 = Math.max(0, maxBottom - zijde)
+  }
+  if (y0 > leafTop - padTop) {
+    y0 = Math.max(0, leafTop - padTop)
+    zijde = Math.min(zijde, S - y0)
+  }
+  if (y0 + zijde > S) {
+    y0 = Math.max(0, S - zijde)
+  }
+
+  // Horizontaal: centrum van de plant-silhouet
+  let x0 = Math.round(leafCx - zijde / 2)
+  if (x0 < 0) x0 = 0
+  if (x0 + zijde > S) x0 = Math.max(0, S - zijde)
+
+  const width = Math.max(1, Math.min(zijde, S - x0))
+  const height = Math.max(1, Math.min(zijde, S - y0))
+  // Houd vierkant (extract eist width/height; bij rand neem kleinste)
+  const side = Math.min(width, height)
 
   return sharp(hqPng)
     .extract({
-      left: Math.max(0, x0),
-      top: Math.max(0, y0),
-      width: Math.max(1, safe),
-      height: Math.max(1, safe),
+      left: x0,
+      top: y0,
+      width: side,
+      height: side,
     })
     .resize(DOEL, DOEL, { kernel: sharp.kernel.lanczos3 })
     .sharpen({ sigma: 0.9, m1: 0.5, m2: 0.3 })
@@ -658,103 +889,266 @@ async function makeDetail(hqPng: Buffer, meta: StudioMeta): Promise<Buffer> {
 }
 
 /**
- * Maat-overlay in Stera Pro-stijl.
- * - Alleen totale hoogte (+ optioneel pot-hoogte)
- * - Geen diameter-balk (vaak onnauwkeurig t.o.v. de foto)
- * - Zachtere lijnen, afgeronde ticks, pill-labels
+ * Detecteer plant/pot-silhouet op de finale studiofoto.
+ * Nodig omdat Grok de compositie licht kan verschuiven — maten moeten
+ * op de échte plant staan, niet op de theoretische PLANT_FRAC.
  */
-function maatSvg(S: number, m: MaatEntry, meta: StudioMeta): Buffer | null {
+async function detectSubjectBounds(
+  img: Buffer,
+  size = DOEL
+): Promise<{
+  xmin: number
+  xmax: number
+  ymin: number
+  ymax: number
+  potXmin: number
+  potXmax: number
+} | null> {
+  const { data, info } = await sharp(img)
+    .resize(size, size, { fit: 'fill' })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const w = info.width
+  const h = info.height
+  const ch = info.channels
+
+  // Achtergrond ≈ hoek-samples (warme beige)
+  const samples: number[][] = []
+  const corner = (x: number, y: number) => {
+    const i = (y * w + x) * ch
+    samples.push([data[i], data[i + 1], data[i + 2]])
+  }
+  for (let d = 2; d < 14; d++) {
+    corner(d, d)
+    corner(w - 1 - d, d)
+    corner(d, h - 1 - d)
+    corner(w - 1 - d, h - 1 - d)
+  }
+  const bg = [0, 0, 0]
+  for (const s of samples) {
+    bg[0] += s[0]
+    bg[1] += s[1]
+    bg[2] += s[2]
+  }
+  bg[0] /= samples.length
+  bg[1] /= samples.length
+  bg[2] /= samples.length
+  const thr = 42 * 42
+
+  const isFg = (x: number, y: number) => {
+    const i = (y * w + x) * ch
+    const dr = data[i] - bg[0]
+    const dg = data[i + 1] - bg[1]
+    const db = data[i + 2] - bg[2]
+    return dr * dr + dg * dg + db * db > thr
+  }
+
+  let xmin = w
+  let xmax = 0
+  let ymin = h
+  let ymax = 0
+  let found = false
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!isFg(x, y)) continue
+      found = true
+      if (x < xmin) xmin = x
+      if (x > xmax) xmax = x
+      if (y < ymin) ymin = y
+      if (y > ymax) ymax = y
+    }
+  }
+  if (!found || xmax <= xmin || ymax <= ymin) return null
+
+  // Pot-breedte: breedste rij in onderste 18% van de silhouet
+  const bandTop = Math.max(ymin, ymax - Math.max(8, Math.floor((ymax - ymin) * 0.18)))
+  let potXmin = xmin
+  let potXmax = xmax
+  let bestSpan = -1
+  for (let y = bandTop; y <= ymax; y++) {
+    let rowMin = Infinity
+    let rowMax = -Infinity
+    for (let x = xmin; x <= xmax; x++) {
+      if (!isFg(x, y)) continue
+      if (x < rowMin) rowMin = x
+      if (x > rowMax) rowMax = x
+    }
+    if (!Number.isFinite(rowMin)) continue
+    const span = rowMax - rowMin
+    if (span > bestSpan) {
+      bestSpan = span
+      potXmin = rowMin
+      potXmax = rowMax
+    }
+  }
+
+  return { xmin, xmax, ymin, ymax, potXmin, potXmax }
+}
+
+/** Ingebedde serif (OFL) — SVG-tekst rendert betrouwbaar op Mac én Vercel. */
+let _maatFontCss: string | null = null
+function maatFontFaceCss(): string {
+  if (_maatFontCss !== null) return _maatFontCss
+  try {
+    const fontPath = path.join(
+      process.cwd(),
+      'lib/fonts/LibreBaskerville-Regular.ttf'
+    )
+    const b64 = fs.readFileSync(fontPath).toString('base64')
+    _maatFontCss = `@font-face{font-family:'SteraMaat';src:url(data:font/ttf;base64,${b64}) format('truetype');font-weight:400;font-style:normal;}`
+  } catch (e) {
+    console.warn('[photo-pipeline] maat-font load failed, system fallback', e)
+    _maatFontCss = ''
+  }
+  return _maatFontCss
+}
+
+/**
+ * Maat-overlay — Stera Pro.
+ *
+ *   • Totale hoogte (rechts) — balk planttop → potbodem
+ *   • Pothoogte (links) — balk op de pot
+ *   • Diameter onderaan als tekst “Ø 27 cm” (geen balk, geen pill)
+ *
+ * Alleen Stera-groen + elegante serif. Geen witte pills.
+ */
+function maatSvg(
+  S: number,
+  m: MaatEntry,
+  meta: StudioMeta,
+  bounds: {
+    xmin: number
+    xmax: number
+    ymin: number
+    ymax: number
+    potXmin: number
+    potXmax: number
+  } | null
+): Buffer | null {
   if (!m?.total || !Number.isFinite(m.total) || m.total <= 0) return null
 
-  const baseY = Math.round(S * (meta.base_frac ?? BASE_FRAC))
-  const topY = baseY - Math.round(S * PLANT_FRAC)
-  const cmPx = (S * PLANT_FRAC) / m.total
+  const fallbackBase = Math.round(S * (meta.base_frac ?? BASE_FRAC))
+  const fallbackTop = fallbackBase - Math.round(S * PLANT_FRAC)
 
-  const lw = Math.max(2.5, Math.round(S / 520))
-  const tick = Math.max(10, Math.round(S * 0.018))
-  const fs = Math.max(26, Math.round(S * 0.024))
-  const pillPadX = Math.round(fs * 0.55)
-  const pillPadY = Math.round(fs * 0.38)
-  const pillR = Math.round(fs * 0.55)
+  // Silhouet = ankers voor de balken
+  const baseY = bounds ? bounds.ymax : fallbackBase
+  const topY = bounds ? bounds.ymin : fallbackTop
+  const plantH = Math.max(1, baseY - topY)
+  const cmPx = plantH / m.total
 
-  const stroke = STERA_GREEN_SOFT
-  const strokeDeep = STERA_GREEN
-  const ink = STERA_INK_SOFT
+  const edgePad = Math.round(S * 0.028)
+  const plantLeft = bounds?.xmin ?? Math.round(S * 0.22)
+  const plantRight = bounds?.xmax ?? Math.round(S * 0.78)
+  const gap = Math.round(S * 0.04)
+  const xH = Math.min(S - edgePad, plantRight + gap)
+  const xP = Math.max(edgePad, plantLeft - gap)
 
-  /** Verticale dimension line met zachte end-ticks */
+  const lw = Math.max(2, Math.round(S / 560))
+  const tick = Math.max(7, Math.round(lw * 3.8))
+  const fs = Math.max(26, Math.round(S * 0.023))
+  const fsDiam = Math.max(24, Math.round(S * 0.021))
+  const ink = STERA_GREEN
+  const font = "SteraMaat, Georgia, 'Times New Roman', serif"
+
   const vDim = (x: number, y1: number, y2: number) => {
     const ya = Math.min(y1, y2)
     const yb = Math.max(y1, y2)
     return [
-      // zachte halo
-      `<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb}" stroke="${STERA_CREAM}" stroke-width="${lw * 2.4}" stroke-linecap="round" opacity="0.75"/>`,
-      `<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb}" stroke="${stroke}" stroke-width="${lw}" stroke-linecap="round" opacity="0.88"/>`,
-      // ticks
-      `<line x1="${x - tick}" y1="${ya}" x2="${x + tick}" y2="${ya}" stroke="${STERA_CREAM}" stroke-width="${lw * 2.2}" stroke-linecap="round" opacity="0.75"/>`,
-      `<line x1="${x - tick}" y1="${ya}" x2="${x + tick}" y2="${ya}" stroke="${strokeDeep}" stroke-width="${lw}" stroke-linecap="round" opacity="0.9"/>`,
-      `<line x1="${x - tick}" y1="${yb}" x2="${x + tick}" y2="${yb}" stroke="${STERA_CREAM}" stroke-width="${lw * 2.2}" stroke-linecap="round" opacity="0.75"/>`,
-      `<line x1="${x - tick}" y1="${yb}" x2="${x + tick}" y2="${yb}" stroke="${strokeDeep}" stroke-width="${lw}" stroke-linecap="round" opacity="0.9"/>`,
+      `<line x1="${x}" y1="${ya}" x2="${x}" y2="${yb}" stroke="${ink}" stroke-width="${lw}" stroke-linecap="round"/>`,
+      `<line x1="${x - tick}" y1="${ya}" x2="${x + tick}" y2="${ya}" stroke="${ink}" stroke-width="${lw}" stroke-linecap="round"/>`,
+      `<line x1="${x - tick}" y1="${yb}" x2="${x + tick}" y2="${yb}" stroke="${ink}" stroke-width="${lw}" stroke-linecap="round"/>`,
     ].join('')
   }
 
-  /** Pill-label met cream backdrop */
-  const pillLabel = (
+  // Alleen groene tekst — géén rect/pill
+  const label = (
     txt: string,
-    cx: number,
-    cy: number,
-    anchor: 'start' | 'middle' | 'end'
-  ) => {
-    const tw = Math.round(txt.length * fs * 0.52)
-    const th = fs
-    let rectX = cx - tw / 2 - pillPadX
-    if (anchor === 'end') rectX = cx - tw - pillPadX * 2
-    if (anchor === 'start') rectX = cx
-    const rectY = cy - th / 2 - pillPadY
-    const rectW = tw + pillPadX * 2
-    const rectH = th + pillPadY * 2
-    return [
-      `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${pillR}" ry="${pillR}" fill="${STERA_CREAM}" fill-opacity="0.9"/>`,
-      `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${pillR}" ry="${pillR}" fill="none" stroke="${stroke}" stroke-opacity="0.22" stroke-width="${Math.max(1, lw * 0.55)}"/>`,
-      `<text x="${cx}" y="${cy}" fill="${ink}" font-size="${fs}" font-weight="500" font-family="Georgia, 'Times New Roman', serif" text-anchor="${anchor}" dominant-baseline="middle">${txt}</text>`,
-    ].join('')
-  }
+    x: number,
+    y: number,
+    anchor: 'start' | 'middle' | 'end',
+    size = fs
+  ) =>
+    `<text x="${x}" y="${y}" fill="${ink}" font-size="${size}" font-weight="400" font-family="${font}" text-anchor="${anchor}" dominant-baseline="middle">${txt
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')}</text>`
 
   const parts: string[] = []
 
-  // Totale hoogte — rechts
-  const xH = Math.round(S * 0.92)
-  parts.push(vDim(xH, baseY, topY))
+  // Totale hoogte rechts
+  parts.push(vDim(xH, topY, baseY))
   parts.push(
-    pillLabel(
+    label(
       `${Math.round(m.total)} cm`,
       xH - tick - Math.round(fs * 0.35),
-      Math.round((baseY + topY) / 2),
+      Math.round((topY + baseY) / 2),
       'end'
     )
   )
 
-  // Pot-hoogte — links (alleen als zinvol)
+  // Pot-hoogte links
   if (m.pot && m.pot > 0 && m.pot < m.total) {
-    const xp = Math.round(S * 0.08)
-    const potTop =
-      meta.pot_top_frac != null
-        ? Math.round(S * meta.pot_top_frac)
-        : baseY - Math.round(m.pot * cmPx)
-    parts.push(vDim(xp, baseY, potTop))
-    parts.push(
-      pillLabel(
-        `${Math.round(m.pot)} cm`,
-        xp + tick + Math.round(fs * 0.35),
-        Math.round((baseY + potTop) / 2),
-        'start'
+    if (meta.hanging && meta.pot_top_frac != null) {
+      const potBottom = Math.round(S * meta.pot_top_frac)
+      const potY1 = topY
+      const potY2 = Math.min(baseY - 4, Math.max(topY + 4, potBottom))
+      if (potY2 - potY1 > 4) {
+        parts.push(vDim(xP, potY1, potY2))
+        parts.push(
+          label(
+            `${Math.round(m.pot)} cm`,
+            xP + tick + Math.round(fs * 0.35),
+            Math.round((potY1 + potY2) / 2),
+            'start'
+          )
+        )
+      }
+    } else {
+      let potTop: number
+      if (meta.pot_top_frac != null) {
+        potTop = Math.round(S * meta.pot_top_frac)
+        potTop = Math.min(baseY - 4, Math.max(topY + 4, potTop))
+      } else {
+        potTop = baseY - Math.round(m.pot * cmPx)
+      }
+      if (baseY - potTop > plantH * 0.55) {
+        potTop = baseY - Math.round(m.pot * cmPx)
+      }
+      parts.push(vDim(xP, potTop, baseY))
+      parts.push(
+        label(
+          `${Math.round(m.pot)} cm`,
+          xP + tick + Math.round(fs * 0.35),
+          Math.round((potTop + baseY) / 2),
+          'start'
+        )
       )
-    )
+    }
   }
 
-  // Geen diameter-balk onderaan — die klopt visueel vaak niet.
+  // Diameter: alleen symbool + waarde onderaan (geen balk)
+  let diamTxt: string | null = null
+  if (m.diam && m.diam > 0) {
+    diamTxt = `\u00D8 ${Math.round(m.diam)} cm` // Ø
+  } else if (m.l && m.l > 0) {
+    diamTxt = m.b
+      ? `${Math.round(m.l)} \u00D7 ${Math.round(m.b)} cm`
+      : `${Math.round(m.l)} cm`
+  }
+  if (diamTxt) {
+    const yLabel = Math.min(
+      S - Math.round(S * 0.03),
+      baseY + Math.round(S * 0.05)
+    )
+    parts.push(label(diamTxt, Math.round(S / 2), yLabel, 'middle', fsDiam))
+  }
 
+  const style = maatFontFaceCss()
   return Buffer.from(
-    `<svg width="${S}" height="${S}" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`
+    `<svg width="${S}" height="${S}" xmlns="http://www.w3.org/2000/svg">` +
+      (style ? `<defs><style type="text/css">${style}</style></defs>` : '') +
+      parts.join('') +
+      `</svg>`
   )
 }
 
@@ -770,7 +1164,9 @@ async function resolveMaatEntry(
 
   const { data } = await sb
     .from('nieuwkoop_products')
-    .select('height, diameter, length, width, height_culture_pot, pot_size')
+    .select(
+      'height, diameter, diameter_culture_pot, length, width, height_culture_pot, pot_size'
+    )
     .eq('itemcode', code)
     .maybeSingle()
 
@@ -779,21 +1175,37 @@ async function resolveMaatEntry(
   if (!Number.isFinite(total) || total <= 0) return null
 
   const entry: MaatEntry = { total }
-  const diam = Number(data.diameter)
-  if (Number.isFinite(diam) && diam > 0) entry.diam = diam
+
+  // Pot-hoogte
   const pot = Number(data.height_culture_pot)
   if (Number.isFinite(pot) && pot > 0) entry.pot = pot
+
+  // Ø = potdiameter: cultuurpot eerst, dan catalogus-diameter, dan pot_size
+  const diamPot = Number(
+    (data as { diameter_culture_pot?: number | null }).diameter_culture_pot
+  )
+  const diam = Number(data.diameter)
+  if (Number.isFinite(diamPot) && diamPot > 0) {
+    entry.diam = diamPot
+  } else if (Number.isFinite(diam) && diam > 0) {
+    entry.diam = diam
+  } else if (data.pot_size) {
+    const m = String(data.pot_size).match(/(?:ø|Ø|o)?\s*(\d+(?:[.,]\d+)?)/i)
+    if (m) {
+      const n = Number(m[1].replace(',', '.'))
+      if (Number.isFinite(n) && n > 0) entry.diam = n
+    }
+  }
+
+  // Rechthoekige bak: L × B (alleen als er geen pot-Ø is)
   const l = Number(data.length)
   const w = Number(data.width)
-  // Breedte als plantdiameter als diameter ontbreekt (vaak zo bij hydro/planten)
-  if (!entry.diam && Number.isFinite(w) && w > 0) {
-    entry.diam = w
-  }
   if (!entry.diam && Number.isFinite(l) && l > 0) {
     entry.l = l
     if (Number.isFinite(w) && w > 0) entry.b = w
   }
-  // pot_size tekst "19" of "Ø 19" → pot-hoogte als die nog ontbreekt
+
+  // pot_size tekst als pothoogte-fallback
   if (!entry.pot && data.pot_size) {
     const m = String(data.pot_size).match(/(\d+(?:[.,]\d+)?)/)
     if (m) {
@@ -809,15 +1221,94 @@ async function makeMaat(
   maat: MaatEntry | null,
   meta: StudioMeta
 ): Promise<Buffer> {
-  const svg = maat ? maatSvg(DOEL, maat, meta) : null
-  if (!svg) {
-    return sharp(studioPng).resize(DOEL, DOEL).png().toBuffer()
+  const base = await sharp(studioPng).resize(DOEL, DOEL).png().toBuffer()
+  if (!maat) return base
+
+  let bounds: Awaited<ReturnType<typeof detectSubjectBounds>> = null
+  try {
+    bounds = await detectSubjectBounds(base, DOEL)
+  } catch (e) {
+    console.warn('[photo-pipeline] subject-bounds failed, fallback meta', e)
   }
-  return sharp(studioPng)
+
+  const svg = maatSvg(DOEL, maat, meta, bounds)
+  if (!svg) return base
+
+  // Rasteriseer overlay apart (embedded font + tekst), daarna composieten.
+  // Voorkomt “lege witte pills” / ontbrekende labels op sommige runtimes.
+  const overlay = await sharp(svg, { density: 144 })
     .resize(DOEL, DOEL)
-    .composite([{ input: svg, top: 0, left: 0 }])
     .png()
     .toBuffer()
+
+  return sharp(base)
+    .composite([{ input: overlay, top: 0, left: 0 }])
+    .png()
+    .toBuffer()
+}
+
+/**
+ * Alleen de maatfoto herbouwen vanuit bestaande studio (geen Grok/Nieuwkoop).
+ * Handig na styling-fixes.
+ */
+export async function regenerateMaatForItem(
+  itemcode: string
+): Promise<{ itemcode: string; maatPath: string }> {
+  const code = itemcode.trim().toUpperCase()
+  const sb = admin()
+
+  const studioCandidates = [`studio/${code}.jpg`, `studio/${code}.png`]
+  let studioBuf: Buffer | null = null
+  for (const p of studioCandidates) {
+    const { data, error } = await sb.storage.from(MEDIA_BUCKET).download(p)
+    if (!error && data) {
+      studioBuf = Buffer.from(await data.arrayBuffer())
+      break
+    }
+  }
+  if (!studioBuf) {
+    throw new Error(`${code}: geen studio-foto in storage (genereer eerst de set)`)
+  }
+
+  const { data: productRow } = await sb
+    .from('nieuwkoop_products')
+    .select('itemcode, description, item_variety_nl, tags')
+    .eq('itemcode', code)
+    .maybeSingle()
+  const hanging = detectIsHanger(productRow ?? {})
+
+  const maatEntry = await resolveMaatEntry(sb, code)
+  if (!maatEntry) {
+    console.warn(`[photo-pipeline] ${code}: geen maten — maat = studio`)
+  }
+
+  // Meta: silhouet-detectie in makeMaat; base_frac uit compositie-default
+  const meta: StudioMeta = {
+    base_frac: hanging ? 0.92 : BASE_FRAC,
+    pot_w_frac: 0.25,
+    hanging,
+  }
+
+  const maatPng = await makeMaat(studioBuf, maatEntry, meta)
+  const maatJpeg = await toWebJpeg(maatPng)
+  const maatPath = `maat/${code}.jpg`
+  await upload(sb, maatPath, maatJpeg, 'image/jpeg')
+  await sb.storage.from(MEDIA_BUCKET).remove([`maat/${code}.png`]).catch(() => null)
+
+  const now = new Date().toISOString()
+  await sb.from('product_enrichment').upsert(
+    {
+      itemcode: code,
+      maat_image_path: maatPath,
+      updated_at: now,
+    },
+    { onConflict: 'itemcode' }
+  )
+
+  console.log(
+    `[photo-pipeline] ${code}: maat herbouwd (${Math.round(maatJpeg.byteLength / 1024)} KB)`
+  )
+  return { itemcode: code, maatPath }
 }
 
 /**
@@ -833,14 +1324,35 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
     throw new Error('NIEUWKOOP_API_* ontbreekt')
   }
 
+  const sb = admin()
+  // Specs voor hanger-detectie (variety / PlantShape / beschrijving)
+  const { data: productRow } = await sb
+    .from('nieuwkoop_products')
+    .select('itemcode, description, item_variety_nl, tags')
+    .eq('itemcode', code)
+    .maybeSingle()
+  const hanging = detectIsHanger(productRow ?? {})
+  if (hanging) {
+    console.log(
+      `[photo-pipeline] ${code}: HANGPLANT herkend` +
+        (productRow?.item_variety_nl
+          ? ` (variety=${productRow.item_variety_nl})`
+          : '')
+    )
+  }
+
   console.log(`[photo-pipeline] ${code}: cutout…`)
   const cutout = await fetchNieuwkoopCutout(code)
 
-  console.log(`[photo-pipeline] ${code}: studio-basis…`)
-  const { studioPng, potMaskPng, meta } = await buildStudioFromCutout(cutout)
+  console.log(
+    `[photo-pipeline] ${code}: studio-basis${hanging ? ' (hangend)' : ''}…`
+  )
+  const { studioPng, potMaskPng, meta } = await buildStudioFromCutout(cutout, {
+    hanging,
+  })
 
-  console.log(`[photo-pipeline] ${code}: Grok Imagine…`)
-  let aiPng = await aiEditGrok(studioPng)
+  console.log(`[photo-pipeline] ${code}: Grok Imagine${hanging ? ' (hangend)' : ''}…`)
+  let aiPng = await aiEditGrok(studioPng, { hanging })
 
   try {
     aiPng = await restorePot(aiPng, studioPng, potMaskPng)
@@ -861,7 +1373,6 @@ export async function generatePhotosetForItem(itemcode: string): Promise<Photose
     .png()
     .toBuffer()
 
-  const sb = admin()
   const maatEntry = await resolveMaatEntry(sb, code)
   if (!maatEntry) {
     console.warn(`[photo-pipeline] ${code}: geen maten (JSON noch DB) — maat = studio`)

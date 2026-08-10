@@ -17,7 +17,11 @@ import {
   PRICE_BANDS,
   STOCK_OPTIONS,
 } from '@/lib/catalog-filters'
-import { LOCATION_FILTER_OPTIONS, locationAppliesToType } from '@/lib/location'
+import {
+  LOCATION_FILTER_OPTIONS,
+  locationAppliesToType,
+  locationSourceLabel,
+} from '@/lib/location'
 import { ImageLightbox } from '@/components/image-lightbox'
 import { catalogThumbUrl, productMediaUrl, originalImageApiUrl } from '@/lib/product-media'
 
@@ -57,6 +61,8 @@ type CatalogItem = {
   optimized?: boolean
   hasStudioImage?: boolean
   studioImagePath?: string | null
+  /** Cache-bust voor thumbs na fotoset-regeneratie */
+  photosetGeneratedAt?: string | null
   changeId?: string
   changeType?: string
   summary?: string
@@ -422,6 +428,29 @@ export default function FullCatalogClient() {
   function closeDetail() {
     setDetailCode(null)
     requestAnimationFrame(() => window.scrollTo(0, listScrollRef.current))
+  }
+
+  function onMediaFromDrawer(
+    itemcode: string,
+    media: { hasStudioImage?: boolean; photosetGeneratedAt?: string | null }
+  ) {
+    setItems((list) =>
+      list.map((it) =>
+        it.itemcode === itemcode
+          ? {
+              ...it,
+              hasStudioImage:
+                media.hasStudioImage !== undefined
+                  ? media.hasStudioImage
+                  : it.hasStudioImage,
+              photosetGeneratedAt:
+                media.photosetGeneratedAt !== undefined
+                  ? media.photosetGeneratedAt
+                  : it.photosetGeneratedAt,
+            }
+          : it
+      )
+    )
   }
 
   function onOfferedFromDrawer(itemcode: string, offered: boolean) {
@@ -977,7 +1006,12 @@ export default function FullCatalogClient() {
                     title="Klik voor grote foto"
                     onClick={() => {
                       const full = it.hasStudioImage
-                        ? productMediaUrl(it.itemcode, 'studio', 'full')
+                        ? productMediaUrl(
+                            it.itemcode,
+                            'studio',
+                            'full',
+                            it.photosetGeneratedAt
+                          )
                         : originalImageApiUrl(it.itemcode, 'full')
                       setLightbox({
                         src: full,
@@ -987,7 +1021,12 @@ export default function FullCatalogClient() {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={catalogThumbUrl(it.itemcode, !!it.hasStudioImage)}
+                      key={`thumb-${it.itemcode}-${it.photosetGeneratedAt || ''}`}
+                      src={catalogThumbUrl(
+                        it.itemcode,
+                        !!it.hasStudioImage,
+                        it.photosetGeneratedAt
+                      )}
                       alt=""
                       className="h-14 w-14 cursor-zoom-in rounded-lg object-cover bg-white ring-1 ring-stera-line/60"
                       loading="lazy"
@@ -1040,7 +1079,15 @@ export default function FullCatalogClient() {
                           Array.isArray(it.locations) && it.locations.length > 0 ? (
                             <span className="shrink-0 rounded-full border border-stera-line px-2 py-0.5 text-[10px] text-stera-ink-soft">
                               {it.locations.join(' + ')}
-                              {it.locationSource === 'manual' ? ' · manueel' : ''}
+                              {it.locationSource && it.locationSource !== 'nieuwkoop'
+                                ? ` · ${
+                                    it.locationSource === 'rule'
+                                      ? 'Stera (niet NK)'
+                                      : it.locationSource === 'manual'
+                                        ? 'manueel'
+                                        : locationSourceLabel(it.locationSource)
+                                  }`
+                                : ''}
                             </span>
                           ) : (
                             <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
@@ -1090,6 +1137,7 @@ export default function FullCatalogClient() {
             itemcode={detailCode}
             onClose={closeDetail}
             onOfferedChange={onOfferedFromDrawer}
+            onMediaChange={onMediaFromDrawer}
           />
         ) : null}
 

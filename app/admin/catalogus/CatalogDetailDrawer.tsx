@@ -14,11 +14,13 @@ import {
 } from './actions'
 import {
   locationAppliesToType,
+  locationSourceLabel,
   type LocationLabel,
   type LocationSource,
 } from '@/lib/location'
 import { ImageLightbox } from '@/components/image-lightbox'
 import {
+  mediaVersion,
   originalImageApiUrl,
   productMediaUrl,
   studioImageApiUrl,
@@ -80,6 +82,8 @@ export type DetailItem = {
   studioImagePath?: string | null
   detailImagePath?: string | null
   maatImagePath?: string | null
+  /** ISO timestamp — cache-bust voor media-URL’s na regeneratie */
+  photosetGeneratedAt?: string | null
 }
 
 const euro = (n: number | null | undefined) =>
@@ -146,13 +150,25 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
+type MediaChange = {
+  hasStudioImage?: boolean
+  photosetGeneratedAt?: string | null
+}
+
 type Props = {
   itemcode: string
   onClose: () => void
   onOfferedChange?: (itemcode: string, offered: boolean) => void
+  /** Na fotoset-regeneratie: parent-lijst thumbs verversen */
+  onMediaChange?: (itemcode: string, media: MediaChange) => void
 }
 
-export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange }: Props) {
+export default function CatalogDetailDrawer({
+  itemcode,
+  onClose,
+  onOfferedChange,
+  onMediaChange,
+}: Props) {
   const [item, setItem] = useState<DetailItem | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [marginMsg, setMarginMsg] = useState<string | null>(null)
@@ -164,10 +180,18 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
   const [locBuiten, setLocBuiten] = useState(false)
   const [mediaMsg, setMediaMsg] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [imgTick, setImgTick] = useState(0)
+  /** Cache-bust: nooit vast op 0 (dat hergebruikt de browser-cache van de 1e open). */
+  const [imgTick, setImgTick] = useState(() => Date.now())
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
     null
   )
+
+  /** Stabiele media-versie: photosetGeneratedAt of runtime-tick na upload/regen. */
+  const mediaV = useMemo(() => {
+    const fromDb = mediaVersion(item?.photosetGeneratedAt)
+    if (fromDb) return fromDb
+    return String(imgTick)
+  }, [item?.photosetGeneratedAt, imgTick])
 
   useEffect(() => {
     let cancelled = false
@@ -177,12 +201,20 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
     setLocMsg(null)
     setMediaMsg(null)
     setItem(null)
-    fetch(`/api/admin/catalog/${encodeURIComponent(itemcode)}`)
+    // Verse tick bij elke open — voorkomt t=0 / oude browser-cache
+    setImgTick(Date.now())
+    fetch(
+      `/api/admin/catalog/${encodeURIComponent(itemcode)}?t=${Date.now()}`,
+      { cache: 'no-store' }
+    )
       .then(async (res) => {
         const data = await res.json()
         if (!res.ok || data.error) throw new Error(data.error || 'Laden mislukt')
         if (!cancelled) {
           setItem(data.item)
+          // Align tick met DB-timestamp (zelfde v= bij reopen → correcte versie)
+          const gen = mediaVersion(data.item?.photosetGeneratedAt)
+          if (gen) setImgTick(Number(gen) || Date.now())
           const f = data.item?.marginFactor
           setMarginDraft(f != null && Number.isFinite(Number(f)) ? String(Number(f)) : '2')
           // Prefill manuele checkboxes: enrichment, of effectief als NK leeg
@@ -285,12 +317,18 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
       )
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Upload mislukt')
+      const nowIso = new Date().toISOString()
       setItem({
         ...item,
         hasStudioImage: true,
         studioImagePath: data.path,
+        photosetGeneratedAt: nowIso,
       })
-      setImgTick((t) => t + 1)
+      setImgTick(Date.now())
+      onMediaChange?.(item.itemcode, {
+        hasStudioImage: true,
+        photosetGeneratedAt: nowIso,
+      })
       setMediaMsg('Studiofoto opgeslagen — thumbnail gebruikt nu studio.')
     } catch (e) {
       setMediaMsg(e instanceof Error ? e.message : 'Upload mislukt')
@@ -310,8 +348,18 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
       )
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Verwijderen mislukt')
-      setItem({ ...item, hasStudioImage: false, studioImagePath: null })
-      setImgTick((t) => t + 1)
+      const nowIso = new Date().toISOString()
+      setItem({
+        ...item,
+        hasStudioImage: false,
+        studioImagePath: null,
+        photosetGeneratedAt: nowIso,
+      })
+      setImgTick(Date.now())
+      onMediaChange?.(item.itemcode, {
+        hasStudioImage: false,
+        photosetGeneratedAt: nowIso,
+      })
       setMediaMsg('Studiofoto verwijderd — thumbnail = Nieuwkoop-origineel.')
     } catch (e) {
       setMediaMsg(e instanceof Error ? e.message : 'Verwijderen mislukt')
@@ -444,17 +492,18 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                   title="Klik voor grote foto"
                   onClick={() => {
                     const full = item.hasStudioImage
-                      ? `${studioImageApiUrl(item.itemcode, 'full')}&t=${imgTick}`
-                      : `${originalImageApiUrl(item.itemcode, 'full')}?t=${imgTick}`
+                      ? studioImageApiUrl(item.itemcode, 'full', mediaV)
+                      : originalImageApiUrl(item.itemcode, 'full', mediaV)
                     setLightbox({ src: full, alt: item.description })
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
+                    key={`hero-${mediaV}`}
                     src={
                       item.hasStudioImage
-                        ? `${studioImageApiUrl(item.itemcode, 'thumb')}&t=${imgTick}`
-                        : `${originalImageApiUrl(item.itemcode, 'thumb')}&t=${imgTick}`
+                        ? studioImageApiUrl(item.itemcode, 'thumb', mediaV)
+                        : originalImageApiUrl(item.itemcode, 'thumb', mediaV)
                     }
                     alt=""
                     className="h-32 w-32 rounded-xl object-cover shadow-sm sm:h-40 sm:w-40 bg-white hover:opacity-95"
@@ -534,9 +583,11 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                       })
                       const data = await res.json()
                       if (!res.ok || data.error) throw new Error(data.error || 'Mislukt')
-                      // Hard refresh item + force image remount (nieuwe tick = nieuwe URL)
+                      // Hard refresh item + force image remount (nieuwe v= = nieuwe URL)
+                      const now = Date.now()
                       const r = await fetch(
-                        `/api/admin/catalog/${encodeURIComponent(item.itemcode)}?t=${Date.now()}`
+                        `/api/admin/catalog/${encodeURIComponent(item.itemcode)}?t=${now}`,
+                        { cache: 'no-store' }
                       )
                       const d = await r.json()
                       if (d.item) {
@@ -550,9 +601,20 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                             data.paths?.detailPath || d.item.detailImagePath,
                           maatImagePath:
                             data.paths?.maatPath || d.item.maatImagePath,
+                          // Zonder DB-timestamp: runtime-tick als versie
+                          photosetGeneratedAt:
+                            d.item.photosetGeneratedAt ||
+                            new Date(now).toISOString(),
                         })
                       }
-                      setImgTick(Date.now())
+                      setImgTick(now)
+                      // Parent-lijst kan thumb verversen
+                      onMediaChange?.(item.itemcode, {
+                        hasStudioImage: true,
+                        photosetGeneratedAt:
+                          d.item?.photosetGeneratedAt ||
+                          new Date(now).toISOString(),
+                      })
                       setMediaMsg('Klaar: studio + detail + maat opgeslagen.')
                     } catch (e) {
                       setMediaMsg(e instanceof Error ? e.message : 'Pipeline mislukt')
@@ -575,32 +637,62 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                         key: 'studio',
                         label: 'Studio',
                         has: !!item.hasStudioImage,
-                        thumb: productMediaUrl(item.itemcode, 'studio', 'thumb'),
-                        full: productMediaUrl(item.itemcode, 'studio', 'full'),
+                        thumb: productMediaUrl(
+                          item.itemcode,
+                          'studio',
+                          'thumb',
+                          mediaV
+                        ),
+                        full: productMediaUrl(
+                          item.itemcode,
+                          'studio',
+                          'full',
+                          mediaV
+                        ),
                         empty: 'geen studio',
                       },
                       {
                         key: 'detail',
                         label: 'Detail',
                         has: !!item.detailImagePath,
-                        thumb: productMediaUrl(item.itemcode, 'detail', 'thumb'),
-                        full: productMediaUrl(item.itemcode, 'detail', 'full'),
+                        thumb: productMediaUrl(
+                          item.itemcode,
+                          'detail',
+                          'thumb',
+                          mediaV
+                        ),
+                        full: productMediaUrl(
+                          item.itemcode,
+                          'detail',
+                          'full',
+                          mediaV
+                        ),
                         empty: 'geen detail',
                       },
                       {
                         key: 'maat',
                         label: 'Maat',
                         has: !!item.maatImagePath,
-                        thumb: productMediaUrl(item.itemcode, 'maat', 'thumb'),
-                        full: productMediaUrl(item.itemcode, 'maat', 'full'),
+                        thumb: productMediaUrl(
+                          item.itemcode,
+                          'maat',
+                          'thumb',
+                          mediaV
+                        ),
+                        full: productMediaUrl(
+                          item.itemcode,
+                          'maat',
+                          'full',
+                          mediaV
+                        ),
                         empty: 'geen maat',
                       },
                       {
                         key: 'original',
                         label: 'Origineel (NK)',
                         has: true,
-                        thumb: originalImageApiUrl(item.itemcode, 'thumb'),
-                        full: originalImageApiUrl(item.itemcode, 'full'),
+                        thumb: originalImageApiUrl(item.itemcode, 'thumb', mediaV),
+                        full: originalImageApiUrl(item.itemcode, 'full', mediaV),
                         empty: 'geen origineel',
                       },
                     ] as const
@@ -621,15 +713,15 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                           title="Klik voor grote foto"
                           onClick={() =>
                             setLightbox({
-                              src: `${slot.full}${slot.full.includes('?') ? '&' : '?'}t=${imgTick}`,
+                              src: slot.full,
                               alt: `${slot.label} ${item.itemcode}`,
                             })
                           }
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            key={`${slot.key}-${imgTick}`}
-                            src={`${slot.thumb}${slot.thumb.includes('?') ? '&' : '?'}t=${imgTick}`}
+                            key={`${slot.key}-${mediaV}`}
+                            src={slot.thumb}
                             alt={slot.label}
                             className="aspect-square w-full rounded-lg border border-stera-line bg-stera-cream object-cover"
                             onError={(e) => {
@@ -729,23 +821,16 @@ export default function CatalogDetailDrawer({ itemcode, onClose, onOfferedChange
                     Standplaats (Binnen / Buiten)
                   </h3>
                   <p className="mb-2 text-[11px] text-stera-ink-soft">
-                    Alleen relevant voor planten, potten, combinaties en mos. Bron Nieuwkoop:
-                    tag Location — anders manueel.
+                    Alleen relevant voor planten, potten, combinaties en mos. Primair:
+                    Nieuwkoop-tag Location. Ontbreekt die, dan Stera manueel of{' '}
+                    <strong>Stera afgeleid</strong> (categorie/plantkennis — niet van NK).
                   </p>
                   <Row label="Effectief">
                     {item.locations?.length ? (
                       <span>
                         {item.locations.join(' + ')}
                         <span className="ml-1 text-stera-ink-soft">
-                          (
-                          {item.locationSource === 'nieuwkoop'
-                            ? 'Nieuwkoop'
-                            : item.locationSource === 'manual'
-                              ? 'Stera manueel'
-                              : item.locationSource === 'rule'
-                                ? 'regel'
-                                : 'onbekend'}
-                          )
+                          ({locationSourceLabel(item.locationSource)})
                         </span>
                       </span>
                     ) : (

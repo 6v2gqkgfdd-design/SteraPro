@@ -72,13 +72,22 @@ async function resizeToJpeg(
     .toBuffer()
 }
 
-function jpegResponse(buf: Buffer, size: 'thumb' | 'full', cacheSeconds: number) {
+function jpegResponse(
+  buf: Buffer,
+  size: 'thumb' | 'full',
+  opts: { versioned: boolean }
+) {
+  // Met ?v=… is de URL uniek per regeneratie → lang cachen is veilig.
+  // Zonder versie: kort cachen, anders blijft de browser oude maat/studio tonen.
+  const cacheControl = opts.versioned
+    ? 'public, max-age=31536000, immutable'
+    : 'private, max-age=0, must-revalidate'
   return new NextResponse(new Uint8Array(buf), {
     status: 200,
     headers: {
       'Content-Type': 'image/jpeg',
       'Content-Length': String(buf.byteLength),
-      'Cache-Control': `public, max-age=${cacheSeconds}, stale-while-revalidate=86400`,
+      'Cache-Control': cacheControl,
       'X-Image-Size': size,
     },
   })
@@ -98,6 +107,8 @@ export async function GET(
   const variant = (url.searchParams.get('variant') || 'studio').toLowerCase()
   const sizeParam = (url.searchParams.get('size') || 'full').toLowerCase()
   const size: 'thumb' | 'full' = sizeParam === 'thumb' ? 'thumb' : 'full'
+  // Cache-bust query (?v= of legacy ?t=) — unieke URL na fotoset-regeneratie
+  const versioned = !!(url.searchParams.get('v') || url.searchParams.get('t'))
 
   if (variant === 'original') {
     return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
@@ -148,9 +159,7 @@ export async function GET(
 
   try {
     const out = await resizeToJpeg(rawBuf, size)
-    // thumbs: 1 dag cache; full: korter (content kan regenereren)
-    const cacheSec = size === 'thumb' ? 86400 : 3600
-    return jpegResponse(out, size, cacheSec)
+    return jpegResponse(out, size, { versioned })
   } catch (e) {
     console.error('[product-media] resize failed', e)
     if (variant === 'studio') {
