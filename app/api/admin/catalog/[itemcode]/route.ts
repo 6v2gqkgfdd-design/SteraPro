@@ -69,7 +69,7 @@ export async function GET(
     supabase
       .from('product_enrichment')
       .select(
-        'location_binnen, location_buiten, location_source, ready_for_shopify, notes, studio_image_path, detail_image_path, maat_image_path, optimized, photoset_generated_at'
+        'location_binnen, location_buiten, location_source, ready_for_shopify, notes, studio_image_path, detail_image_path, maat_image_path, optimized, photoset_generated_at, updated_at'
       )
       .eq('itemcode', itemcode)
       .maybeSingle(),
@@ -142,7 +142,10 @@ export async function GET(
       studioImagePath: enrichment?.studio_image_path ?? null,
       detailImagePath: enrichment?.detail_image_path ?? null,
       maatImagePath: enrichment?.maat_image_path ?? null,
-      photosetGeneratedAt: enrichment?.photoset_generated_at ?? null,
+      // Cache-bust voor thumbs: updated_at (elke media-wijziging), anders photoset_generated_at
+      photosetGeneratedAt:
+        enrichment?.updated_at ?? enrichment?.photoset_generated_at ?? null,
+      mediaUpdatedAt: enrichment?.updated_at ?? null,
       notes: enrichment?.notes ?? null,
       brands,
       collections,

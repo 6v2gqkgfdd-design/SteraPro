@@ -75,21 +75,23 @@ async function resizeToJpeg(
 function jpegResponse(
   buf: Buffer,
   size: 'thumb' | 'full',
-  opts: { versioned: boolean }
+  opts: { etag?: string }
 ) {
-  // Met ?v=… is de URL uniek per regeneratie → lang cachen is veilig.
-  // Zonder versie: kort cachen, anders blijft de browser oude maat/studio tonen.
-  const cacheControl = opts.versioned
-    ? 'public, max-age=31536000, immutable'
-    : 'private, max-age=0, must-revalidate'
+  // Geen long-lived immutable: thumbs en full delen dezelfde storage-path.
+  // Na regeneratie moet ?size=thumb opnieuw de nieuwe bytes ophalen — anders
+  // blijft de lijst-thumb op de oude JPEG terwijl full wél vernieuwd is.
+  const headers: Record<string, string> = {
+    'Content-Type': 'image/jpeg',
+    'Content-Length': String(buf.byteLength),
+    'Cache-Control': 'private, max-age=0, must-revalidate',
+    'X-Image-Size': size,
+  }
+  if (opts.etag) {
+    headers['ETag'] = `"${opts.etag}"`
+  }
   return new NextResponse(new Uint8Array(buf), {
     status: 200,
-    headers: {
-      'Content-Type': 'image/jpeg',
-      'Content-Length': String(buf.byteLength),
-      'Cache-Control': cacheControl,
-      'X-Image-Size': size,
-    },
+    headers,
   })
 }
 
@@ -107,9 +109,6 @@ export async function GET(
   const variant = (url.searchParams.get('variant') || 'studio').toLowerCase()
   const sizeParam = (url.searchParams.get('size') || 'full').toLowerCase()
   const size: 'thumb' | 'full' = sizeParam === 'thumb' ? 'thumb' : 'full'
-  // Cache-bust query (?v= of legacy ?t=) — unieke URL na fotoset-regeneratie
-  const versioned = !!(url.searchParams.get('v') || url.searchParams.get('t'))
-
   if (variant === 'original') {
     return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
   }
@@ -117,7 +116,9 @@ export async function GET(
   const sb = admin()
   const { data: enr } = await sb
     .from('product_enrichment')
-    .select('studio_image_path, detail_image_path, maat_image_path')
+    .select(
+      'studio_image_path, detail_image_path, maat_image_path, photoset_generated_at, updated_at'
+    )
     .eq('itemcode', itemcode)
     .maybeSingle()
 
@@ -131,6 +132,23 @@ export async function GET(
       return NextResponse.redirect(nkFallbackUrl(itemcode, request.url, size), 302)
     }
     return NextResponse.json({ error: `Geen ${variant}-foto` }, { status: 404 })
+  }
+
+  // Content-version: updated_at wint (wijzigt bij elke herbouw, photoset_generated_at soms niet)
+  const mediaVerRaw =
+    (enr?.updated_at as string | null) ||
+    (enr?.photoset_generated_at as string | null) ||
+    path
+  const etag = `${variant}-${size}-${mediaVerRaw}`.replace(/[^a-zA-Z0-9._-]/g, '')
+  const ifNoneMatch = request.headers.get('if-none-match')?.replace(/"/g, '')
+  if (ifNoneMatch && ifNoneMatch === etag) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        ETag: `"${etag}"`,
+        'Cache-Control': 'private, max-age=0, must-revalidate',
+      },
+    })
   }
 
   // Download + integrity (geen pure redirect meer: thumbs + corruptie-check)
@@ -159,7 +177,7 @@ export async function GET(
 
   try {
     const out = await resizeToJpeg(rawBuf, size)
-    return jpegResponse(out, size, { versioned })
+    return jpegResponse(out, size, { etag })
   } catch (e) {
     console.error('[product-media] resize failed', e)
     if (variant === 'studio') {
@@ -237,6 +255,7 @@ export async function POST(
     {
       itemcode,
       studio_image_path: path,
+      photoset_generated_at: now,
       updated_at: now,
     },
     { onConflict: 'itemcode' }

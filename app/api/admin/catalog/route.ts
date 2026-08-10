@@ -197,6 +197,43 @@ export async function GET(request: Request) {
   const items = Array.isArray(result.items) ? result.items : []
   const total = typeof result.total === 'number' ? result.total : Number(result.total) || 0
 
+  // Lijst-RPC heeft geen media-timestamp → thumbs blijven op oude browser-cache.
+  // Verrijk met enrichment.updated_at (cache-bust ?v=).
+  let enrichedItems = items as Array<Record<string, unknown>>
+  const codes = enrichedItems
+    .map((it) => String(it.itemcode || '').trim())
+    .filter(Boolean)
+  if (codes.length > 0) {
+    try {
+      const { data: enrRows } = await supabase
+        .from('product_enrichment')
+        .select('itemcode, updated_at, photoset_generated_at, studio_image_path')
+        .in('itemcode', codes)
+      const byCode = new Map(
+        (enrRows || []).map((r) => [String(r.itemcode).toUpperCase(), r])
+      )
+      enrichedItems = enrichedItems.map((it) => {
+        const code = String(it.itemcode || '').toUpperCase()
+        const enr = byCode.get(code)
+        if (!enr) return it
+        const mediaV =
+          (enr.updated_at as string | null) ||
+          (enr.photoset_generated_at as string | null) ||
+          null
+        return {
+          ...it,
+          hasStudioImage:
+            it.hasStudioImage ??
+            !!(enr.studio_image_path && String(enr.studio_image_path).trim()),
+          photosetGeneratedAt: mediaV,
+          mediaUpdatedAt: enr.updated_at ?? null,
+        }
+      })
+    } catch (e) {
+      console.warn('[admin/catalog] media version enrich failed', e)
+    }
+  }
+
   return NextResponse.json({
     ok: result.ok !== false,
     tab: result.tab ?? tab,
@@ -209,7 +246,7 @@ export async function GET(request: Request) {
     catalogTypeCounts: result.typeCounts ?? {},
     brands: result.brands ?? [],
     plantsoorten: result.plantsoorten ?? [],
-    items,
+    items: enrichedItems,
     error: result.error,
   })
 }

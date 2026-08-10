@@ -1571,6 +1571,8 @@ export async function regenerateMaatForItem(
     {
       itemcode: code,
       maat_image_path: maatPath,
+      // Bump versie → thumbs/full krijgen nieuwe ?v= (anders immutable-cache op oude thumb)
+      photoset_generated_at: now,
       updated_at: now,
     },
     { onConflict: 'itemcode' }
