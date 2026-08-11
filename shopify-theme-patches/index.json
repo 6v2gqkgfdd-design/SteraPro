@@ -1,0 +1,203 @@
+{
+  "sections": {
+    "stera_hero": {
+      "type": "stera-hero",
+      "settings": {
+        "kicker": "Professioneel groen · open prijzen",
+        "title": "Professioneel groen, open prijzen.",
+        "intro": "Plant + pot voor kantoren, winkels en praktijken. Bestel online met je BTW-nummer — wij leveren en installeren. Geen offertes, geen login om te browsen.",
+        "btn_primary_label": "Bekijk de assortimenten",
+        "btn_primary_link": "shopify://collections/kantoorhelden",
+        "btn_ghost_label": "Start de plantenkiezer",
+        "btn_ghost_link": "shopify://pages/plantenkiezer",
+        "microcopy": "Prijzen altijd zichtbaar. Bestellen met BTW-nummer.",
+        "image": "shopify://shop_images/green-potted-plant-in-the-middle-frame.jpg"
+      }
+    },
+    "stera_usp": {
+      "type": "stera-usp-band",
+      "blocks": {
+        "u1": {
+          "type": "usp",
+          "settings": {
+            "icon": "ruler",
+            "text": "Open prijzen — wat je ziet, is wat je betaalt"
+          }
+        },
+        "u2": {
+          "type": "usp",
+          "settings": {
+            "icon": "truck",
+            "text": "Geleverd én geïnstalleerd door eigen team"
+          }
+        },
+        "u3": {
+          "type": "usp",
+          "settings": {
+            "icon": "drop",
+            "text": "Mijn Stera Pro — overzicht na je aankoop"
+          }
+        }
+      },
+      "block_order": [
+        "u1",
+        "u2",
+        "u3"
+      ],
+      "settings": {}
+    },
+    "stera_cats": {
+      "type": "stera-categorieen",
+      "blocks": {
+        "t1": {
+          "type": "tile",
+          "settings": {
+            "collection": "kantoorhelden",
+            "link": "shopify://collections/kantoorhelden",
+            "name": "Kantoorhelden",
+            "note": "Onverwoestbaar — weinig licht, weinig zorg"
+          }
+        },
+        "t2": {
+          "type": "tile",
+          "settings": {
+            "collection": "receptie-statement",
+            "link": "shopify://collections/receptie-statement",
+            "name": "Receptie & statement",
+            "note": "Hoogte en allure bij de inkom"
+          }
+        },
+        "t3": {
+          "type": "tile",
+          "settings": {
+            "collection": "palmen-workspace",
+            "link": "shopify://collections/palmen-workspace",
+            "name": "Palmen",
+            "note": "Luchtig groen voor de workspace"
+          }
+        },
+        "t4": {
+          "type": "tile",
+          "settings": {
+            "collection": "hang-cascade",
+            "link": "shopify://collections/hang-cascade",
+            "name": "Hang & cascade",
+            "note": "Volume op planken en kasten"
+          }
+        },
+        "t5": {
+          "type": "tile",
+          "settings": {
+            "collection": "designbladeren",
+            "link": "shopify://collections/designbladeren",
+            "name": "Designbladeren",
+            "note": "Patroon en textuur voor showrooms"
+          }
+        }
+      },
+      "block_order": [
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "t5"
+      ],
+      "settings": {
+        "kicker": "Assortiment",
+        "title": "Vijf selecties voor professionele ruimtes",
+        "btn_label": "Alle kantoorhelden",
+        "btn_link": "shopify://collections/kantoorhelden"
+      }
+    },
+    "stera_best": {
+      "type": "stera-bestsellers",
+      "settings": {
+        "kicker": "Uitgelicht",
+        "title": "Kantoorhelden — bewezen werkers",
+        "sub": "De robuuste basis voor elk kantoor. Open prijzen, direct te bestellen. Studiofoto’s volgen per product.",
+        "btn_label": "Bekijk kantoorhelden",
+        "collection": "kantoorhelden"
+      }
+    },
+    "stera_wie": {
+      "type": "stera-voor-wie",
+      "blocks": {
+        "c1": {
+          "type": "chip",
+          "settings": {
+            "label": "Kantoren & co-workings",
+            "link": "shopify://pages/assortiment"
+          }
+        },
+        "c2": {
+          "type": "chip",
+          "settings": {
+            "label": "Winkels & showrooms",
+            "link": "shopify://pages/assortiment"
+          }
+        },
+        "c3": {
+          "type": "chip",
+          "settings": {
+            "label": "Praktijken & wachtkamers",
+            "link": "shopify://pages/assortiment"
+          }
+        },
+        "c4": {
+          "type": "chip",
+          "settings": {
+            "label": "Relatiegeschenken & teams",
+            "link": "shopify://collections/relatiegeschenken"
+          }
+        }
+      },
+      "block_order": [
+        "c1",
+        "c2",
+        "c3",
+        "c4"
+      ],
+      "settings": {
+        "kicker": "Voor wie",
+        "title": "Gemaakt voor professionele ruimtes",
+        "sub": "Zelfde open prijzen voor iedereen. Gericht op kantoren, winkels en praktijken."
+      }
+    },
+    "stera_portal": {
+      "type": "stera-portal",
+      "settings": {
+        "kicker": "Stera Pro app",
+        "title": "Alles in Mijn Stera Pro",
+        "sub": "Als klant volg je bestellingen en planten op één plek — via Mijn Stera Pro, in dezelfde website. Shoppen kan zonder account.",
+        "feature_1": "Besteloverzicht",
+        "feature_2": "Plantpaspoort",
+        "feature_3": "Onderhoud (op jullie planten)",
+        "btn_label": "Open Mijn Stera Pro",
+        "btn_link": "shopify://pages/klant-account",
+        "screenshot": "shopify://shop_images/sterapro-portal-screenshot.png"
+      }
+    },
+    "stera_cta": {
+      "type": "stera-advies-cta",
+      "settings": {
+        "kicker": "Hoe het werkt",
+        "title": "Kies online. Wij plaatsen.",
+        "sub": "1) Kies in het assortiment of via de plantenkiezer. 2) Bestel met je BTW-nummer en betaal. 3) Wij leveren en installeren op locatie.",
+        "checkline": "Open prijzen · digitaal bestellen · geplaatst door ons team",
+        "btn_primary_label": "Naar kantoorhelden",
+        "btn_primary_link": "shopify://collections/kantoorhelden",
+        "btn_ghost_label": "Contact",
+        "btn_ghost_link": "shopify://pages/contact"
+      }
+    }
+  },
+  "order": [
+    "stera_hero",
+    "stera_usp",
+    "stera_cats",
+    "stera_best",
+    "stera_wie",
+    "stera_portal",
+    "stera_cta"
+  ]
+}

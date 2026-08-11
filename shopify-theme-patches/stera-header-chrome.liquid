@@ -1,0 +1,195 @@
+{% comment %}
+  Stera Pro header chrome (site-breed via Header-groep Custom Liquid):
+  - Vervangt oude menu-items (desktop + drawer) door clean navigatie
+  - Zet announcement-tekst soft (geen gratis-drempel tot levermodel vastligt)
+  - Voegt "Mijn Stera Pro"-knop toe naast het mandje
+{% endcomment %}
+
+<style>
+  .sp-portal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: transparent;
+    color: #2F5840;
+    border: 1.5px solid #2F5840;
+    border-radius: 999px;
+    padding: 7px 15px;
+    margin-left: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .sp-portal-btn:hover { background: #2F5840; color: #FFFDF7; }
+  .sp-portal-btn svg {
+    width: 17px; height: 17px; stroke: currentColor; fill: none;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none;
+  }
+  @media (max-width: 749px) {
+    .sp-portal-btn {
+      background: transparent; border: none; color: inherit;
+      padding: 4px; margin-left: 4px;
+    }
+    .sp-portal-btn:hover { background: transparent; opacity: 0.7; }
+    .sp-portal-btn .sp-portal-label { display: none; }
+    .sp-portal-btn svg { width: 21px; height: 21px; }
+  }
+  /* Mega-menu panels of old items hide when empty */
+  .mega-menu:empty, .mega-menu__link:empty { display: none !important; }
+</style>
+
+<script>
+  (function () {
+    var NAV = [
+      { t: 'Assortiment', h: '/collections/kantoorhelden' },
+      { t: 'Kantoorhelden', h: '/collections/kantoorhelden' },
+      { t: 'Receptie', h: '/collections/receptie-statement' },
+      { t: 'Palmen', h: '/collections/palmen-workspace' },
+      { t: 'Hang', h: '/collections/hang-cascade' },
+      { t: 'Design', h: '/collections/designbladeren' },
+      { t: 'Plantenkiezer', h: '/pages/plantenkiezer' },
+      { t: 'Contact', h: '/pages/contact' }
+    ];
+    var OLD_HINT = /KANTOORPLANTEN|PLANTENKIEZEN|Cominaties|Beplanting op maat|Plant apart|Pot apart|Paketten|hoofdmenu/i;
+    var done = false;
+
+    function fillList(ul, mode) {
+      if (!ul || ul.dataset.spNav === '1') return;
+      ul.innerHTML = '';
+      ul.dataset.spNav = '1';
+      NAV.forEach(function (item) {
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.href = item.h;
+        a.textContent = item.t;
+        if (mode === 'drawer') {
+          li.className = 'menu-drawer__list-item menu-drawer__list-item--flat';
+          a.className = 'menu-drawer__menu-item menu-drawer__menu-item--mainlist';
+        } else if (mode === 'bar') {
+          li.className = 'menu-list__list-item';
+          a.className = 'menu-list__link';
+        } else {
+          li.className = '';
+          a.className = 'menu-list__item';
+        }
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+    }
+
+    function isMenuUl(ul) {
+      var t = (ul.innerText || '').replace(/\s+/g, ' ').trim();
+      if (t.length < 4) return false;
+      if (ul.closest('footer')) return false;
+      if (ul.closest('[class*="account"]')) return false;
+      if (ul.dataset.spNav === '1') return true;
+      // Old junk or already our labels
+      if (OLD_HINT.test(t)) return true;
+      if (/Assortiment.*Mosmuren.*Plantenkiezer/i.test(t)) return true;
+      // Desktop bar: few top-level short labels
+      var links = ul.querySelectorAll(':scope > li > a');
+      if (links.length >= 3 && links.length <= 12) {
+        var sample = Array.prototype.map.call(links, function (a) { return a.textContent.trim(); }).join(' ');
+        if (/plant|mos|contact|assort|kantoor|onderhoud|kiezer/i.test(sample)) return true;
+      }
+      return false;
+    }
+
+    function modeFor(ul) {
+      var cls = (ul.className || '') + ' ' + (ul.parentElement && ul.parentElement.className || '');
+      if (/drawer/i.test(cls) || ul.closest('[class*="drawer"]')) return 'drawer';
+      if (/menu-list/i.test(cls)) return 'bar';
+      return 'bar';
+    }
+
+    function replaceMenus() {
+      var uls = document.querySelectorAll('ul');
+      var n = 0;
+      for (var i = 0; i < uls.length; i++) {
+        var ul = uls[i];
+        if (!isMenuUl(ul)) continue;
+        // Skip nested child menus under items we're about to wipe
+        if (ul.dataset.spNav === '1') continue;
+        fillList(ul, modeFor(ul));
+        n++;
+      }
+      // Hide leftover mega-menu panels that only had children
+      document.querySelectorAll('.mega-menu, [class*="mega-menu"]').forEach(function (m) {
+        if (!(m.innerText || '').trim()) m.style.display = 'none';
+      });
+      return n;
+    }
+
+    function softAnnouncement() {
+      var nodes = document.querySelectorAll(
+        '.announcement-bar, [class*="announcement"], .header-announcements, marquee, [class*="Announcement"]'
+      );
+      var re = /gratis vanaf\s*€?\s*750/i;
+      var wanted = 'Levering & installatie door eigen team — in Vlaanderen';
+      // Walk text nodes near top of page
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+      var count = 0;
+      while (walker.nextNode() && count < 40) {
+        count++;
+        var node = walker.currentNode;
+        if (re.test(node.nodeValue || '')) {
+          node.nodeValue = (node.nodeValue || '').replace(re, 'in Vlaanderen').replace(
+            /Levering & installatie door eigen team\s*[—–-]\s*in Vlaanderen/i,
+            wanted
+          );
+          if (!/Levering & installatie/i.test(node.nodeValue)) {
+            node.nodeValue = wanted;
+          }
+        }
+      }
+      nodes.forEach(function (el) {
+        if (re.test(el.textContent || '')) {
+          el.querySelectorAll('*').forEach(function (c) {
+            if (c.children.length === 0 && re.test(c.textContent || '')) {
+              c.textContent = wanted;
+            }
+          });
+        }
+      });
+    }
+
+    function addPortalBtn() {
+      var root = document.querySelector('header-actions') || document.querySelector('header') || document.body;
+      if (document.querySelector('.sp-portal-btn')) return;
+      var carts = document.querySelectorAll('a[href*="/cart"]');
+      var cart = carts.length ? carts[carts.length - 1] : null;
+      if (!cart) return;
+      var a = document.createElement('a');
+      a.href = '/pages/klant-account';
+      a.className = 'sp-portal-btn';
+      a.setAttribute('aria-label', 'Mijn Stera Pro');
+      a.innerHTML =
+        '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<path d="M5 21c.5 -4.5 2.5 -8 7 -10"/>' +
+        '<path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9 0 1 0 3 2 5h3z"/>' +
+        '</svg>' +
+        '<span class="sp-portal-label">Mijn Stera Pro</span>';
+      cart.insertAdjacentElement('afterend', a);
+    }
+
+    function init() {
+      var n = replaceMenus();
+      softAnnouncement();
+      addPortalBtn();
+      if (n > 0) done = true;
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+    // Theme hydration / section rendering
+    setTimeout(init, 200);
+    setTimeout(init, 800);
+    setTimeout(init, 1600);
+  })();
+</script>

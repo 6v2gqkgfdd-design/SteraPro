@@ -1,0 +1,136 @@
+{% comment %}
+  Stera Pro — Shop per categorie (design-handoff §4).
+  Kop + ghost-knop, 5 collectie-tegels met foto, naam, subregel en pijl.
+{% endcomment %}
+
+<div class="section-background color-{{ section.settings.color_scheme }}"></div>
+<section class="stera-cats section color-{{ section.settings.color_scheme }}" style="padding: 76px 0;">
+  <div class="stera-cats__inner">
+    <div class="stera-cats__head">
+      <div>
+        {% if section.settings.kicker != blank %}<div class="stera-kicker">{{ section.settings.kicker }}</div>{% endif %}
+        <h2 class="stera-h2">{{ section.settings.title }}</h2>
+      </div>
+      {% if section.settings.btn_label != blank %}
+        <a class="stera-btn stera-btn--ghost stera-btn--small" href="{{ section.settings.btn_link | default: '/collections' }}">
+          {{ section.settings.btn_label }}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      {% endif %}
+    </div>
+    {% assign sp_cols = section.blocks.size %}
+    {% if sp_cols > 5 %}{% assign sp_cols = 5 %}{% endif %}
+    {% if sp_cols < 1 %}{% assign sp_cols = 1 %}{% endif %}
+    <div class="stera-cats__grid" style="--sp-cols: {{ sp_cols }};">
+      {% for block in section.blocks %}
+        {% assign col = block.settings.collection %}
+        {% if block.settings.link != blank %}
+          {% assign tile_url = block.settings.link %}
+        {% elsif col != blank and col.url != blank %}
+          {% assign tile_url = col.url %}
+        {% else %}
+          {% assign tile_url = '#' %}
+        {% endif %}
+        <a class="stera-cats__tile" href="{{ tile_url }}" {{ block.shopify_attributes }}>
+          {% assign img = block.settings.image | default: col.image | default: col.products.first.featured_image %}
+          {% if img != blank %}
+            {{ img | image_url: width: 700 | image_tag: class: 'stera-cats__img', loading: 'lazy' }}
+          {% else %}
+            <div class="stera-cats__img stera-cats__img--placeholder"></div>
+          {% endif %}
+          <div class="stera-cats__name">
+            {{ block.settings.name | default: col.title }}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </div>
+          {% if block.settings.note != blank %}<div class="stera-cats__note">{{ block.settings.note }}</div>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% stylesheet %}
+  .stera-cats__inner { max-width: 1320px; margin: 0 auto; padding: 0 24px; }
+  .stera-cats__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+  .stera-h2 {
+    margin: 10px 0 0;
+    font-family: var(--font-accent--family);
+    font-weight: 400;
+    font-size: clamp(30px, 3vw, 42px);
+    line-height: 1.12;
+    color: rgb(var(--color-foreground));
+  }
+  .stera-btn--small { padding: 10px 20px; font-size: 14px; }
+  .stera-cats__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--sp-cols, 4), 1fr);
+    gap: 24px;
+    margin-top: 44px;
+  }
+  .stera-cats__tile { text-decoration: none; color: rgb(var(--color-foreground)); }
+  .stera-cats__img {
+    width: 100%;
+    height: 250px;
+    object-fit: cover;
+    border-radius: 14px;
+    display: block;
+    transition: opacity .15s ease;
+  }
+  .stera-cats__tile:hover .stera-cats__img { opacity: .92; }
+  .stera-cats__img--placeholder { background: rgba(47,88,64,.12); }
+  .stera-cats__name {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-body--family);
+    font-weight: 600;
+    font-size: 15.5px;
+  }
+  .stera-cats__note {
+    margin-top: 3px;
+    font-family: var(--font-body--family);
+    font-size: 13px;
+    color: rgba(var(--color-foreground), 0.62);
+  }
+  @media (max-width: 989px) {
+    .stera-cats__grid { grid-template-columns: repeat(2, 1fr); }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Stera categorieën",
+  "max_blocks": 6,
+  "settings": [
+    { "type": "color_scheme", "id": "color_scheme", "label": "Kleurenschema", "default": "scheme-1" },
+    { "type": "text", "id": "kicker", "label": "Kicker", "default": "Wat we aanbieden" },
+    { "type": "text", "id": "title", "label": "Titel", "default": "Alles voor groen op de werkvloer" },
+    { "type": "text", "id": "btn_label", "label": "Knoptekst", "default": "Naar assortiment" },
+    { "type": "url", "id": "btn_link", "label": "Knoplink" }
+  ],
+  "blocks": [
+    {
+      "type": "tile",
+      "name": "Categorie-tegel",
+      "settings": [
+        { "type": "collection", "id": "collection", "label": "Collectie (optioneel)" },
+        { "type": "url", "id": "link", "label": "Link (overschrijft collectie-URL)" },
+        { "type": "text", "id": "name", "label": "Naam" },
+        { "type": "text", "id": "note", "label": "Subregel" },
+        { "type": "image_picker", "id": "image", "label": "Foto" }
+      ]
+    }
+  ],
+  "presets": [
+    { "name": "Stera categorieën",
+      "blocks": [
+        { "type": "tile", "settings": { "note": "180+ soorten" } },
+        { "type": "tile", "settings": { "note": "In je interieurstijl" } },
+        { "type": "tile", "settings": { "note": "Op maat" } },
+        { "type": "tile", "settings": { "note": "Onderhoudsarm" } },
+        { "type": "tile", "settings": { "note": "Voor klanten & teams" } }
+      ] }
+  ]
+}
+{% endschema %}

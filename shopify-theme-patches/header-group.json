@@ -1,0 +1,120 @@
+{
+  "type": "header",
+  "name": "Header",
+  "sections": {
+    "stera_announcement": {
+      "type": "header-announcements",
+      "blocks": {
+        "a1": {
+          "type": "_announcement",
+          "settings": {
+            "text": "Levering & installatie door eigen team — in Vlaanderen",
+            "link": "",
+            "font": "var(--font-body--family)",
+            "font_size": "0.8125rem",
+            "weight": "500",
+            "letter_spacing": "normal",
+            "case": "none"
+          },
+          "blocks": {}
+        }
+      },
+      "block_order": [
+        "a1"
+      ],
+      "settings": {
+        "speed": 5,
+        "section_width": "full-width",
+        "color_scheme": "scheme-2",
+        "divider_width": 0,
+        "padding-block-start": 12,
+        "padding-block-end": 12
+      }
+    },
+    "header_section": {
+      "type": "header",
+      "blocks": {
+        "header-logo": {
+          "type": "_header-logo",
+          "static": true,
+          "settings": {
+            "hide_logo_on_home_page": false,
+            "padding-block-start": 0,
+            "padding-block-end": 0,
+            "padding-inline-start": 0,
+            "padding-inline-end": 0
+          },
+          "blocks": {}
+        },
+        "header-menu": {
+          "type": "_header-menu",
+          "static": true,
+          "settings": {
+            "menu": "hoofdmenu",
+            "color_scheme": "scheme-1",
+            "type_font_primary_size": "0.875rem",
+            "menu_font_style": "regular",
+            "type_font_primary_link": "body",
+            "type_case_primary_link": "uppercase",
+            "menu_style": "text",
+            "featured_products_aspect_ratio": "4 / 5",
+            "featured_collections_aspect_ratio": "16 / 9",
+            "image_border_radius": 15,
+            "navigation_bar": false,
+            "color_scheme_navigation_bar": "",
+            "drawer_accordion": false,
+            "drawer_accordion_expand_first": false,
+            "drawer_dividers": false
+          },
+          "blocks": {}
+        }
+      },
+      "settings": {
+        "logo_position": "left",
+        "menu_position": "right",
+        "menu_row": "top",
+        "show_search": true,
+        "search_position": "right",
+        "search_row": "top",
+        "show_country": false,
+        "country_selector_style": true,
+        "show_language": false,
+        "localization_font": "body",
+        "localization_font_size": "1.125rem",
+        "localization_position": "right",
+        "localization_row": "top",
+        "section_width": "full-width",
+        "section_height": "standard",
+        "enable_sticky_header": "always",
+        "divider_width": 0,
+        "divider_size": "page-width",
+        "border_width": 0,
+        "color_scheme_top": "scheme-1",
+        "color_scheme_bottom": "",
+        "color_scheme_transparent": "scheme-2",
+        "enable_transparent_header_home": false,
+        "home_color_scheme": "inverse",
+        "enable_transparent_header_product": false,
+        "product_color_scheme": "default",
+        "enable_transparent_header_collection": false,
+        "collection_color_scheme": "default"
+      }
+    },
+    "custom_liquid_nx6zea": {
+      "type": "custom-liquid",
+      "name": "t:names.custom_liquid",
+      "settings": {
+        "custom_liquid": "<style id=\"sp-nav-kill\">\n#header-component header-menu,\n#header-component .header-menu,\n#header-component overflow-list,\n#header-component .menu-list,\n#header-component .header__navigation-bar-row,\n#header-component .mega-menu,\nheader-menu {\n  display: none !important;\n  height: 0 !important;\n  max-height: 0 !important;\n  overflow: hidden !important;\n  visibility: hidden !important;\n  pointer-events: none !important;\n  margin: 0 !important;\n  padding: 0 !important;\n  border: 0 !important;\n  opacity: 0 !important;\n}\n#sp-final-nav {\n  display: block !important;\n  width: 100% !important;\n  background: #FFFDF7 !important;\n  border-bottom: 1px solid rgba(47,88,64,.14) !important;\n  position: relative !important;\n  z-index: 60 !important;\n}\n#sp-final-nav .sp-row {\n  max-width: 1320px;\n  margin: 0 auto;\n  padding: 10px 20px 14px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  justify-content: center;\n  gap: 4px;\n}\n#sp-final-nav a.sp-l {\n  display: inline-flex !important;\n  align-items: center;\n  gap: 4px;\n  padding: 8px 14px !important;\n  font-size: 13px !important;\n  font-weight: 600 !important;\n  letter-spacing: .08em;\n  text-transform: uppercase !important;\n  text-decoration: none !important;\n  color: #2F5840 !important;\n  border-radius: 999px;\n  white-space: nowrap;\n}\n#sp-final-nav a.sp-l:hover { background: rgba(47,88,64,.08) !important; }\n#sp-final-nav .sp-dd { position: relative; display: inline-flex; }\n#sp-final-nav .sp-panel {\n  display: none;\n  position: absolute;\n  top: 100%;\n  left: 50%;\n  transform: translateX(-50%);\n  min-width: 260px;\n  background: #FFFDF7;\n  border: 1px solid rgba(47,88,64,.16);\n  border-radius: 12px;\n  box-shadow: 0 12px 32px rgba(33,57,43,.12);\n  padding: 8px 0;\n  z-index: 120;\n  margin-top: 4px;\n}\n#sp-final-nav .sp-dd:hover .sp-panel,\n#sp-final-nav .sp-dd:focus-within .sp-panel { display: block !important; }\n#sp-final-nav .sp-panel a {\n  display: block !important;\n  padding: 11px 18px !important;\n  color: #2F5840 !important;\n  text-decoration: none !important;\n  font-size: 15px !important;\n  font-weight: 500 !important;\n  text-transform: none !important;\n  letter-spacing: 0 !important;\n}\n#sp-final-nav .sp-panel a:hover { background: rgba(47,88,64,.07) !important; }\n#sp-final-nav .sp-panel .sp-panel-note {\n  display: block;\n  padding: 6px 18px 10px;\n  font-size: 12px;\n  color: rgba(47,88,64,.65);\n  border-bottom: 1px solid rgba(47,88,64,.08);\n  margin-bottom: 4px;\n}\n#sp-final-nav .sp-burger {\n  display: none;\n  margin-left: auto;\n  border: 0;\n  background: transparent;\n  color: #2F5840;\n  font-size: 22px;\n  cursor: pointer;\n  width: 44px;\n  height: 44px;\n}\n#sp-final-nav .sp-drawer { display: none; }\n#sp-final-nav .sp-drawer.open {\n  display: block !important;\n  position: fixed;\n  inset: 0;\n  z-index: 500;\n}\n#sp-final-nav .sp-backdrop {\n  position: absolute;\n  inset: 0;\n  border: 0;\n  width: 100%;\n  height: 100%;\n  background: rgba(33,57,43,.35);\n  cursor: pointer;\n}\n#sp-final-nav .sp-sheet {\n  position: absolute;\n  top: 0;\n  right: 0;\n  width: min(340px, 90vw);\n  height: 100%;\n  background: #FFFDF7;\n  padding: 20px;\n  overflow: auto;\n  box-shadow: -8px 0 28px rgba(33,57,43,.12);\n}\n#sp-final-nav .sp-sheet a {\n  display: block;\n  padding: 14px 4px;\n  color: #2F5840;\n  text-decoration: none;\n  font-weight: 600;\n  font-size: 17px;\n  border-bottom: 1px solid rgba(47,88,64,.1);\n}\n#sp-final-nav .sp-sheet a.sub {\n  padding-left: 16px;\n  font-weight: 500;\n  font-size: 15px;\n}\n#sp-final-nav .sp-sheet .sp-group {\n  margin-top: 10px;\n  padding-top: 6px;\n  font-size: 11px;\n  letter-spacing: .12em;\n  text-transform: uppercase;\n  color: rgba(47,88,64,.55);\n  font-weight: 700;\n}\n@media (max-width: 989px) {\n  #sp-final-nav .sp-desk { display: none !important; }\n  #sp-final-nav .sp-burger { display: block !important; }\n  #sp-final-nav .sp-row { justify-content: flex-end; }\n}\n@media (min-width: 990px) {\n  #sp-final-nav .sp-burger { display: none !important; }\n}\n</style>\n<div id=\"sp-final-nav\">\n  <div class=\"sp-row\">\n    <div class=\"sp-desk\" style=\"display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:center;width:100%;\">\n      <a class=\"sp-l\" href=\"/\">Home</a>\n      <span class=\"sp-dd\">\n        <a class=\"sp-l\" href=\"/collections/kantoorhelden\">Assortiment ▾</a>\n        <span class=\"sp-panel\">\n          <span class=\"sp-panel-note\">Commerciële selecties voor kantoor &amp; zaak</span>\n          <a href=\"/collections/kantoorhelden\">Kantoorhelden</a>\n          <a href=\"/collections/receptie-statement\">Receptie &amp; statement</a>\n          <a href=\"/collections/palmen-workspace\">Palmen voor de workspace</a>\n          <a href=\"/collections/hang-cascade\">Hang &amp; cascade</a>\n          <a href=\"/collections/designbladeren\">Designbladeren</a>\n          <a href=\"/collections/all-in-1-combinaties\">All-in-1 combinaties</a>\n          <a href=\"/collections/moswanden\">Mosmuren</a>\n        </span>\n      </span>\n      <a class=\"sp-l\" href=\"/pages/plantenkiezer\">Plantenkiezer</a>\n      <a class=\"sp-l\" href=\"/pages/onderhoud\">Onderhoud</a>\n      <a class=\"sp-l\" href=\"/pages/contact\">Contact</a>\n    </div>\n    <button type=\"button\" class=\"sp-burger\" id=\"sp-burger\" aria-label=\"Menu\">☰</button>\n  </div>\n  <div class=\"sp-drawer\" id=\"sp-drawer\">\n    <button type=\"button\" class=\"sp-backdrop\" id=\"sp-close1\" aria-label=\"Sluiten\"></button>\n    <div class=\"sp-sheet\">\n      <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;\">\n        <strong style=\"letter-spacing:.12em;text-transform:uppercase;font-size:12px;color:#2F5840;\">Menu</strong>\n        <button type=\"button\" id=\"sp-close2\" style=\"border:0;background:rgba(47,88,64,.08);width:40px;height:40px;border-radius:10px;font-size:20px;cursor:pointer;\">×</button>\n      </div>\n      <a href=\"/\">Home</a>\n      <div class=\"sp-group\">Assortiment</div>\n      <a class=\"sub\" href=\"/collections/kantoorhelden\">Kantoorhelden</a>\n      <a class=\"sub\" href=\"/collections/receptie-statement\">Receptie &amp; statement</a>\n      <a class=\"sub\" href=\"/collections/palmen-workspace\">Palmen voor de workspace</a>\n      <a class=\"sub\" href=\"/collections/hang-cascade\">Hang &amp; cascade</a>\n      <a class=\"sub\" href=\"/collections/designbladeren\">Designbladeren</a>\n      <a class=\"sub\" href=\"/collections/all-in-1-combinaties\">All-in-1 combinaties</a>\n      <a class=\"sub\" href=\"/collections/moswanden\">Mosmuren</a>\n      <a href=\"/pages/plantenkiezer\">Plantenkiezer</a>\n      <a href=\"/pages/onderhoud\">Onderhoud</a>\n      <a href=\"/pages/contact\">Contact</a>\n      <a href=\"/pages/klant-account\">Mijn Stera Pro</a>\n    </div>\n  </div>\n</div>\n<script>\n(function(){\n  function kill(){\n    document.querySelectorAll('#header-component header-menu,#header-component .header-menu,#header-component overflow-list,#header-component .menu-list,#header-component .header__navigation-bar-row,header-menu').forEach(function(el){\n      el.style.setProperty('display','none','important');\n      el.setAttribute('hidden','hidden');\n    });\n  }\n  function portal(){\n    if(document.querySelector('.sp-portal-btn')) return;\n    var carts=document.querySelectorAll('a[href*=\"/cart\"]');\n    var cart=carts[carts.length-1]; if(!cart) return;\n    var a=document.createElement('a');\n    a.href='/pages/klant-account'; a.className='sp-portal-btn'; a.textContent='Mijn Stera Pro';\n    a.style.cssText='display:inline-flex;align-items:center;margin-left:10px;padding:7px 15px;border:1.5px solid #2F5840;border-radius:999px;color:#2F5840;font-weight:600;font-size:.85rem;text-decoration:none;white-space:nowrap';\n    cart.insertAdjacentElement('afterend',a);\n  }\n  var drawer=document.getElementById('sp-drawer');\n  var burger=document.getElementById('sp-burger');\n  function open(){ if(drawer) drawer.classList.add('open'); }\n  function close(){ if(drawer) drawer.classList.remove('open'); }\n  if(burger) burger.addEventListener('click', open);\n  var c1=document.getElementById('sp-close1');\n  var c2=document.getElementById('sp-close2');\n  if(c1) c1.addEventListener('click', close);\n  if(c2) c2.addEventListener('click', close);\n  if(drawer) drawer.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', close); });\n  kill(); portal();\n  setTimeout(function(){ kill(); portal(); }, 200);\n  setTimeout(function(){ kill(); portal(); }, 1000);\n  setTimeout(kill, 2500);\n})();\n</script>\n",
+        "color_scheme": "",
+        "section_width": "full-width",
+        "padding-block-start": 0,
+        "padding-block-end": 0
+      }
+    }
+  },
+  "order": [
+    "stera_announcement",
+    "header_section",
+    "custom_liquid_nx6zea"
+  ]
+}
