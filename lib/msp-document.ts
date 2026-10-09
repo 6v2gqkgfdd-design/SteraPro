@@ -37,10 +37,10 @@ export function mspResponse(fragment: string, liquid: boolean, status = 200): Re
     return new Response(fragment, { status, headers })
   }
   const css = mspCss()
-  const fonts = `<link rel="stylesheet" href="${MSP_FONT_LINK}">`
   if (liquid) {
-    return new Response(`${fonts}\n<style>${css}</style>\n${fragment}`, { status, headers })
+    return new Response(`<style>${css}</style>\n${fragment}`, { status, headers })
   }
+  const fonts = `<link rel="stylesheet" href="${MSP_FONT_LINK}">`
   const body = `<!doctype html>
 <html lang="nl">
 <head>

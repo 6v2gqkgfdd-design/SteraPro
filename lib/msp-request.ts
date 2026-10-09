@@ -32,7 +32,9 @@ export function plantPublicUrl(slug: string): string {
 }
 
 /** Absoluut, anders zoekt sterapro.be het bestand in de shop en krijgt een 404. */
-export const SHOP_LOGO_URL = 'https://app.sterapro.be/sterapro-shop-logo.png'
+/** Zelfde bestand als de header van sterapro.be (theme logo, MD5 4530b78b…). */
+export const SHOP_LOGO_URL =
+  'https://cdn.shopify.com/s/files/1/0947/8432/3965/files/Zonder_titel_320_x_112_px_-3.png?v=1780746351'
 
 export const MSP_FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap'

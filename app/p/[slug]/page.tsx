@@ -197,11 +197,11 @@ export default async function PublicPlantPage({
           <span className={`msp-badge msp-badge-${status.tag}`}>{status.text}</span>
         </p>
         <p className="msp-lead">{status.line}</p>
-        <p style={{ marginTop: 16 }}>
-          <a className="msp-btn msp-qr-report" href={reportHref}>
+        <div className="msp-qr-report">
+          <a className="msp-btn" href={reportHref}>
             Probleem melden
           </a>
-        </p>
+        </div>
         <section className="msp-panel" style={{ marginTop: 20 }}>
           <h2>Laatste onderhoud</h2>
           <p>

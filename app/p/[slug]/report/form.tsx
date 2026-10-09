@@ -21,7 +21,6 @@ export default function PlantReportForm({
       <input type="hidden" name="back" value={back} />
       {mspStore().demo ? <input type="hidden" name="demo" value="1" /> : null}
       <input className="msp-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
-      <p className="msp-kicker">Stap 1 van 2</p>
       <section className="msp-panel">
         <h2>{title}</h2>
         <p>{place || 'Melding voor deze plant'}</p>

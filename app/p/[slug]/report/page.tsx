@@ -84,6 +84,7 @@ export default async function PlantReportPage({
             Terug
           </a>
         </p>
+        <p className="msp-kicker">Stap 1 van 2</p>
         <h1 className="msp-title">Probleem melden</h1>
         {query.sent === '1' ? (
           <p className="msp-banner">Bedankt. We hebben je melding.</p>

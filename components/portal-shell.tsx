@@ -32,17 +32,19 @@ export default function PortalShell({
 }) {
   const showDemo = demo || mspStore().demo
   return (
-    <div className="msp-root">
-      <nav className="msp-nav" aria-label="Mijn SteraPro">
-        {NAV.map((item) => {
-          const on = item.href === active
-          return (
-            <a key={item.href} href={mspHref(item.href)} aria-current={on ? 'page' : undefined}>
-              {item.label}
-            </a>
-          )
-        })}
-      </nav>
+    <div className="msp-root" lang="nl">
+      <div className="msp-nav-wrap">
+        <nav className="msp-nav" aria-label="Mijn SteraPro">
+          {NAV.map((item) => {
+            const on = item.href === active
+            return (
+              <a key={item.href} href={mspHref(item.href)} aria-current={on ? 'page' : undefined}>
+                {item.label}
+              </a>
+            )
+          })}
+        </nav>
+      </div>
       {showDemo ? (
         <p className="msp-banner">
           Voorbeeld · Demo Kantoor. Dit zijn fictieve gegevens, geen echte klant.{' '}

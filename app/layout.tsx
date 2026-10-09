@@ -4,8 +4,6 @@ import { Toaster } from 'sonner'
 import './globals.css'
 import AppNav from '@/components/app-nav'
 import AppNavFrame from '@/components/app-nav-frame'
-import { MSP_FONT_LINK } from '@/lib/msp-request'
-
 const instrumentSans = Instrument_Sans({
   variable: '--font-instrument-sans',
   subsets: ['latin'],
@@ -58,9 +56,6 @@ export default function RootLayout({
       lang="nl"
       className={`${instrumentSans.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
-      <head>
-        <link rel="stylesheet" href={MSP_FONT_LINK} />
-      </head>
       <body className="min-h-full flex flex-col bg-stera-cream text-stera-ink">
         <AppNavFrame>{children}</AppNavFrame>
         <AppNav />
