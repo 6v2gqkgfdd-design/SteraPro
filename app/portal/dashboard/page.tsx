@@ -12,6 +12,7 @@ import {
   upcomingVisits,
   visitTag,
 } from '@/lib/portal-data'
+import { demoFlow } from '@/lib/portal-demo-data'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Dashboard' }
@@ -32,6 +33,15 @@ export default async function Page() {
         sub="Alles over je planten, onderhoud en bestellingen op één plek."
       />
       {data.schemaReady ? null : <SchemaNotice />}
+      {data.demo ? (
+        <Panel title="Zo hangt het voorbeeld samen">
+          <ol className="list-decimal space-y-1 px-8 py-4 text-sm text-stera-ink">
+            {demoFlow().map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </Panel>
+      ) : null}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat
           label="Volgend onderhoud"
@@ -61,6 +71,7 @@ export default async function Page() {
           ) : (
             <DataTable
               head={['Datum', 'Door', 'Status']}
+              links={recent.map((visit) => `/portal/onderhoud/${visit.id}`)}
               rows={recent.map((visit) => [
                 formatDayTime(visit.ended_at || visit.scheduled_start),
                 visit.performed_by || '—',
@@ -75,6 +86,7 @@ export default async function Page() {
           ) : (
             <DataTable
               head={['Plant', 'Locatie', 'Status']}
+              links={attention.map((plant) => `/portal/planten/${plant.id}`)}
               rows={attention.map((plant) => [plantLabel(plant), plantPlace(plant), plantTag(plant)])}
             />
           )}

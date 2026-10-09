@@ -47,6 +47,7 @@ export default async function Page() {
         ) : (
           <DataTable
             head={['Datum', 'Medewerker', 'Locatie', 'Status']}
+            links={rows.map((visit) => `/portal/onderhoud/${visit.id}`)}
             rows={rows.map((visit) => [
               formatDayTime(visit.scheduled_start || visit.ended_at),
               visit.performed_by || '—',

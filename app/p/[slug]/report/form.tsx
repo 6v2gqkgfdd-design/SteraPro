@@ -22,7 +22,13 @@ const ISSUE_HELPER: Record<ReportIssueType, string> = {
   other: 'Beschrijf kort wat je ziet.',
 }
 
-export default function PlantReportPageForm({ slug }: { slug: string }) {
+export default function PlantReportPageForm({
+  slug,
+  storePhoto = true,
+}: {
+  slug: string
+  storePhoto?: boolean
+}) {
   const supabase = createClient()
   const [issueType, setIssueType] = useState<ReportIssueType | ''>('')
   const [message, setMessage] = useState('')
@@ -33,6 +39,8 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [honeypot, setHoneypot] = useState('')
 
   useEffect(() => {
     return () => {
@@ -71,7 +79,7 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
     let photoPath: string | null = null
     let photoUrl: string | null = null
 
-    if (photoFile) {
+    if (photoFile && storePhoto) {
       const fileName = `reports/${slug}/${Date.now()}.jpg`
       const { error: uploadError } = await supabase.storage
         .from('plant-photos')
@@ -99,6 +107,8 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
       reporterEmail: email,
       photoPath,
       photoUrl,
+      honeypot,
+      photoSkipped: Boolean(photoFile && !storePhoto),
     })
 
     setSubmitting(false)
@@ -108,6 +118,7 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
       return
     }
 
+    setNotice(result.notice || '')
     setSuccess(true)
   }
 
@@ -120,8 +131,8 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
             Bedankt voor je melding
           </p>
           <p className="mt-1 text-sm text-stera-ink-soft lg:text-base">
-            Stera Pro heeft je melding ontvangen en kijkt er bij het volgende
-            bezoek naar, of plant indien nodig een tussentijdse interventie in.
+            {notice ||
+              'Stera Pro heeft je melding ontvangen en kijkt er bij het volgende bezoek naar, of plant indien nodig een tussentijdse interventie in.'}
           </p>
         </div>
         <Link
@@ -136,6 +147,16 @@ export default function PlantReportPageForm({ slug }: { slug: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-5">
+      <input
+        type="text"
+        name="website"
+        value={honeypot}
+        onChange={(e) => setHoneypot(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="absolute left-[-9999px] h-0 w-0 opacity-0"
+      />
       {/* Issue-chips */}
       <div>
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-stera-ink-soft lg:text-sm">

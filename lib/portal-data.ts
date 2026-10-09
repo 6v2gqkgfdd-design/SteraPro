@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { plantStatusLabel } from '@/lib/company-labels'
+import { hasDemoPortalSession, demoPortalSnapshot } from '@/lib/portal-demo'
 
 export type PortalCompany = {
   company_id: string
@@ -25,6 +26,9 @@ export type PortalPlant = {
   location_name: string | null
   room_name: string | null
   room_floor: string | null
+  care_tips?: string | null
+  customer_note?: string | null
+  qr_slug?: string | null
 }
 
 export type PortalVisit = {
@@ -51,6 +55,7 @@ export type PortalWorkOrder = {
   scheduled_start: string | null
   performed_by: string | null
   location_name: string | null
+  visit_id?: string | null
 }
 
 export type PortalQuoteLine = {
@@ -137,6 +142,14 @@ export function asCount(value: unknown): number {
 }
 
 async function requirePortal() {
+  if (await hasDemoPortalSession()) {
+    return {
+      demo: true as const,
+      supabase: null,
+      companyName: 'Demo Kantoor',
+    }
+  }
+
   const supabase = await createClient()
   const {
     data: { user },
@@ -152,22 +165,45 @@ async function requirePortal() {
   if (row?.status !== 'approved' || !row.company_id) redirect('/portal')
 
   return {
+    demo: false as const,
     supabase,
     companyName: row.company_name || 'Mijn bedrijf',
   }
 }
 
-async function rpcList<T>(name: string): Promise<{ rows: T[]; schemaReady: boolean; companyName: string }> {
-  const { supabase, companyName } = await requirePortal()
+async function rpcList<T>(name: string): Promise<{ rows: T[]; schemaReady: boolean; companyName: string; demo: boolean }> {
+  const ctx = await requirePortal()
+  if (ctx.demo) {
+    const snap = await demoPortalSnapshot()
+    const rows =
+      name === 'portal_my_plants'
+        ? snap.plants
+        : name === 'portal_my_visits'
+          ? snap.visits
+          : name === 'portal_my_work_orders'
+            ? snap.workOrders
+            : name === 'portal_my_quotes'
+              ? snap.quotes
+              : name === 'portal_my_orders'
+                ? snap.orders
+                : name === 'portal_my_requests'
+                  ? snap.requests
+                  : name === 'portal_my_company'
+                    ? [snap.company]
+                    : []
+    return { rows: rows as T[], schemaReady: true, companyName: ctx.companyName, demo: true }
+  }
+  const { supabase, companyName } = ctx
   const { data, error } = await supabase.rpc(name)
   if (error) {
     if (!missingRpc(error)) console.error(`[portal] ${name}`, error.code)
-    return { rows: [], schemaReady: !missingRpc(error), companyName }
+    return { rows: [], schemaReady: !missingRpc(error), companyName, demo: false }
   }
   return {
     rows: (Array.isArray(data) ? data : []) as T[],
     schemaReady: true,
     companyName,
+    demo: false,
   }
 }
 
@@ -177,6 +213,7 @@ export async function loadPortalCompany() {
   return {
     companyName: result.companyName,
     schemaReady: result.schemaReady,
+    demo: result.demo,
     company: row
       ? {
           ...row,
@@ -338,7 +375,21 @@ function timeOrZero(value: string | null | undefined): number {
 }
 
 export async function loadDashboard() {
-  const { supabase, companyName } = await requirePortal()
+  const ctx = await requirePortal()
+  if (ctx.demo) {
+    const snap = await demoPortalSnapshot()
+    return {
+      companyName: ctx.companyName,
+      schemaReady: true,
+      demo: true,
+      company: snap.company,
+      plants: snap.plants,
+      visits: snap.visits,
+      quotes: snap.quotes,
+      reports: snap.reports,
+    }
+  }
+  const { supabase, companyName } = ctx
   const [companyRes, plantsRes, visitsRes, quotesRes] = await Promise.all([
     supabase.rpc('portal_my_company'),
     supabase.rpc('portal_my_plants'),
@@ -353,6 +404,8 @@ export async function loadDashboard() {
   return {
     companyName,
     schemaReady: !missing,
+    demo: false,
+    reports: [] as Awaited<ReturnType<typeof demoPortalSnapshot>>['reports'],
     company: companyRow
       ? {
           ...companyRow,
@@ -372,7 +425,19 @@ export async function loadDashboard() {
 }
 
 export async function loadMaintenance() {
-  const { supabase, companyName } = await requirePortal()
+  const ctx = await requirePortal()
+  if (ctx.demo) {
+    const snap = await demoPortalSnapshot()
+    return {
+      companyName: ctx.companyName,
+      schemaReady: true,
+      demo: true,
+      visits: snap.visits,
+      workOrders: snap.workOrders,
+      reports: snap.reports,
+    }
+  }
+  const { supabase, companyName } = ctx
   const [visitsRes, ordersRes] = await Promise.all([
     supabase.rpc('portal_my_visits'),
     supabase.rpc('portal_my_work_orders'),
@@ -381,13 +446,27 @@ export async function loadMaintenance() {
   return {
     companyName,
     schemaReady: !missing,
+    demo: false,
     visits: (Array.isArray(visitsRes.data) ? visitsRes.data : []) as PortalVisit[],
     workOrders: (Array.isArray(ordersRes.data) ? ordersRes.data : []) as PortalWorkOrder[],
+    reports: [] as Awaited<ReturnType<typeof demoPortalSnapshot>>['reports'],
   }
 }
 
 export async function loadContract() {
-  const { supabase, companyName } = await requirePortal()
+  const ctx = await requirePortal()
+  if (ctx.demo) {
+    const snap = await demoPortalSnapshot()
+    return {
+      companyName: ctx.companyName,
+      schemaReady: true,
+      demo: true,
+      company: snap.company,
+      visits: snap.visits,
+      sample: snap.contract,
+    }
+  }
+  const { supabase, companyName } = ctx
   const [companyRes, visitsRes] = await Promise.all([
     supabase.rpc('portal_my_company'),
     supabase.rpc('portal_my_visits'),
@@ -396,6 +475,8 @@ export async function loadContract() {
   return {
     companyName,
     schemaReady: !missingRpc(companyRes.error) && !missingRpc(visitsRes.error),
+    demo: false,
+    sample: null as null | { term: string; frequency: string; price: string; note: string },
     company: companyRow
       ? {
           ...companyRow,

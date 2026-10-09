@@ -1,12 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { DEMO_COOKIE, demoEnabled, verifyDemoSession } from '@/lib/demo-session'
 
 /**
  * Scheidt twee werelden:
  *  - Klantenportaal (/portal/*): vereist een ingelogde gebruiker.
  *  - Beheer (al de rest): vereist login, en houdt portaal-klanten buiten.
  *
- * Publiek (geen login): /login, /portal/login, /q/*, /sign/*, /api/*.
+ * Publiek (geen login): /login, /portal/login, /p/* (QR), /q/*, /sign/*, /api/*.
+ * /portal/demo zet alleen een voorbeeld-cookie en is ook publiek.
  * De "is deze gebruiker een klant?"-check gebeurt via de SECURITY DEFINER
  * RPC my_portal_company (geeft enkel de eigen rij terug).
  *
@@ -20,6 +22,9 @@ function isPublic(path: string): boolean {
   if (path === '/login' || path === '/portal/login' || path === '/logout') return true
   if (path === '/sso') return true
   if (path === '/portal/registreren') return true
+  if (path === '/portal/demo' || path === '/portal/demo/uit') return true
+  // QR van een plant: status en verzorging, ook zonder login.
+  if (path.startsWith('/p/')) return true
   // Plantconfigurator: publiek bereikbaar vanaf de webshop, zonder login.
   if (path === '/configurator' || path.startsWith('/configurator/')) return true
   return (
@@ -72,13 +77,23 @@ export async function middleware(req: NextRequest) {
   const isPortalAuth =
     path === '/portal/login' ||
     path.startsWith('/portal/auth') ||
-    path === '/portal/registreren'
+    path === '/portal/registreren' ||
+    path === '/portal/demo' ||
+    path === '/portal/demo/uit'
+
+  // Login, callback en demosessie moeten de route halen vóór de
+  // medewerkerscheck. De callback zet pas daarna de Supabase-sessie.
+  if (inPortal && isPortalAuth) return res
 
   // Portaal-zone: sessie verplicht. Datapagina's ook een goedgekeurd
   // contact — anders doorsturen naar /portal (in behandeling / registreren).
   // /portal zelf blijft bereikbaar met alleen een sessie, zodat een
   // pending aanvraag daar een status ziet in plaats van een redirect-lus.
+  // Een geldige democookie toont enkel Demo Kantoor, nooit een echte klant.
   if (inPortal && !isPortalAuth) {
+    if (demoEnabled() && (await verifyDemoSession(req.cookies.get(DEMO_COOKIE)?.value))) {
+      return res
+    }
     if (!user) {
       return NextResponse.redirect(new URL('/portal/login', req.url))
     }

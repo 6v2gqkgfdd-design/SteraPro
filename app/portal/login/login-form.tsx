@@ -24,9 +24,11 @@ const REG_STORAGE_KEY = 'stera_portal_reg'
 export default function PortalLoginForm({
   initialEmail = '',
   notice = null,
+  demoAvailable = false,
 }: {
   initialEmail?: string
   notice?: 'pending' | null
+  demoAvailable?: boolean
 }) {
   const supabase = createClient()
   const router = useRouter()
@@ -35,6 +37,7 @@ export default function PortalLoginForm({
   const [password, setPassword] = useState('')
   const [form, setForm] = useState<Record<string, string>>({ country: 'België' })
   const [sent, setSent] = useState(false)
+  const [magicSent, setMagicSent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -90,11 +93,40 @@ export default function PortalLoginForm({
     router.refresh()
   }
 
+  async function handleMagicLink(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.trim()) {
+      setError('Vul je e-mailadres in.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: `${window.location.origin}/portal/auth/callback` },
+    })
+    setLoading(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setMagicSent(true)
+  }
+
   return (
     <main className="flex min-h-screen flex-col bg-stera-cream text-stera-ink">
       <div className="flex flex-1 items-center justify-center px-6 py-10">
         <div className="w-full max-w-2xl">
           <p className="stera-eyebrow text-stera-green mb-3">Klantenportaal</p>
+          {demoAvailable ? (
+            <p className="mb-4 rounded-lg border border-stera-green/30 bg-white px-3 py-2 text-sm text-stera-green">
+              Dit is een voorbeeld. Open{' '}
+              <a href="/portal/demo" className="font-medium underline underline-offset-2">
+                Demo Kantoor
+              </a>{' '}
+              zonder e-mail. Een inloglink hieronder verstuurt wel een echte mail.
+            </p>
+          ) : null}
 
           {sent ? (
             <div className="rounded-xl border border-stera-green/30 bg-stera-green/5 p-6">
@@ -163,7 +195,7 @@ export default function PortalLoginForm({
                 </p>
               ) : null}
               <p className="mb-6 text-sm leading-relaxed text-stera-ink-soft">
-                Log in met je e-mailadres en wachtwoord.
+                Log in met je e-mailadres en wachtwoord, of vraag een inloglink.
               </p>
               <form onSubmit={handleLogin} className="space-y-4 rounded-xl border border-stera-line bg-white p-5">
                 <div>
@@ -181,6 +213,17 @@ export default function PortalLoginForm({
                   {loading ? 'Bezig…' : 'Inloggen →'}
                 </button>
               </form>
+              {magicSent ? (
+                <p className="mt-4 rounded-lg border border-stera-green/30 bg-stera-green/5 px-3 py-2 text-sm text-stera-ink">
+                  Als dit adres een account heeft, staat de inloglink in de inbox van <strong>{email}</strong>.
+                </p>
+              ) : (
+                <form onSubmit={handleMagicLink} className="mt-4">
+                  <button type="submit" disabled={loading} className="w-full text-sm text-stera-green underline-offset-4 hover:underline disabled:opacity-60">
+                    Stuur een inloglink naar dit adres
+                  </button>
+                </form>
+              )}
               <p className="mt-4 text-center text-sm text-stera-ink-soft">
                 Nog geen account?{' '}
                 <button type="button" onClick={() => { setMode('register'); setError('') }} className="text-stera-green underline-offset-4 hover:underline">

@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { demoEnabled } from '@/lib/demo-session'
+import { demoPublicPlant, demoPlantBySlug } from '@/lib/portal-demo-data'
+import { demoPlants, hasDemoPortalSession } from '@/lib/portal-demo'
 import AnimatedPlant from '@/components/animated-plant'
 import {
   getMood,
@@ -64,6 +67,9 @@ function plantTitle(plant: PublicPlant): string {
 // ook werkt voor bezoekers die niet ingelogd zijn — zonder de plants-
 // tabel zelf open te zetten voor anonieme toegang.
 async function getPublicPlant(slug: string): Promise<PublicPlant | null> {
+  const demo = demoEnabled() ? demoPublicPlant(slug) : null
+  if (demo) return demo
+
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -116,14 +122,14 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
       <header className="px-5 py-3 sm:px-10 sm:py-6 border-b border-stera-line">
-        <Link href="/dashboard" className="inline-flex items-baseline">
+        <a href="https://sterapro.be" className="inline-flex items-baseline">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/stera-logo.png"
             alt="Stera Pro"
             className="h-9 sm:h-11 lg:h-14 w-auto select-none"
           />
-        </Link>
+        </a>
       </header>
       <div className="flex-1 px-5 py-4 sm:px-10 sm:py-12">{children}</div>
       <footer className="px-5 py-1.5 text-center text-[10px] leading-tight text-stera-ink-soft sm:border-t sm:border-stera-line sm:px-10 sm:py-3 sm:text-left sm:text-xs">
@@ -176,6 +182,10 @@ export default async function PublicPlantPage({
 }) {
   const { slug } = await params
   const plant = await getPublicPlant(slug)
+  const viewer =
+    plant && demoEnabled() && demoPlantBySlug(slug) && (await hasDemoPortalSession())
+      ? (await demoPlants()).find((row) => row.qr_slug === slug) || null
+      : null
 
   if (!plant) {
     return <NotFoundView slug={slug} />
@@ -294,11 +304,32 @@ export default async function PublicPlantPage({
           </div>
         ) : null}
 
+        {viewer ? (
+          <div className="rounded-xl border border-stera-line bg-white p-3 lg:p-5">
+            <p className="stera-eyebrow text-stera-green text-[10px] lg:text-xs">Voor ingelogde klant</p>
+            <p className="mt-1 text-sm text-stera-ink lg:text-base">
+              {[viewer.room_name, viewer.room_floor, viewer.location_name].filter(Boolean).join(' · ')}
+            </p>
+            {viewer.customer_note ? (
+              <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink-soft">{viewer.customer_note}</p>
+            ) : null}
+            <Link href={`/portal/planten/${viewer.id}`} className="mt-3 inline-block text-sm text-stera-green underline underline-offset-2">
+              Open in Mijn SteraPro
+            </Link>
+          </div>
+        ) : null}
+
         <Link
           href={`/p/${slug}/report`}
           className="block rounded-xl border border-stera-line bg-white px-4 py-3 text-center text-sm font-medium text-stera-green transition hover:border-stera-green lg:py-4 lg:text-base"
         >
           Iets opgevallen? Meld het hier →
+        </Link>
+        <Link
+          href={`/p/${slug}/label`}
+          className="block text-center text-xs text-stera-ink-soft underline underline-offset-2"
+        >
+          QR-label afdrukken
         </Link>
       </div>
     </Shell>

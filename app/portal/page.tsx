@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { hasDemoPortalSession } from '@/lib/portal-demo'
 
 export const dynamic = 'force-dynamic'
 
 type PortalRow = { company_id: string | null; company_name: string | null; status: string }
 
 export default async function PortalHome() {
+  if (await hasDemoPortalSession()) redirect('/portal/dashboard')
+
   const supabase = await createClient()
   const {
     data: { user },

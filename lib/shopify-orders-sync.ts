@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchRecentShopifyOrders } from '@/lib/shopify-admin'
+import { maybeProvisionPortalAccess } from '@/lib/portal-provision'
 
 export type ImportOrdersResult = {
   ok: boolean
@@ -53,7 +54,14 @@ export async function importShopifyOrders(
 
     // Altijd alle recente orders upserten (koppeling via e-mail / customer-id).
     // Filter op company gebeurt in de UI; hier vullen we de globale tabel.
-    if (companyId) linked++
+    if (companyId) {
+      linked++
+      await maybeProvisionPortalAccess(supabase, {
+        companyId,
+        email: o.email,
+        name: o.customer_name,
+      })
+    }
 
     const { data: existing } = await supabase
       .from('shopify_orders')

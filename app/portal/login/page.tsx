@@ -1,4 +1,5 @@
 import PortalLoginForm from './login-form'
+import { demoEnabled } from '@/lib/demo-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,5 +17,5 @@ export default async function PortalLoginPage({
   const params = await searchParams
   const email = cleanEmail(typeof params.email === 'string' ? params.email : undefined)
   const notice = params.notice === 'pending' ? 'pending' : null
-  return <PortalLoginForm initialEmail={email} notice={notice} />
+  return <PortalLoginForm initialEmail={email} notice={notice} demoAvailable={demoEnabled()} />
 }

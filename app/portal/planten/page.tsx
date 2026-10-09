@@ -28,6 +28,7 @@ export default async function Page() {
         ) : (
           <DataTable
             head={['Plant', 'Locatie', 'Geplaatst', 'Status']}
+            links={rows.map((plant) => `/portal/planten/${plant.id}`)}
             rows={rows.map((plant) => [
               plant.species && plant.nickname ? `${plantLabel(plant)} · ${plant.species}` : plantLabel(plant),
               plantPlace(plant),

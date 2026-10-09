@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import PlantReportPageForm from './form'
+import { demoEnabled } from '@/lib/demo-session'
+import { demoPublicPlant } from '@/lib/portal-demo-data'
 
 type PublicPlantLite = {
   id: string
@@ -17,6 +19,9 @@ function plantTitle(p: PublicPlantLite | null): string {
 }
 
 async function lookupPlant(slug: string): Promise<PublicPlantLite | null> {
+  const demo = demoEnabled() ? demoPublicPlant(slug) : null
+  if (demo) return demo
+
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -87,7 +92,7 @@ export default async function PlantReportPage({
           </div>
 
           {plant ? (
-            <PlantReportPageForm slug={slug} />
+            <PlantReportPageForm slug={slug} storePhoto={!(demoEnabled() && demoPublicPlant(slug))} />
           ) : (
             <p className="text-sm text-stera-ink-soft lg:text-base">
               Deze plant is niet (meer) gekoppeld. Scan de QR-code opnieuw.

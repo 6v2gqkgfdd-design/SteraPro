@@ -38,13 +38,22 @@ export default async function Page() {
           {next?.title ? <Row k="Omschrijving" v={next.title} /> : null}
           {next?.performed_by ? <Row k="Medewerker" v={next.performed_by} /> : null}
         </Panel>
-        <Panel title="Wat hier nog niet staat">
-          <p className="px-5 py-4 text-sm leading-relaxed text-stera-ink-soft">
-            Looptijd, bezoekfrequentie en tarief zitten nog niet in een contracttabel.
-            Die cijfers komen erbij zodra ze in het beheer vastliggen. Tot dan tonen we
-            alleen het contractvlaggetje en de geplande onderhoudsbeurten.
-          </p>
-        </Panel>
+        {data.demo && data.sample ? (
+          <Panel title="Voorbeeldcijfers">
+            <Row k="Looptijd" v={data.sample.term} />
+            <Row k="Frequentie" v={data.sample.frequency} />
+            <Row k="Tarief" v={data.sample.price} />
+            <p className="px-5 py-4 text-sm leading-relaxed text-stera-ink-soft">{data.sample.note}</p>
+          </Panel>
+        ) : (
+          <Panel title="Wat hier nog niet staat">
+            <p className="px-5 py-4 text-sm leading-relaxed text-stera-ink-soft">
+              Looptijd, bezoekfrequentie en tarief zitten nog niet in een contracttabel.
+              Die cijfers komen erbij zodra ze in het beheer vastliggen. Tot dan tonen we
+              alleen het contractvlaggetje en de geplande onderhoudsbeurten.
+            </p>
+          </Panel>
+        )}
       </div>
     </PortalShell>
   )

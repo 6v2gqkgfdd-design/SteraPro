@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { hasDemoPortalSession } from '@/lib/portal-demo'
 
 /**
  * Klantenportaal "Mijn Stera Pro" — schil in de Stera Pro-huisstijl
@@ -29,7 +30,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   },
 ]
 
-export default function PortalShell({
+export default async function PortalShell({
   active,
   company = 'Mijn bedrijf',
   children,
@@ -38,6 +39,7 @@ export default function PortalShell({
   company?: string
   children: React.ReactNode
 }) {
+  const demo = await hasDemoPortalSession()
   const initials = company.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase() || 'SP'
   return (
     <div className="min-h-screen bg-stera-cream">
@@ -131,7 +133,17 @@ export default function PortalShell({
         })}
       </nav>
 
-      <main className="px-6 py-8 md:px-9">{children}</main>
+      <main className="px-6 py-8 md:px-9">
+        {demo ? (
+          <p className="mb-6 rounded-xl border border-stera-green/30 bg-white px-4 py-3 text-sm text-stera-green">
+            Voorbeeld · Demo Kantoor. Dit zijn fictieve gegevens, geen echte klant.{' '}
+            <Link href="/portal/demo/uit" className="underline underline-offset-2">
+              Voorbeeld sluiten
+            </Link>
+          </p>
+        ) : null}
+        {children}
+      </main>
       </div>
     </div>
   )
@@ -200,7 +212,15 @@ const TAG: Record<'ok' | 'warn' | 'info', string> = {
   info: 'bg-[#e4eef6] text-[#1c557e]',
 }
 
-export function DataTable({ head, rows }: { head: string[]; rows: Cell[][] }) {
+export function DataTable({
+  head,
+  rows,
+  links,
+}: {
+  head: string[]
+  rows: Cell[][]
+  links?: Array<string | null>
+}) {
   return (
     <table className="w-full border-collapse">
       <thead>
@@ -224,7 +244,13 @@ export function DataTable({ head, rows }: { head: string[]; rows: Cell[][] }) {
                 className="px-5 py-3 text-sm text-stera-ink-soft"
               >
                 {typeof cell === 'string' ? (
-                  cell
+                  j === 0 && links?.[i] ? (
+                    <Link href={links[i]!} className="font-medium text-stera-green underline-offset-2 hover:underline">
+                      {cell}
+                    </Link>
+                  ) : (
+                    cell
+                  )
                 ) : (
                   <span className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-semibold ${TAG[cell.tag]}`}>
                     {cell.text}
