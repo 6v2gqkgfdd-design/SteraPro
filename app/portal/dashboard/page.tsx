@@ -1,7 +1,7 @@
-import Link from 'next/link'
-import PortalShell, { PageHeading, Stat, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
-import { formatDayTime } from '@/lib/company-labels'
+import PortalShell, { Stat, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
+import { formatTime } from '@/lib/dates'
 import { formatDayShort } from '@/lib/dates'
+import { mspHref } from '@/lib/msp-request'
 import {
   attentionPlants,
   loadDashboard,
@@ -9,10 +9,10 @@ import {
   plantPlace,
   plantTag,
   recentVisits,
+  reportStatusLabel,
   upcomingVisits,
   visitTag,
 } from '@/lib/portal-data'
-import { demoFlow } from '@/lib/portal-demo-data'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Dashboard' }
@@ -22,49 +22,41 @@ export default async function Page() {
   const next = upcomingVisits(data.visits)[0]
   const recent = recentVisits(data.visits).slice(0, 5)
   const attention = attentionPlants(data.plants).slice(0, 8)
-  const openQuotes = data.quotes.filter((quote) => quote.status === 'sent').length
   const plantCount = data.company?.plant_count ?? data.plants.length
-  const locationCount = data.company?.location_count ?? 0
+  const openReports = (data.reports || []).filter((report) => report.status !== 'handled').length
+  const reportHref = attention[0]?.qr_slug
+    ? `${mspHref(`/p/${attention[0].qr_slug}/report`)}${data.demo ? '?voorbeeld=1' : ''}`
+    : mspHref('/portal/planten')
 
   return (
-    <PortalShell active="/portal/dashboard" company={data.companyName}>
-      <PageHeading
-        title={`Welkom terug, ${data.companyName}`}
-        sub="Alles over je planten, onderhoud en bestellingen op één plek."
-      />
+    <PortalShell active="/portal/dashboard" company={data.companyName} demo={data.demo}>
+      <div className="msp-head">
+        <div>
+          <p className="msp-kicker">{data.companyName}</p>
+          <h1 className="msp-title">Welkom terug</h1>
+          <p className="msp-lead">
+            {attention.length
+              ? 'Je planten staan er goed bij. Eén plant vraagt aandacht.'
+              : 'Je planten, het onderhoud en je meldingen op één plek.'}
+          </p>
+        </div>
+        <a className="msp-btn" href={reportHref}>Probleem melden</a>
+      </div>
       {data.schemaReady ? null : <SchemaNotice />}
-      {data.demo ? (
-        <Panel title="Zo hangt het voorbeeld samen">
-          <ol className="list-decimal space-y-1 px-8 py-4 text-sm text-stera-ink">
-            {demoFlow().map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        </Panel>
-      ) : null}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="msp-kpis">
         <Stat
           label="Volgend onderhoud"
           value={next?.scheduled_start ? formatDayShort(next.scheduled_start) : '—'}
-          hint={next ? [formatDayTime(next.scheduled_start), next.performed_by].filter(Boolean).join(' · ') : 'nog niet ingepland'}
+          hint={next?.scheduled_start ? `${formatTime(next.scheduled_start)} · wij komen langs` : 'nog niet ingepland'}
         />
+        <Stat label="Planten in beheer" value={data.schemaReady ? String(plantCount) : '—'} />
         <Stat
-          label="Planten in beheer"
-          value={data.schemaReady ? String(plantCount) : '—'}
-          hint={locationCount ? `${locationCount} locatie${locationCount === 1 ? '' : 's'}` : undefined}
-        />
-        <Stat
-          label="Open offertes"
-          value={data.schemaReady ? String(openQuotes) : '—'}
-          hint={openQuotes === 1 ? 'wacht op jouw akkoord' : openQuotes > 1 ? 'wachten op jouw akkoord' : undefined}
-        />
-        <Stat
-          label="Contract"
-          value={data.company?.has_maintenance_contract ? 'Actief' : data.schemaReady ? 'Geen' : '—'}
-          hint={next?.scheduled_start ? `volgende beurt ${formatDayShort(next.scheduled_start)}` : undefined}
+          label="Open meldingen"
+          value={data.schemaReady ? String(openReports) : '—'}
+          hint={openReports ? reportStatusLabel('seen') : 'geen open meldingen'}
         />
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="msp-grid msp-grid-2">
         <Panel title="Recente onderhoudsbeurten">
           {recent.length === 0 ? (
             <EmptyNote>Nog geen afgewerkte beurten.</EmptyNote>
@@ -73,8 +65,8 @@ export default async function Page() {
               head={['Datum', 'Door', 'Status']}
               links={recent.map((visit) => `/portal/onderhoud/${visit.id}`)}
               rows={recent.map((visit) => [
-                formatDayTime(visit.ended_at || visit.scheduled_start),
-                visit.performed_by || '—',
+                formatDayShort(visit.ended_at || visit.scheduled_start),
+                'Wij',
                 visitTag(visit.status),
               ])}
             />
@@ -92,18 +84,13 @@ export default async function Page() {
           )}
         </Panel>
       </div>
-      <p className="text-sm">
-        <Link href="/portal/aanvraag" className="text-stera-green hover:underline">
-          Nieuwe planten aanvragen →
-        </Link>
-      </p>
-      {openQuotes > 0 ? (
-        <p className="mt-2 text-sm">
-          <Link href="/portal/offertes" className="text-stera-green hover:underline">
-            {openQuotes === 1 ? '1 offerte te beoordelen' : `${openQuotes} offertes te beoordelen`} →
-          </Link>
+      <section className="msp-shop">
+        <h2>Extra planten nodig?</h2>
+        <p className="msp-lead">Bekijk het aanbod in de shop.</p>
+        <p style={{ marginTop: 16 }}>
+          <a className="msp-btn msp-btn-ghost" href="https://sterapro.be/collections/all">Naar alle planten</a>
         </p>
-      ) : null}
+      </section>
     </PortalShell>
   )
 }

@@ -255,7 +255,7 @@ export default async function WorkOrderPrintPage({
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/stera-logo.png"
+              src="/sterapro-shop-logo.png"
               alt="Stera Pro"
               className="h-8 w-auto select-none"
             />

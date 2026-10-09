@@ -25,17 +25,17 @@ export default async function Page() {
   )
 
   return (
-    <PortalShell active="/portal/onderhoud" company={data.companyName}>
+    <PortalShell active="/portal/onderhoud" company={data.companyName} demo={data.demo}>
       <PageHeading
         title="Onderhoud"
         sub="Geplande en uitgevoerde beurten, met de bijhorende werkbonnen."
       />
       {data.schemaReady ? null : <SchemaNotice />}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="msp-kpis msp-kpis-4">
         <Stat
           label="Volgende beurt"
           value={next?.scheduled_start ? formatDayShort(next.scheduled_start) : '—'}
-          hint={next?.performed_by || undefined}
+          hint={next ? 'wij komen langs' : undefined}
         />
         <Stat label="Gepland" value={data.schemaReady ? String(upcoming.length) : '—'} />
         <Stat label="Beurten dit jaar" value={data.schemaReady ? String(doneThisYear) : '—'} />
@@ -50,7 +50,7 @@ export default async function Page() {
             links={rows.map((visit) => `/portal/onderhoud/${visit.id}`)}
             rows={rows.map((visit) => [
               formatDayTime(visit.scheduled_start || visit.ended_at),
-              visit.performed_by || '—',
+              !visit.performed_by || visit.performed_by === 'Stera-team' ? 'Wij' : visit.performed_by,
               visit.location_name || visit.title || '—',
               visitTag(visit.status),
             ])}

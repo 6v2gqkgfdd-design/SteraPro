@@ -71,11 +71,10 @@ export default function RegisterForm({ initialEmail = '' }: { initialEmail?: str
   }
 
   return (
-    <main className="min-h-screen bg-stera-cream text-stera-ink">
-      <div className="mx-auto w-full max-w-2xl px-5 py-8 sm:px-10">
-        <p className="stera-eyebrow text-stera-green mb-2">Klantenportaal</p>
-        <h1 className="text-2xl font-bold sm:text-3xl">Registreer je bedrijf</h1>
-        <p className="mt-2 text-sm text-stera-ink-soft">
+    <main className="msp-root">
+      <div>
+        <h1 className="msp-title">Registreer je bedrijf</h1>
+        <p className="msp-lead">
           Stera Pro werkt uitsluitend voor bedrijven: een geldig BTW-nummer is
           vereist. Na goedkeuring log je in via de webshop met een
           e-mailcode — geen wachtwoord nodig.
@@ -94,9 +93,8 @@ export default function RegisterForm({ initialEmail = '' }: { initialEmail?: str
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {FIELDS.map((f) => (
                 <div key={f.key} className={f.half ? '' : 'sm:col-span-2'}>
-                  <label className="stera-eyebrow text-stera-ink-soft mb-1 block">
+                  <label className="msp-label">
                     {f.label}
-                    {f.required ? ' *' : ''}
                   </label>
                   <input
                     type={f.type ?? 'text'}
@@ -106,7 +104,7 @@ export default function RegisterForm({ initialEmail = '' }: { initialEmail?: str
                       setForm((p) => ({ ...p, [f.key]: e.target.value }))
                     }
                     required={f.required}
-                    className="w-full rounded-lg border border-stera-line bg-white p-3"
+                    className="msp-input"
                   />
                 </div>
               ))}
@@ -133,9 +131,9 @@ export default function RegisterForm({ initialEmail = '' }: { initialEmail?: str
             <button
               type="submit"
               disabled={saving}
-              className="stera-cta stera-cta-primary mt-5 w-full disabled:opacity-60 sm:w-auto"
+              className="msp-btn"
             >
-              {saving ? 'Versturen…' : 'Aanvraag versturen →'}
+              {saving ? 'Versturen…' : 'Aanvraag versturen'}
             </button>
           </form>
         )}

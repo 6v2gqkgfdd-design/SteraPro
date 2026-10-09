@@ -7,6 +7,7 @@ import { hasDemoPortalSession, saveDemoReport } from '@/lib/portal-demo'
 import { demoEnabled } from '@/lib/demo-session'
 import { demoPlantBySlug, isDemoSlug } from '@/lib/portal-demo-data'
 import { allowReport } from '@/lib/report-rate-limit'
+import { resolveIssue } from '@/lib/report-issues'
 
 export type ReportIssueType =
   | 'replace'
@@ -14,14 +15,9 @@ export type ReportIssueType =
   | 'damaged'
   | 'pest'
   | 'other'
-
-const ISSUE_LABELS: Record<ReportIssueType, string> = {
-  replace: 'Plant moet vervangen worden',
-  sick: 'Plant lijkt ziek',
-  damaged: 'Plant is beschadigd',
-  pest: 'Ongedierte / aantasting',
-  other: 'Andere opmerking',
-}
+  | 'leaves'
+  | 'limp'
+  | 'place'
 
 export type SubmitReportInput = {
   slug: string
@@ -50,7 +46,8 @@ export async function submitPlantReport(
     return { ok: false, error: 'Geen plant geselecteerd.' }
   }
 
-  if (!ISSUE_LABELS[input.issueType]) {
+  const resolved = resolveIssue(input.issueType)
+  if (!resolved) {
     return { ok: false, error: 'Kies een geldig type melding.' }
   }
 
@@ -79,7 +76,7 @@ export async function submitPlantReport(
     return { ok: false, error: 'Te veel meldingen kort na elkaar. Probeer het later opnieuw.' }
   }
 
-  const label = ISSUE_LABELS[input.issueType]
+  const label = resolved.label
   const photoLine = input.photoSkipped
     ? 'Foto niet bewaard: de preview schrijft niets naar de fotobucket.'
     : input.photoUrl
@@ -90,7 +87,7 @@ export async function submitPlantReport(
     const plant = demoPlantBySlug(input.slug)
     if (!plant || !(await hasDemoPortalSession())) {
       await notifyOps({
-        title: plant?.nickname || input.slug,
+        title: plant?.common_name || plant?.nickname || input.slug,
         species: plant?.species || '',
         label,
         message,
@@ -110,7 +107,7 @@ export async function submitPlantReport(
       id: crypto.randomUUID(),
       plant_id: plant.id,
       slug: plant.qr_slug,
-      issue_type: input.issueType,
+      issue_type: resolved.db,
       message: message || null,
       reporter_name: reporterName || null,
       status: 'new',
@@ -118,7 +115,7 @@ export async function submitPlantReport(
       photo_note: input.photoSkipped ? 'Foto niet bewaard in de preview.' : null,
     })
     await notifyOps({
-      title: plant.nickname,
+      title: plant.common_name || plant.nickname,
       species: plant.species,
       label,
       message,
@@ -149,7 +146,7 @@ export async function submitPlantReport(
   const { error: insertError } = await supabase.from('plant_reports').insert([
     {
       plant_id: plant.id,
-      issue_type: input.issueType,
+      issue_type: resolved.db,
       message: message || null,
       reporter_name: reporterName || null,
       reporter_email: reporterEmail || null,

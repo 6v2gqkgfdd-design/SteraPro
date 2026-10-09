@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { plantStatusLabel } from '@/lib/company-labels'
 import { hasDemoPortalSession, demoPortalSnapshot } from '@/lib/portal-demo'
+import { mspStore } from '@/lib/msp-request'
 
 export type PortalCompany = {
   company_id: string
@@ -29,6 +30,7 @@ export type PortalPlant = {
   care_tips?: string | null
   customer_note?: string | null
   qr_slug?: string | null
+  common_name?: string | null
 }
 
 export type PortalVisit = {
@@ -112,7 +114,7 @@ export type PortalRequestRow = {
   created_at: string
 }
 
-type Tag = { tag: 'ok' | 'warn' | 'info'; text: string }
+type Tag = { tag: 'ok' | 'plan' | 'let' | 'alarm' | 'neutraal'; text: string }
 
 function missingRpc(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
@@ -142,7 +144,7 @@ export function asCount(value: unknown): number {
 }
 
 async function requirePortal() {
-  if (await hasDemoPortalSession()) {
+  if (mspStore().demo || (await hasDemoPortalSession())) {
     return {
       demo: true as const,
       supabase: null,
@@ -267,65 +269,70 @@ export async function loadPortalRequests() {
 }
 
 export function plantLabel(plant: PortalPlant): string {
-  return plant.nickname || plant.species || 'Plant'
+  return plant.common_name || plant.nickname || plant.species || 'Plant'
 }
 
 export function plantPlace(plant: PortalPlant): string {
-  const room = [plant.room_name, plant.room_floor].filter(Boolean).join(' ')
-  return [room || null, plant.location_name].filter(Boolean).join(' · ') || '—'
+  return plant.room_name || plant.location_name || '—'
 }
 
 export function plantTag(plant: PortalPlant): Tag {
-  if (plant.is_dead || plant.status === 'dead') return { tag: 'warn', text: 'Dood' }
+  if (plant.is_dead || plant.status === 'dead') return { tag: 'neutraal', text: 'Verwijderd' }
   if (plant.needs_replacement || plant.status === 'replacement_needed') {
-    return { tag: 'warn', text: 'Vervanging' }
+    return { tag: 'alarm', text: 'Vervangen nodig' }
   }
   if (plant.is_dying || plant.status === 'needs_attention' || plant.status === 'maintenance_due') {
-    return { tag: 'warn', text: plantStatusLabel(plant.status === 'healthy' ? 'needs_attention' : plant.status) }
+    return { tag: 'let', text: 'Opvolgen' }
   }
   if (plant.status === 'healthy') return { tag: 'ok', text: 'Gezond' }
-  return { tag: 'info', text: plantStatusLabel(plant.status) }
+  return { tag: 'plan', text: plantStatusLabel(plant.status) }
 }
 
 export function visitTag(status: string): Tag {
   if (status === 'completed') return { tag: 'ok', text: 'Afgewerkt' }
-  if (status === 'cancelled') return { tag: 'warn', text: 'Geannuleerd' }
-  if (status === 'in_progress' || status === 'paused') return { tag: 'info', text: 'Bezig' }
-  return { tag: 'info', text: 'Ingepland' }
+  if (status === 'cancelled') return { tag: 'neutraal', text: 'Geannuleerd' }
+  if (status === 'in_progress' || status === 'paused') return { tag: 'plan', text: 'Bezig' }
+  return { tag: 'plan', text: 'Ingepland' }
+}
+
+export function reportStatusLabel(status: string): string {
+  if (status === 'handled') return 'Opgelost'
+  if (status === 'seen') return 'In behandeling'
+  return 'Ontvangen'
 }
 
 export function quoteTag(status: string): Tag {
-  if (status === 'sent') return { tag: 'warn', text: 'Te beoordelen' }
+  if (status === 'sent') return { tag: 'let', text: 'Te beoordelen' }
   if (status === 'accepted' || status === 'ordered') return { tag: 'ok', text: 'Goedgekeurd' }
-  if (status === 'declined') return { tag: 'info', text: 'Afgewezen' }
-  if (status === 'expired') return { tag: 'info', text: 'Verlopen' }
-  return { tag: 'info', text: status }
+  if (status === 'declined') return { tag: 'neutraal', text: 'Afgewezen' }
+  if (status === 'expired') return { tag: 'neutraal', text: 'Verlopen' }
+  return { tag: 'neutraal', text: status }
 }
 
 export function workOrderTag(status: string): Tag {
   if (status === 'invoiced' || status === 'archived') return { tag: 'ok', text: status === 'invoiced' ? 'Gefactureerd' : 'Afgerond' }
   if (status === 'signed') return { tag: 'ok', text: 'Goedgekeurd' }
-  if (status === 'sent') return { tag: 'warn', text: 'Te tekenen' }
-  return { tag: 'info', text: status }
+  if (status === 'sent') return { tag: 'let', text: 'Te tekenen' }
+  return { tag: 'plan', text: status }
 }
 
 export function orderTag(order: PortalOrder): Tag {
   if (order.fulfillment_status === 'fulfilled') return { tag: 'ok', text: 'Geleverd' }
-  if (order.fulfillment_status === 'partial') return { tag: 'info', text: 'Deels geleverd' }
+  if (order.fulfillment_status === 'partial') return { tag: 'plan', text: 'Deels geleverd' }
   if (order.financial_status === 'refunded' || order.financial_status === 'voided') {
-    return { tag: 'warn', text: 'Terugbetaald' }
+    return { tag: 'neutraal', text: 'Terugbetaald' }
   }
   if (order.financial_status === 'paid') return { tag: 'ok', text: 'Betaald' }
-  if (order.financial_status === 'pending') return { tag: 'warn', text: 'Open' }
-  return { tag: 'info', text: order.financial_status || 'Besteld' }
+  if (order.financial_status === 'pending') return { tag: 'let', text: 'Open' }
+  return { tag: 'plan', text: order.financial_status || 'Besteld' }
 }
 
 export function deliveryTag(status: string): Tag {
   if (status === 'delivered') return { tag: 'ok', text: 'Geleverd' }
-  if (status === 'cancelled') return { tag: 'warn', text: 'Geannuleerd' }
-  if (status === 'in_progress') return { tag: 'info', text: 'Onderweg' }
-  if (status === 'scheduled') return { tag: 'info', text: 'Ingepland' }
-  return { tag: 'info', text: 'Nog in te plannen' }
+  if (status === 'cancelled') return { tag: 'neutraal', text: 'Geannuleerd' }
+  if (status === 'in_progress') return { tag: 'plan', text: 'Onderweg' }
+  if (status === 'scheduled') return { tag: 'plan', text: 'Ingepland' }
+  return { tag: 'plan', text: 'Nog in te plannen' }
 }
 
 export function requestStatusLabel(status: string): string {
@@ -359,7 +366,7 @@ export function recentVisits(visits: PortalVisit[]): PortalVisit[] {
 }
 
 export function attentionPlants(plants: PortalPlant[]): PortalPlant[] {
-  return plants.filter((plant) => plantTag(plant).tag === 'warn')
+  return plants.filter((plant) => plantTag(plant).tag === 'let' || plantTag(plant).tag === 'alarm')
 }
 
 function dateValue(value: string | null | undefined): number {

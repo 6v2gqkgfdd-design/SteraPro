@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
 import { issueSsoToken } from '@/lib/sso-token'
+import { verifyProxySignature } from '@/lib/shopify-proxy'
 
 /**
  * SSO stap 1 — draait ACHTER de Shopify App Proxy.
@@ -23,54 +23,6 @@ const SHOP = process.env.SHOPIFY_STORE_DOMAIN
 const CLIENT_ID = process.env.SHOPIFY_PROXY_CLIENT_ID || process.env.SHOPIFY_CLIENT_ID
 const CLIENT_SECRET = process.env.SHOPIFY_PROXY_SECRET || process.env.SHOPIFY_CLIENT_SECRET
 const API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-04'
-
-// Shopify App Proxy-handtekening: alle query-params behalve "signature",
-// alfabetisch gesorteerd, als key=value (arrays met komma's), zonder
-// scheidingsteken aan elkaar, HMAC-SHA256 met het app-secret (hex).
-// Kandidaat-secrets: zowel SHOPIFY_PROXY_SECRET als SHOPIFY_CLIENT_SECRET kunnen
-// gezet zijn (met mogelijk verschillende waarden). We accepteren de handtekening
-// als één van beide klopt, zodat we niet afhangen van de juiste env-naam.
-function proxySecretCandidates(): string[] {
-  return [process.env.SHOPIFY_PROXY_SECRET, process.env.SHOPIFY_CLIENT_SECRET].filter(
-    (s): s is string => !!s
-  )
-}
-
-// Bouwt het te ondertekenen bericht: alle params behalve "signature",
-// alfabetisch gesorteerd, als key=value zonder scheidingsteken (arrays met
-// komma's). Met `extra` kun je ontbrekende params toevoegen (zie hieronder).
-function buildProxyMessage(params: URLSearchParams, extra?: Record<string, string>): string {
-  const merged = new URLSearchParams(params)
-  if (extra) for (const [k, v] of Object.entries(extra)) if (!merged.has(k)) merged.set(k, v)
-  const keys = [...new Set([...merged.keys()])].filter((k) => k !== 'signature').sort()
-  return keys.map((k) => `${k}=${merged.getAll(k).join(',')}`).join('')
-}
-
-function verifyProxySignature(params: URLSearchParams): boolean {
-  const sig = params.get('signature')
-  if (!sig) return false
-  // Shopify ondertekent álle proxy-params, inclusief een LEEG
-  // logged_in_customer_id wanneer niemand is ingelogd. Onze trailing-slash
-  // rewrite kan zo'n lege param laten vallen, waardoor het bericht niet meer
-  // overeenkomt. Daarom verifiëren we ook de variant mét logged_in_customer_id=.
-  const messages = [buildProxyMessage(params)]
-  if (!params.has('logged_in_customer_id')) {
-    messages.push(buildProxyMessage(params, { logged_in_customer_id: '' }))
-  }
-  for (const secret of proxySecretCandidates()) {
-    for (const message of messages) {
-      const digest = crypto.createHmac('sha256', secret).update(message).digest('hex')
-      try {
-        if (digest.length === sig.length && crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(sig))) {
-          return true
-        }
-      } catch {
-        // lengte-mismatch e.d. — probeer volgende
-      }
-    }
-  }
-  return false
-}
 
 async function fetchCustomerEmail(customerId: string): Promise<string | null> {
   if (!SHOP || !CLIENT_ID || !CLIENT_SECRET) return null

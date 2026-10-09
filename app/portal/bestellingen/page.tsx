@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import PortalShell, { PageHeading, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
 import { formatDay, formatEurFromCents } from '@/lib/company-labels'
 import { loadPortalOrders, orderItemSummary, orderTag } from '@/lib/portal-data'
@@ -7,10 +6,10 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Bestellingen' }
 
 export default async function Page() {
-  const { companyName, schemaReady, rows } = await loadPortalOrders()
+  const { companyName, schemaReady, rows, demo } = await loadPortalOrders()
 
   return (
-    <PortalShell active="/portal/bestellingen" company={companyName}>
+    <PortalShell active="/portal/bestellingen" company={companyName} demo={demo}>
       <PageHeading
         title="Bestellingen"
         sub="Je webshopbestellingen. Opnieuw bestellen doe je in de catalogus."
@@ -32,9 +31,11 @@ export default async function Page() {
           />
         )}
       </Panel>
-      <Link href="/catalog" className="text-sm text-stera-green hover:underline">
-        Opnieuw bestellen in de webshop →
-      </Link>
+      <p>
+        <a className="msp-link" href="https://sterapro.be/collections/all">
+          Opnieuw bestellen in de shop
+        </a>
+      </p>
     </PortalShell>
   )
 }

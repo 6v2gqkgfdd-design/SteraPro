@@ -70,6 +70,7 @@ test('QR-pad is publiek en de demosessie opent het portaal', () => {
   const middleware = readFileSync('middleware.ts', 'utf8')
   assert.match(middleware, /path\.startsWith\('\/p\/'\)/)
   assert.match(middleware, /verifyDemoSession/)
+  assert.match(middleware, /\/apps\/mijn/)
   const seed = readFileSync('supabase/seed/demo_kantoor.sql', 'utf8')
   assert.match(seed, /raise exception/)
 })

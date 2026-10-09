@@ -1,10 +1,15 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import PortalShell, { PageHeading, Panel } from '@/components/portal-shell'
 import { formatDayTime } from '@/lib/company-labels'
-import { loadMaintenance, visitTag } from '@/lib/portal-data'
+import { loadMaintenance, visitTag, workOrderTag } from '@/lib/portal-data'
+import { mspHref } from '@/lib/msp-request'
 
 export const dynamic = 'force-dynamic'
+
+function who(name: string | null): string {
+  if (!name || name === 'Stera-team') return 'Wij'
+  return name
+}
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -15,35 +20,35 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const orders = data.workOrders.filter((order) => order.visit_id === visit.id)
 
   return (
-    <PortalShell active="/portal/onderhoud" company={data.companyName}>
+    <PortalShell active="/portal/onderhoud" company={data.companyName} demo={data.demo}>
+      <p>
+        <a className="msp-link" href={mspHref('/portal/onderhoud')}>
+          Alle beurten
+        </a>
+      </p>
       <PageHeading title={visit.title || 'Onderhoudsbeurt'} sub={visit.location_name || undefined} />
-      <div className="mb-4">
-        <Link href="/portal/onderhoud" className="text-sm text-stera-green underline-offset-2 hover:underline">
-          ← Alle beurten
-        </Link>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="msp-split">
         <Panel title="Beurt">
-          <dl className="space-y-2 px-5 py-4 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-stera-ink-soft">Status</dt>
-              <dd className="font-medium text-stera-green">{tag.text}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stera-ink-soft">Wanneer</dt>
-              <dd>{formatDayTime(visit.scheduled_start || visit.ended_at)}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-stera-ink-soft">Door</dt>
-              <dd>{visit.performed_by || '—'}</dd>
-            </div>
-          </dl>
+          <div className="msp-kv">
+            <span>Status</span>
+            <b>
+              <span className={`msp-badge msp-badge-${tag.tag}`}>{tag.text}</span>
+            </b>
+          </div>
+          <div className="msp-kv">
+            <span>Wanneer</span>
+            <b>{formatDayTime(visit.scheduled_start || visit.ended_at)}</b>
+          </div>
+          <div className="msp-kv">
+            <span>Door</span>
+            <b>{who(visit.performed_by)}</b>
+          </div>
         </Panel>
         <Panel title="Verslag">
           {visit.general_notes ? (
-            <p className="whitespace-pre-wrap px-5 py-4 text-sm leading-relaxed">{visit.general_notes}</p>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{visit.general_notes}</p>
           ) : (
-            <p className="px-5 py-4 text-sm text-stera-ink-soft">
+            <p>
               {visit.status === 'completed'
                 ? 'Deze beurt heeft nog geen verslag.'
                 : 'Het verslag verschijnt hier nadat de beurt is afgewerkt.'}
@@ -53,16 +58,19 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
       <Panel title="Gekoppelde werkbonnen">
         {orders.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-stera-ink-soft">Geen werkbon gekoppeld aan deze beurt.</p>
+          <p>Geen werkbon gekoppeld aan deze beurt.</p>
         ) : (
-          <ul className="divide-y divide-stera-line">
-            {orders.map((order) => (
-              <li key={order.id} className="px-5 py-4 text-sm">
-                <span className="font-medium text-stera-green">{order.reference_number}</span>
-                <span className="text-stera-ink-soft"> · {order.status}</span>
-              </li>
-            ))}
-          </ul>
+          orders.map((order) => {
+            const orderTag = workOrderTag(order.status)
+            return (
+              <div key={order.id} className="msp-kv">
+                <span>{order.reference_number}</span>
+                <b>
+                  <span className={`msp-badge msp-badge-${orderTag.tag}`}>{orderTag.text}</span>
+                </b>
+              </div>
+            )
+          })
         )}
       </Panel>
     </PortalShell>

@@ -1,279 +1,73 @@
-'use client'
+import { mspApi, mspHref, mspStore } from '@/lib/msp-request'
+import { REPORT_CHOICES } from '@/lib/report-issues'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { prepareImage } from '@/lib/image'
-import { submitPlantReport, type ReportIssueType } from '../actions'
-
-const ISSUE_CHIPS: { value: ReportIssueType; label: string }[] = [
-  { value: 'replace', label: 'Vervangen' },
-  { value: 'sick', label: 'Ziek' },
-  { value: 'damaged', label: 'Beschadigd' },
-  { value: 'pest', label: 'Ongedierte' },
-  { value: 'other', label: 'Andere' },
-]
-
-const ISSUE_HELPER: Record<ReportIssueType, string> = {
-  replace: 'Lijkt dood of voorbij redding.',
-  sick: 'Verkleurde of gele bladeren, slappe stengel.',
-  damaged: 'Gebroken takken, omgevallen pot.',
-  pest: 'Insecten, schimmel, kleverig blad.',
-  other: 'Beschrijf kort wat je ziet.',
-}
-
-export default function PlantReportPageForm({
+export default function PlantReportForm({
   slug,
-  storePhoto = true,
+  known,
+  title,
+  place,
+  error,
 }: {
   slug: string
-  storePhoto?: boolean
+  known: boolean
+  title: string
+  place?: string | null
+  error?: string
 }) {
-  const supabase = createClient()
-  const [issueType, setIssueType] = useState<ReportIssueType | ''>('')
-  const [message, setMessage] = useState('')
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
-  const [notice, setNotice] = useState('')
-  const [honeypot, setHoneypot] = useState('')
-
-  useEffect(() => {
-    return () => {
-      if (photoPreview) URL.revokeObjectURL(photoPreview)
-    }
-  }, [photoPreview])
-
-  async function handlePhoto(f: File | null) {
-    if (photoPreview) URL.revokeObjectURL(photoPreview)
-    if (!f) {
-      setPhotoFile(null)
-      setPhotoPreview('')
-      return
-    }
-    // Verklein de foto in de browser vóór upload (max 1600px JPEG), zodat
-    // de storage niet volloopt. Valt terug op het origineel als het mislukt.
-    try {
-      const prepared = await prepareImage(f)
-      setPhotoFile(prepared.file)
-      setPhotoPreview(URL.createObjectURL(prepared.file))
-    } catch {
-      setPhotoFile(f)
-      setPhotoPreview(URL.createObjectURL(f))
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!issueType) {
-      setError('Kies eerst wat er aan de hand is.')
-      return
-    }
-    setSubmitting(true)
-    setError('')
-
-    let photoPath: string | null = null
-    let photoUrl: string | null = null
-
-    if (photoFile && storePhoto) {
-      const fileName = `reports/${slug}/${Date.now()}.jpg`
-      const { error: uploadError } = await supabase.storage
-        .from('plant-photos')
-        .upload(fileName, photoFile, {
-          upsert: false,
-          contentType: photoFile.type || 'image/jpeg',
-        })
-      if (uploadError) {
-        setError(`Foto uploaden mislukt: ${uploadError.message}`)
-        setSubmitting(false)
-        return
-      }
-      photoPath = fileName
-      const { data: publicUrlData } = supabase.storage
-        .from('plant-photos')
-        .getPublicUrl(fileName)
-      photoUrl = publicUrlData.publicUrl
-    }
-
-    const result = await submitPlantReport({
-      slug,
-      issueType,
-      message,
-      reporterName: name,
-      reporterEmail: email,
-      photoPath,
-      photoUrl,
-      honeypot,
-      photoSkipped: Boolean(photoFile && !storePhoto),
-    })
-
-    setSubmitting(false)
-
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-
-    setNotice(result.notice || '')
-    setSuccess(true)
-  }
-
-  if (success) {
-    return (
-      <div className="space-y-4 text-center">
-        <div className="rounded-2xl border border-stera-green/40 bg-stera-cream-deep/40 p-5 lg:p-8">
-          <p className="text-2xl lg:text-4xl">✓</p>
-          <p className="mt-2 font-semibold text-stera-ink lg:text-lg">
-            Bedankt voor je melding
-          </p>
-          <p className="mt-1 text-sm text-stera-ink-soft lg:text-base">
-            {notice ||
-              'Stera Pro heeft je melding ontvangen en kijkt er bij het volgende bezoek naar, of plant indien nodig een tussentijdse interventie in.'}
-          </p>
-        </div>
-        <Link
-          href={`/p/${slug}`}
-          className="stera-cta stera-cta-primary inline-flex"
-        >
-          Terug naar plant
-        </Link>
-      </div>
-    )
-  }
-
+  const back = `${mspHref(`/p/${slug}/report`)}${known && mspStore().demo ? '?voorbeeld=1' : ''}`
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-5">
-      <input
-        type="text"
-        name="website"
-        value={honeypot}
-        onChange={(e) => setHoneypot(e.target.value)}
-        tabIndex={-1}
-        autoComplete="off"
-        aria-hidden="true"
-        className="absolute left-[-9999px] h-0 w-0 opacity-0"
-      />
-      {/* Issue-chips */}
-      <div>
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-stera-ink-soft lg:text-sm">
-          Wat is er aan de hand?
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {ISSUE_CHIPS.map((opt) => {
-            const selected = issueType === opt.value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setIssueType(opt.value)}
-                className={
-                  selected
-                    ? 'rounded-full bg-stera-green px-3 py-1.5 text-xs lg:px-4 lg:py-2 lg:text-sm font-semibold text-white'
-                    : 'rounded-full border border-stera-line bg-white px-3 py-1.5 text-xs lg:px-4 lg:py-2 lg:text-sm font-medium text-stera-ink hover:border-stera-green'
-                }
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-        {issueType ? (
-          <p className="mt-1 text-[11px] text-stera-ink-soft lg:text-sm">
-            {ISSUE_HELPER[issueType]}
-          </p>
-        ) : null}
+    <form action={mspApi('melding')} method="post" encType="multipart/form-data">
+      <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="back" value={back} />
+      {mspStore().demo ? <input type="hidden" name="demo" value="1" /> : null}
+      <input className="msp-hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+      <p className="msp-kicker">Stap 1 van 2</p>
+      <section className="msp-panel">
+        <h2>{title}</h2>
+        <p>{place || 'Melding voor deze plant'}</p>
+      </section>
+      <p className="msp-label">Wat is er aan de hand?</p>
+      <div className="msp-choices">
+        {REPORT_CHOICES.map((choice) => (
+          <label key={choice.value} className="msp-choice">
+            <input type="radio" name="issue" value={choice.value} required />
+            {choice.label}
+          </label>
+        ))}
       </div>
-
-      {/* Foto */}
-      <div>
-        <label
-          htmlFor="report_photo"
-          className="flex h-14 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-stera-line bg-white px-4 transition hover:border-stera-green lg:h-20 lg:gap-4 lg:px-6"
-        >
-          {photoPreview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoPreview}
-              alt=""
-              className="h-10 w-10 rounded object-cover lg:h-16 lg:w-16"
-            />
-          ) : (
-            <span className="text-xl lg:text-3xl">📷</span>
-          )}
-          <span className="flex-1 text-sm text-stera-ink lg:text-base">
-            {photoFile ? photoFile.name : 'Foto toevoegen (optioneel)'}
-          </span>
-          {photoFile ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                handlePhoto(null)
-              }}
-              className="text-xs text-stera-ink-soft hover:text-red-600"
-            >
-              wissen
-            </button>
-          ) : null}
-        </label>
-        <input
-          id="report_photo"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => handlePhoto(e.target.files?.[0] || null)}
-        />
+      <label className="msp-file" style={{ marginTop: 16 }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+          <path d="M4 8h3l2-2h6l2 2h3v10H4z" />
+          <circle cx="12" cy="13" r="3" />
+        </svg>
+        <span>
+          Foto toevoegen, optioneel
+          <input type="file" name="photo" accept="image/*" />
+        </span>
+      </label>
+      <label className="msp-label" htmlFor="report-message">
+        Toelichting
+      </label>
+      <textarea id="report-message" name="message" placeholder="Wat zie je?" />
+      {known ? null : (
+        <>
+          <label className="msp-label" htmlFor="report-name">
+            Je naam
+          </label>
+          <input id="report-name" className="msp-input" name="name" type="text" autoComplete="name" />
+          <label className="msp-label" htmlFor="report-email">
+            E-mail
+          </label>
+          <input id="report-email" className="msp-input" name="email" type="email" autoComplete="email" />
+          <p className="msp-help">Voor ons antwoord.</p>
+        </>
+      )}
+      {error ? <p className="msp-note">{error}</p> : null}
+      <div className="msp-sticky">
+        <button className="msp-btn msp-btn-block" type="submit">
+          Melding versturen
+        </button>
       </div>
-
-      {/* Toelichting */}
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        rows={2}
-        className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm lg:px-4 lg:py-3 lg:text-base"
-        placeholder={
-          issueType === 'other'
-            ? 'Beschrijf kort wat er aan de hand is...'
-            : 'Toelichting (optioneel)'
-        }
-      />
-
-      {/* Naam + email */}
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm lg:px-4 lg:py-3 lg:text-base"
-          placeholder="Je naam"
-        />
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-xl border border-stera-line bg-white px-3 py-2 text-sm lg:px-4 lg:py-3 lg:text-base"
-          placeholder="E-mail"
-        />
-      </div>
-
-      {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <button
-        type="submit"
-        disabled={submitting || !issueType}
-        className="stera-cta stera-cta-primary w-full disabled:opacity-50"
-      >
-        {submitting ? 'Versturen...' : 'Melding versturen →'}
-      </button>
     </form>
   )
 }

@@ -38,6 +38,22 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const path = req.nextUrl.pathname
 
+  // Afgedrukte labels op app.sterapro.be/p/… horen op de shop, onder de proxy.
+  const host = (req.headers.get('x-forwarded-host') || req.headers.get('host') || '')
+    .split(',')[0]
+    .trim()
+    .split(':')[0]
+  if (host === 'app.sterapro.be' && path.startsWith('/p/')) {
+    const dest = new URL(`https://sterapro.be/apps/mijn${path}`)
+    dest.search = req.nextUrl.search
+    return NextResponse.redirect(dest, 302)
+  }
+
+  // De App Proxy rendert zelf (handtekening of voorbeeldroute). Geen medewerkerspoort.
+  if (path === '/apps/mijn' || path.startsWith('/apps/mijn/')) {
+    return NextResponse.next()
+  }
+
   // Shopify App Proxy stuurt /apps/mijn door naar deze route MÉT trailing slash
   // (/api/sso/token/). Met `skipTrailingSlashRedirect` (next.config.ts) doet
   // Next.js daar geen 308-redirect meer op — die lekte via de proxy naar

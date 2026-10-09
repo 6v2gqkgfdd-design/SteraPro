@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Leveringen' }
 
 export default async function Page() {
-  const { companyName, schemaReady, rows } = await loadPortalOrders()
+  const { companyName, schemaReady, rows, demo } = await loadPortalOrders()
 
   return (
-    <PortalShell active="/portal/leveringen" company={companyName}>
+    <PortalShell active="/portal/leveringen" company={companyName} demo={demo}>
       <PageHeading
         title="Leveringen"
         sub="Geplande en uitgevoerde leveringen van je webshopbestellingen."

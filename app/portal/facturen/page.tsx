@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Facturen' }
 
 export default async function Page() {
-  const { companyName, schemaReady, rows } = await loadPortalWorkOrders()
+  const { companyName, schemaReady, rows, demo } = await loadPortalWorkOrders()
   const invoices = rows.filter((order) => order.status === 'invoiced' || order.invoice_reference)
 
   return (
-    <PortalShell active="/portal/facturen" company={companyName}>
+    <PortalShell active="/portal/facturen" company={companyName} demo={demo}>
       <PageHeading
         title="Facturen"
         sub="Werkbonnen die in het beheer als gefactureerd gemarkeerd zijn."
@@ -31,7 +31,7 @@ export default async function Page() {
           />
         )}
       </Panel>
-      <p className="text-sm text-stera-ink-soft">
+      <p className="msp-lead">
         Een PDF uit de boekhouding volgt wanneer die koppeling er is. Het bedrag staat op de
         factuur zelf.
       </p>

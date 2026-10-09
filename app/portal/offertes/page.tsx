@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import PortalShell, { PageHeading, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
 import { formatDay, formatEurFromCents } from '@/lib/company-labels'
 import { loadPortalQuotes, quoteTag } from '@/lib/portal-data'
@@ -7,11 +6,11 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Offertes' }
 
 export default async function Page() {
-  const { companyName, schemaReady, rows } = await loadPortalQuotes()
+  const { companyName, schemaReady, rows, demo } = await loadPortalQuotes()
   const open = rows.filter((quote) => quote.status === 'sent' && quote.signing_token)
 
   return (
-    <PortalShell active="/portal/offertes" company={companyName}>
+    <PortalShell active="/portal/offertes" company={companyName} demo={demo}>
       <PageHeading title="Offertes" sub="Voorstellen van Stera Pro, met het bedrag dat voor jou geldt." />
       {schemaReady ? null : <SchemaNotice />}
       <Panel title="Offertes">
@@ -33,13 +32,9 @@ export default async function Page() {
       {open.length > 0 ? (
         <div className="flex flex-col gap-2">
           {open.map((quote) => (
-            <Link
-              key={quote.id}
-              href={`/q/${quote.signing_token}`}
-              className="text-sm text-stera-green hover:underline"
-            >
-              {quote.reference_number || 'Offerte'} beoordelen →
-            </Link>
+            <a key={quote.id} className="msp-link" href={`/q/${quote.signing_token}`}>
+              {quote.reference_number || 'Offerte'} beoordelen
+            </a>
           ))}
         </div>
       ) : null}

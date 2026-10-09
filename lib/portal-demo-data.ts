@@ -33,6 +33,7 @@ export type DemoPlant = {
   id: string
   qr_slug: string
   nickname: string
+  common_name: string
   species: string
   status: string
   photo_url: string | null
@@ -55,6 +56,7 @@ export const DEMO_PLANTS: DemoPlant[] = [
     id: DEMO_IDS.lobby,
     qr_slug: DEMO_SLUGS.lobby,
     nickname: 'Lobby',
+    common_name: 'Vioolbladplant',
     species: 'Ficus lyrata',
     status: 'healthy',
     photo_url: null,
@@ -75,6 +77,7 @@ export const DEMO_PLANTS: DemoPlant[] = [
     id: DEMO_IDS.wachtzaal,
     qr_slug: DEMO_SLUGS.wachtzaal,
     nickname: 'Wachtzaal',
+    common_name: 'Paradijsvogelbloem',
     species: 'Strelitzia nicolai',
     status: 'needs_attention',
     photo_url: null,
@@ -95,6 +98,7 @@ export const DEMO_PLANTS: DemoPlant[] = [
     id: DEMO_IDS.vergader,
     qr_slug: DEMO_SLUGS.vergader,
     nickname: 'Vergaderzaal',
+    common_name: 'Gatenplant',
     species: 'Monstera deliciosa',
     status: 'healthy',
     photo_url: null,
@@ -132,7 +136,7 @@ export function demoPublicPlant(slug: string) {
   return {
     id: plant.id,
     qr_slug: plant.qr_slug,
-    nickname: plant.nickname,
+    nickname: plant.common_name,
     plant_code: null,
     reference_code: null,
     species: plant.species,
@@ -142,6 +146,7 @@ export function demoPublicPlant(slug: string) {
     is_dead: plant.is_dead,
     is_dying: plant.is_dying,
     needs_replacement: plant.needs_replacement,
+    place: plant.room_name,
     latest_visit: plant.last_performed_at
       ? {
           performed_at: plant.last_performed_at,

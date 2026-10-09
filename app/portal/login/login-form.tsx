@@ -3,23 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-
-const REG_FIELDS: Array<{ key: string; label: string; type?: string; required?: boolean; half?: boolean }> = [
-  { key: 'first_name', label: 'Voornaam', required: true, half: true },
-  { key: 'last_name', label: 'Achternaam', required: true, half: true },
-  { key: 'phone', label: 'Telefoon', type: 'tel', half: true },
-  { key: 'role', label: 'Functie', half: true },
-  { key: 'company_name', label: 'Bedrijfsnaam', required: true },
-  { key: 'vat_number', label: 'BTW-nummer', half: true },
-  { key: 'billing_email', label: 'Facturatie-e-mail', type: 'email', half: true },
-  { key: 'street', label: 'Straat', half: true },
-  { key: 'house_number', label: 'Nummer', half: true },
-  { key: 'postal_code', label: 'Postcode', half: true },
-  { key: 'city', label: 'Gemeente', half: true },
-  { key: 'country', label: 'Land', half: true },
-]
-
-const REG_STORAGE_KEY = 'stera_portal_reg'
+import WhyAccount from '@/components/why-account'
 
 export default function PortalLoginForm({
   initialEmail = '',
@@ -32,61 +16,23 @@ export default function PortalLoginForm({
 }) {
   const supabase = createClient()
   const router = useRouter()
-  const [mode, setMode] = useState<'register' | 'login'>(initialEmail ? 'login' : 'register')
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
-  const [form, setForm] = useState<Record<string, string>>({ country: 'België' })
-  const [sent, setSent] = useState(false)
   const [magicSent, setMagicSent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.first_name?.trim() || !form.last_name?.trim() || !form.company_name?.trim() || !email.trim()) {
-      setError('Vul minstens je naam, bedrijfsnaam en e-mailadres in.')
-      return
-    }
-    if (password.length < 8) {
-      setError('Kies een wachtwoord van minstens 8 tekens.')
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      // Gegevens lokaal bewaren; na e-mailbevestiging ronden we automatisch af.
-      window.localStorage.setItem(REG_STORAGE_KEY, JSON.stringify({ ...form, email: email.trim() }))
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/portal/auth/callback` },
-      })
-      if (error) throw new Error(error.message)
-      // E-mailbevestiging staat uit → meteen ingelogd → naar afronden.
-      if (data.session) {
-        router.push('/portal')
-        router.refresh()
-        return
-      }
-      setSent(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Er ging iets mis.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error: signError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     })
     setLoading(false)
-    if (error) {
-      setError(error.message)
+    if (signError) {
+      setError(signError.message)
       return
     }
     router.push('/portal')
@@ -101,145 +47,86 @@ export default function PortalLoginForm({
     }
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: `${window.location.origin}/portal/auth/callback` },
     })
     setLoading(false)
-    if (error) {
-      setError(error.message)
+    if (otpError) {
+      setError(otpError.message)
       return
     }
     setMagicSent(true)
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-stera-cream text-stera-ink">
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <div className="w-full max-w-2xl">
-          <p className="stera-eyebrow text-stera-green mb-3">Klantenportaal</p>
+    <main className="msp-root">
+      <div className="msp-login">
+        <WhyAccount />
+        <section>
+          <h1 className="msp-title">Inloggen</h1>
           {demoAvailable ? (
-            <p className="mb-4 rounded-lg border border-stera-green/30 bg-white px-3 py-2 text-sm text-stera-green">
-              Dit is een voorbeeld. Open{' '}
-              <a href="/portal/demo" className="font-medium underline underline-offset-2">
-                Demo Kantoor
-              </a>{' '}
-              zonder e-mail. Een inloglink hieronder verstuurt wel een echte mail.
+            <p className="msp-banner">
+              Dit is een voorbeeld. Open <a href="/portal/demo">Demo Kantoor</a> zonder e-mail. Een
+              inloglink hieronder verstuurt wel een echte mail.
             </p>
           ) : null}
-
-          {sent ? (
-            <div className="rounded-xl border border-stera-green/30 bg-stera-green/5 p-6">
-              <h1 className="text-2xl font-bold">Bevestig je e-mailadres</h1>
-              <p className="mt-2 text-sm text-stera-ink-soft">
-                We stuurden een bevestigingslink naar <strong>{email}</strong>.
-                Klik erop om je registratie af te ronden. Daarna kan je met je
-                e-mail en wachtwoord inloggen.
-              </p>
-            </div>
-          ) : mode === 'register' ? (
-            <>
-              <h1 className="stera-display mb-2 text-3xl sm:text-4xl">Registreer je bedrijf</h1>
-              <p className="mb-6 text-sm leading-relaxed text-stera-ink-soft">
-                Maak je account aan met een wachtwoord en vul je gegevens in. Je
-                bevestigt je e-mailadres met een link; daarna bekijkt Stera Pro je
-                aanvraag.
-              </p>
-              <form onSubmit={handleRegister} className="rounded-xl border border-stera-line bg-white p-5">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="stera-eyebrow text-stera-ink-soft mb-1 block">E-mailadres *</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" className="w-full rounded-lg border border-stera-line bg-white p-3" />
-                  </div>
-                  <div>
-                    <label className="stera-eyebrow text-stera-ink-soft mb-1 block">Wachtwoord * (min. 8 tekens)</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" className="w-full rounded-lg border border-stera-line bg-white p-3" />
-                  </div>
-                  {REG_FIELDS.map((f) => (
-                    <div key={f.key} className={f.half ? '' : 'sm:col-span-2'}>
-                      <label className="stera-eyebrow text-stera-ink-soft mb-1 block">
-                        {f.label}
-                        {f.required ? ' *' : ''}
-                      </label>
-                      <input
-                        type={f.type ?? 'text'}
-                        value={form[f.key] ?? ''}
-                        onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
-                        required={f.required}
-                        className="w-full rounded-lg border border-stera-line bg-white p-3"
-                      />
-                    </div>
-                  ))}
-                </div>
-                {error ? (
-                  <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-                ) : null}
-                <button type="submit" disabled={loading} className="stera-cta stera-cta-primary mt-5 w-full disabled:opacity-60">
-                  {loading ? 'Bezig…' : 'Registreren →'}
-                </button>
-              </form>
-              <p className="mt-4 text-center text-sm text-stera-ink-soft">
-                Al een account?{' '}
-                <button type="button" onClick={() => { setMode('login'); setError('') }} className="text-stera-green underline-offset-4 hover:underline">
-                  Inloggen
-                </button>
-              </p>
-            </>
+          {notice === 'pending' ? (
+            <p className="msp-banner">
+              Je aanvraag voor dit e-mailadres is in behandeling. De koppeling vanuit de webshop werkt
+              zodra we je toegang hebben goedgekeurd.
+            </p>
+          ) : null}
+          <p className="msp-lead">Log in met je e-mailadres en wachtwoord, of vraag een inloglink.</p>
+          <form onSubmit={handleLogin}>
+            <label className="msp-label" htmlFor="portal-email">
+              E-mailadres
+            </label>
+            <input
+              id="portal-email"
+              className="msp-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+            <label className="msp-label" htmlFor="portal-password">
+              Wachtwoord
+            </label>
+            <input
+              id="portal-password"
+              className="msp-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+            {error ? <p className="msp-note">{error}</p> : null}
+            <p style={{ marginTop: 16 }}>
+              <button type="submit" disabled={loading} className="msp-btn msp-btn-block">
+                {loading ? 'Bezig…' : 'Inloggen'}
+              </button>
+            </p>
+          </form>
+          {magicSent ? (
+            <p className="msp-banner">
+              Als dit adres een account heeft, staat de inloglink in de inbox van {email}.
+            </p>
           ) : (
-            <div className="mx-auto max-w-md">
-              <h1 className="stera-display mb-2 text-3xl sm:text-4xl">Inloggen</h1>
-              {notice === 'pending' ? (
-                <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                  Je aanvraag voor dit e-mailadres is in behandeling. De koppeling vanuit de
-                  webshop werkt zodra Stera Pro je toegang heeft goedgekeurd.
-                </p>
-              ) : null}
-              <p className="mb-6 text-sm leading-relaxed text-stera-ink-soft">
-                Log in met je e-mailadres en wachtwoord, of vraag een inloglink.
-              </p>
-              <form onSubmit={handleLogin} className="space-y-4 rounded-xl border border-stera-line bg-white p-5">
-                <div>
-                  <label className="stera-eyebrow text-stera-ink-soft mb-1 block">E-mailadres</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" className="w-full rounded-lg border border-stera-line bg-white p-3" />
-                </div>
-                <div>
-                  <label className="stera-eyebrow text-stera-ink-soft mb-1 block">Wachtwoord</label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" className="w-full rounded-lg border border-stera-line bg-white p-3" />
-                </div>
-                {error ? (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-                ) : null}
-                <button type="submit" disabled={loading} className="stera-cta stera-cta-primary w-full disabled:opacity-60">
-                  {loading ? 'Bezig…' : 'Inloggen →'}
-                </button>
-              </form>
-              {magicSent ? (
-                <p className="mt-4 rounded-lg border border-stera-green/30 bg-stera-green/5 px-3 py-2 text-sm text-stera-ink">
-                  Als dit adres een account heeft, staat de inloglink in de inbox van <strong>{email}</strong>.
-                </p>
-              ) : (
-                <form onSubmit={handleMagicLink} className="mt-4">
-                  <button type="submit" disabled={loading} className="w-full text-sm text-stera-green underline-offset-4 hover:underline disabled:opacity-60">
-                    Stuur een inloglink naar dit adres
-                  </button>
-                </form>
-              )}
-              <p className="mt-4 text-center text-sm text-stera-ink-soft">
-                Nog geen account?{' '}
-                <button type="button" onClick={() => { setMode('register'); setError('') }} className="text-stera-green underline-offset-4 hover:underline">
-                  Registreer je bedrijf
-                </button>
-              </p>
-            </div>
+            <form onSubmit={handleMagicLink}>
+              <button type="submit" disabled={loading} className="msp-btn msp-btn-ghost msp-btn-block">
+                Stuur een inloglink
+              </button>
+            </form>
           )}
-        </div>
+          <p className="msp-lead">
+            Nog geen account? <a href="/portal/registreren">Registreer je bedrijf</a>
+          </p>
+          <p className="msp-foot">© {new Date().getFullYear()} SteraPro · Mijn SteraPro</p>
+        </section>
       </div>
-      <footer className="border-t border-stera-line px-6 py-6 text-xs text-stera-ink-soft sm:px-10">
-        <a href="/login" className="text-stera-green underline-offset-4 hover:underline">
-          Medewerker van Stera Pro? Log hier in
-        </a>
-        <span className="mx-2">·</span>© {new Date().getFullYear()} Stera Pro · Klantenportaal
-      </footer>
     </main>
   )
 }

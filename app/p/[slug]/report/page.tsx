@@ -1,44 +1,47 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import Link from 'next/link'
-import PlantReportPageForm from './form'
 import { demoEnabled } from '@/lib/demo-session'
 import { demoPublicPlant } from '@/lib/portal-demo-data'
+import { hasDemoPortalSession } from '@/lib/portal-demo'
+import { mspHref, mspStore } from '@/lib/msp-request'
+import PlantReportForm from './form'
 
 type PublicPlantLite = {
   id: string
-  qr_slug: string | null
   nickname: string | null
   species: string | null
   reference_code: string | null
+  place?: string | null
 }
 
-function plantTitle(p: PublicPlantLite | null): string {
-  if (!p) return 'Plant'
-  return p.nickname || p.species || p.reference_code || 'Plant'
+function plantTitle(plant: PublicPlantLite | null): string {
+  if (!plant) return 'Plant'
+  return plant.nickname || plant.species || plant.reference_code || 'Plant'
 }
 
 async function lookupPlant(slug: string): Promise<PublicPlantLite | null> {
   const demo = demoEnabled() ? demoPublicPlant(slug) : null
   if (demo) return demo
-
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return null
-  }
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return null
   try {
     const supabase = await createClient()
-    // Via de publieke RPC, zodat de melding-pagina ook werkt voor
-    // bezoekers die niet ingelogd zijn.
-    const { data, error } = await supabase.rpc('get_public_plant', {
-      _slug: slug,
-    })
+    const { data, error } = await supabase.rpc('get_public_plant', { _slug: slug })
     if (error || !data) return null
     return data as PublicPlantLite
   } catch {
     return null
+  }
+}
+
+async function knownCustomer(voorbeeld: boolean): Promise<boolean> {
+  if (mspStore().demo || voorbeeld) return true
+  if (await hasDemoPortalSession()) return true
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase.auth.getUser()
+    return Boolean(data.user)
+  } catch {
+    return false
   }
 }
 
@@ -49,57 +52,53 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const plant = await lookupPlant(slug)
-  return {
-    title: `Melding · ${plantTitle(plant)}`,
-    description: 'Meld een probleem met deze plant — Stera Pro',
-  }
+  return { title: `Melding · ${plantTitle(plant)}`, description: 'Meld een probleem met deze plant.' }
 }
 
 export default async function PlantReportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams?: Promise<{ voorbeeld?: string; fout?: string; sent?: string }>
 }) {
   const { slug } = await params
+  const query = searchParams ? await searchParams : {}
   const plant = await lookupPlant(slug)
+  const known = await knownCustomer(query.voorbeeld === '1' && demoEnabled() && !!demoPublicPlant(slug))
+  const liquid = mspStore().liquid
 
   return (
-    <main className="flex min-h-screen flex-col bg-stera-cream text-stera-ink">
-      <header className="flex items-center justify-between border-b border-stera-line px-5 py-3 lg:px-10 lg:py-5">
-        <Link
-          href={`/p/${slug}`}
-          className="text-sm text-stera-green underline-offset-4 hover:underline lg:text-base"
-        >
-          ← Terug
-        </Link>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/stera-logo.png"
-          alt="Stera Pro"
-          className="h-8 w-auto select-none lg:h-12"
-        />
-      </header>
-
-      <div className="flex-1 px-5 py-4 lg:px-10 lg:py-10">
-        <div className="mx-auto w-full max-w-md lg:max-w-2xl">
-          <div className="mb-3 lg:mb-6">
-            <h1 className="text-xl font-bold tracking-tight lg:text-4xl">
-              Probleem melden
-            </h1>
-            <p className="text-xs text-stera-ink-soft lg:text-base">
-              Plant: {plantTitle(plant)}
-            </p>
-          </div>
-
-          {plant ? (
-            <PlantReportPageForm slug={slug} storePhoto={!(demoEnabled() && demoPublicPlant(slug))} />
-          ) : (
-            <p className="text-sm text-stera-ink-soft lg:text-base">
-              Deze plant is niet (meer) gekoppeld. Scan de QR-code opnieuw.
-            </p>
-          )}
-        </div>
+    <div className="msp-root">
+      <div className="msp-qr">
+        {liquid ? null : (
+          <p className="msp-logo-row">
+            <a href="https://sterapro.be">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/sterapro-shop-logo.png" alt="SteraPro" className="msp-logo" />
+            </a>
+          </p>
+        )}
+        <p>
+          <a className="msp-link" href={mspHref(`/p/${slug}`)}>
+            Terug
+          </a>
+        </p>
+        <h1 className="msp-title">Probleem melden</h1>
+        {query.sent === '1' ? (
+          <p className="msp-banner">Bedankt. We hebben je melding.</p>
+        ) : plant ? (
+          <PlantReportForm
+            slug={slug}
+            known={known}
+            title={plantTitle(plant)}
+            place={plant.place}
+            error={query.fout}
+          />
+        ) : (
+          <p className="msp-lead">Deze plant is niet meer gekoppeld. Scan de QR opnieuw.</p>
+        )}
       </div>
-    </main>
+    </div>
   )
 }

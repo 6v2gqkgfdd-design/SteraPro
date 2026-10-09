@@ -1,17 +1,9 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { demoEnabled } from '@/lib/demo-session'
 import { demoPublicPlant, demoPlantBySlug } from '@/lib/portal-demo-data'
-import { demoPlants, hasDemoPortalSession } from '@/lib/portal-demo'
-import AnimatedPlant from '@/components/animated-plant'
-import {
-  getMood,
-  moodMessage,
-  statusColor,
-  statusLabel,
-  type PlantOverviewPlant,
-} from '@/components/plant-overview'
+import { hasDemoPortalSession } from '@/lib/portal-demo'
+import { mspHref, mspStore } from '@/lib/msp-request'
 
 type LatestVisit = {
   performed_at: string | null
@@ -37,6 +29,7 @@ type PublicPlant = {
   is_dead: boolean | null
   is_dying: boolean | null
   needs_replacement: boolean | null
+  place?: string | null
   latest_visit: LatestVisit | null
   maintenance_photo_url: string | null
 }
@@ -49,40 +42,36 @@ const ACTION_LABELS: Record<string, string> = {
   action_cleaned: 'bladeren gereinigd',
   action_repotted: 'verpot',
   action_replaced: 'vervangen',
-  // bladglans (action_polished) zit nu onder bladeren gereinigd
 }
 
 function plantTitle(plant: PublicPlant): string {
-  return (
-    plant.nickname ||
-    plant.species ||
-    plant.reference_code ||
-    plant.plant_code ||
-    'Plant'
-  )
+  return plant.nickname || plant.species || plant.reference_code || plant.plant_code || 'Plant'
 }
 
-// Haalt één plant op via de publieke RPC get_public_plant. Die functie
-// draait met verhoogde rechten (SECURITY DEFINER) zodat de klantweergave
-// ook werkt voor bezoekers die niet ingelogd zijn — zonder de plants-
-// tabel zelf open te zetten voor anonieme toegang.
+function publicStatus(plant: PublicPlant): { tag: 'ok' | 'let' | 'alarm' | 'neutraal'; text: string; line: string } {
+  if (plant.is_dead || plant.status === 'dead' || plant.status === 'removed') {
+    return { tag: 'neutraal', text: 'Verwijderd', line: 'Deze plant staat niet meer op de plek.' }
+  }
+  if (plant.needs_replacement || plant.status === 'replacement_needed') {
+    return { tag: 'alarm', text: 'Vervangen nodig', line: 'We vervangen deze plant.' }
+  }
+  if (plant.is_dying || plant.status === 'needs_attention' || plant.status === 'maintenance_due') {
+    return { tag: 'let', text: 'Opvolgen', line: 'We volgen deze plant op.' }
+  }
+  return { tag: 'ok', text: 'Gezond', line: 'Gezond.' }
+}
+
 async function getPublicPlant(slug: string): Promise<PublicPlant | null> {
   const demo = demoEnabled() ? demoPublicPlant(slug) : null
   if (demo) return demo
 
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return null
   }
 
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase.rpc('get_public_plant', {
-      _slug: slug,
-    })
-
+    const { data, error } = await supabase.rpc('get_public_plant', { _slug: slug })
     if (error || !data) return null
     return data as PublicPlant
   } catch {
@@ -104,234 +93,152 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const plant = await getPublicPlant(slug)
-
-  if (!plant) {
-    return {
-      title: 'Plant',
-      description: 'Plantinformatie via Stera Pro QR-code.',
-    }
-  }
-
-  return {
-    title: plantTitle(plant),
-    description: 'Plantinformatie via Stera Pro QR-code.',
-  }
+  if (!plant) return { title: 'Plant', description: 'Plantinformatie via SteraPro.' }
+  return { title: plantTitle(plant), description: 'Plantinformatie via SteraPro.' }
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Frame({ children }: { children: React.ReactNode }) {
+  const liquid = mspStore().liquid
   return (
-    <main className="min-h-screen bg-stera-cream text-stera-ink flex flex-col">
-      <header className="px-5 py-3 sm:px-10 sm:py-6 border-b border-stera-line">
-        <a href="https://sterapro.be" className="inline-flex items-baseline">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/stera-logo.png"
-            alt="Stera Pro"
-            className="h-9 sm:h-11 lg:h-14 w-auto select-none"
-          />
-        </a>
-      </header>
-      <div className="flex-1 px-5 py-4 sm:px-10 sm:py-12">{children}</div>
-      <footer className="px-5 py-1.5 text-center text-[10px] leading-tight text-stera-ink-soft sm:border-t sm:border-stera-line sm:px-10 sm:py-3 sm:text-left sm:text-xs">
-        © {new Date().getFullYear()} Stera Pro · Plantbeheer voor professionals
-      </footer>
-    </main>
+    <div className="msp-root">
+      {liquid ? null : (
+        <p className="msp-logo-row">
+          <a href="https://sterapro.be">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/sterapro-shop-logo.png" alt="SteraPro" className="msp-logo" />
+          </a>
+        </p>
+      )}
+      {children}
+      {liquid ? null : (
+        <p className="msp-foot">
+          Deze plant wordt opgevolgd door SteraPro · <a href="https://sterapro.be">Meer over SteraPro</a>
+        </p>
+      )}
+    </div>
   )
 }
 
-function NotFoundView({ slug }: { slug: string }) {
+function Leaf() {
   return (
-    <Shell>
-      <div className="mx-auto w-full max-w-xl">
-        <p className="stera-eyebrow text-stera-green mb-4">QR-code · Niet gevonden</p>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-          QR-code niet herkend
-        </h1>
-        <p className="text-base text-stera-ink-soft leading-relaxed mb-3">
-          We konden geen plant vinden voor deze QR-code. De plant is mogelijk
-          verwijderd, of de code is nog niet aan een plant gekoppeld in Stera Pro.
-        </p>
-        <p className="text-sm text-stera-ink-soft mb-10">
-          Gescande code:{' '}
-          <span className="font-mono text-stera-ink break-all">{slug}</span>
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Link href="/" className="stera-cta stera-cta-secondary">
-            Terug naar start →
-          </Link>
-        </div>
-      </div>
-    </Shell>
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d="M12 22V10" />
+      <path d="M12 10C12 6 9 4 6 4c0 4 3 6 6 6z" />
+      <path d="M12 14c0-3 3-5 6-5 0 4-3 6-6 6z" />
+    </svg>
   )
-}
-
-function formatDate(value: string | null) {
-  if (!value) return null
-  return new Date(value).toLocaleDateString('nl-BE', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
 }
 
 export default async function PublicPlantPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams?: Promise<{ voorbeeld?: string }>
 }) {
   const { slug } = await params
+  const query = searchParams ? await searchParams : {}
   const plant = await getPublicPlant(slug)
-  const viewer =
-    plant && demoEnabled() && demoPlantBySlug(slug) && (await hasDemoPortalSession())
-      ? (await demoPlants()).find((row) => row.qr_slug === slug) || null
-      : null
+  const demoPlant = demoEnabled() ? demoPlantBySlug(slug) : null
+  const voorbeeld = query.voorbeeld === '1' && !!demoPlant
+  const session = demoPlant ? await hasDemoPortalSession() : false
+  const showMore = !!demoPlant && (mspStore().demo || voorbeeld || session)
 
   if (!plant) {
-    return <NotFoundView slug={slug} />
+    return (
+      <Frame>
+        <div className="msp-qr">
+          <h1 className="msp-title">Deze code kennen we niet</h1>
+          <p className="msp-lead">
+            Er hoort geen plant bij deze QR. De plant is mogelijk weggehaald, of de code is nog niet gekoppeld.
+          </p>
+          <p style={{ marginTop: 20 }}>
+            <a className="msp-btn" href="https://sterapro.be">
+              Naar sterapro.be
+            </a>
+          </p>
+        </div>
+      </Frame>
+    )
   }
 
-  const latestVisit = plant.latest_visit
-  const lastDate = formatDate(latestVisit?.performed_at ?? null)
-  const actions = visitActions(latestVisit)
-
-  // Toon bij voorkeur de laatste onderhoudsfoto; val terug op de
-  // oorspronkelijke plantfoto als er nog geen onderhoudsfoto is.
-  const displayPhoto = plant.maintenance_photo_url ?? plant.photo_url
-
-  // Hergebruik dezelfde statusLabel/statusColor/mood-logica als de
-  // interne plant-detail pagina zodat de header er identiek uitziet.
-  const overviewPlant = {
-    ...plant,
-    notes: null,
-    location_id: null,
-    is_artificial: false,
-  } as PlantOverviewPlant
+  const status = publicStatus(plant)
+  const title = plantTitle(plant)
+  const latin = plant.species && plant.species !== title ? plant.species : null
+  const photo = plant.maintenance_photo_url || plant.photo_url
+  const lastDate = plant.latest_visit?.performed_at
+    ? new Date(plant.latest_visit.performed_at).toLocaleDateString('nl-BE', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : null
+  const actions = visitActions(plant.latest_visit)
+  const reportHref = `${mspHref(`/p/${slug}/report`)}${showMore ? '?voorbeeld=1' : ''}`
+  const portalHref = mspStore().base.startsWith('/apps/')
+    ? `/apps/mijn/voorbeeld/planten/${plant.id}`
+    : `/portal/planten/${plant.id}`
 
   return (
-    <Shell>
-      {/* Op desktop (lg) wordt alles een maat groter — breder kader,
-          grotere tekst, foto en plantje. Mobiel blijft ongewijzigd. */}
-      <div className="mx-auto w-full max-w-md space-y-3 sm:space-y-5 lg:max-w-2xl lg:space-y-7">
-        {(() => {
-          const mood = getMood(overviewPlant)
-          const ringClass =
-            mood === 'healthy'
-              ? 'ring-stera-green'
-              : mood === 'needs-attention'
-                ? 'ring-amber-500'
-                : mood === 'dying'
-                  ? 'ring-orange-500'
-                  : 'ring-red-500'
-          const title = plantTitle(plant)
-          return (
-            <div className="flex items-center gap-3 lg:gap-5">
-              <div
-                className={`w-11 shrink-0 rounded-full bg-white ring-2 ring-offset-2 ring-offset-stera-cream sm:w-14 lg:w-24 ${ringClass}`}
-              >
-                <AnimatedPlant
-                  mood={mood}
-                  seed={plant.qr_slug || plant.id}
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-5xl">
-                  {title}
-                </h1>
-                {plant.species && plant.species !== title ? (
-                  <p className="mt-0.5 text-sm text-stera-ink-soft lg:mt-1 lg:text-lg">
-                    {plant.species}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-xs text-stera-ink-soft lg:mt-2 lg:text-base">
-                  {moodMessage(mood, title)}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 lg:mt-3">
-                  <div
-                    className={`inline-flex items-center border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider lg:px-3.5 lg:py-1 lg:text-xs ${statusColor(overviewPlant)}`}
-                  >
-                    {statusLabel(overviewPlant)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {displayPhoto ? (
+    <Frame>
+      <div className="msp-qr">
+        {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={displayPhoto}
-            alt={plantTitle(plant)}
-            className="aspect-square w-full rounded-2xl border border-stera-line object-cover sm:mx-auto sm:block sm:aspect-auto sm:h-auto sm:w-auto sm:max-h-[460px] sm:max-w-full lg:max-h-[620px]"
-          />
+          <img src={photo} alt="" className="msp-ph" style={{ borderRadius: 14, marginBottom: 16 }} />
         ) : (
-          <div className="aspect-square w-full rounded-2xl border border-dashed border-stera-line bg-white/60 flex items-center justify-center text-sm text-stera-ink-soft sm:aspect-[4/3] lg:text-base">
-            Geen foto beschikbaar
-          </div>
+          <span className="msp-ph msp-ph-sm" style={{ borderRadius: 14, marginBottom: 16 }}>
+            <Leaf />
+          </span>
         )}
-
-        <div className="rounded-xl border border-stera-line bg-white p-3 lg:p-5">
-          <p className="stera-eyebrow text-stera-green text-[10px] lg:text-xs">
-            Laatste onderhoud
+        {plant.place ? <p className="msp-kicker">{plant.place}</p> : null}
+        <h1 className="msp-title">{title}</h1>
+        {latin ? <p className="msp-latin">{latin}</p> : null}
+        <p style={{ margin: '12px 0' }}>
+          <span className={`msp-badge msp-badge-${status.tag}`}>{status.text}</span>
+        </p>
+        <p className="msp-lead">{status.line}</p>
+        <p style={{ marginTop: 16 }}>
+          <a className="msp-btn" href={reportHref}>
+            Probleem melden
+          </a>
+        </p>
+        <section className="msp-panel" style={{ marginTop: 20 }}>
+          <h2>Laatste onderhoud</h2>
+          <p>
+            {lastDate ? lastDate : 'Nog geen onderhoud geregistreerd.'}
+            {actions.length > 0 ? ` · ${actions.join(' · ')}` : ''}
           </p>
-          {lastDate ? (
-            <>
-              <p className="mt-0.5 text-sm font-medium text-stera-ink lg:mt-1 lg:text-lg">
-                {lastDate}
-              </p>
-              {actions.length > 0 ? (
-                <p className="mt-0.5 line-clamp-1 text-xs text-stera-ink-soft lg:mt-1 lg:text-sm">
-                  {actions.join(' · ')}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="mt-0.5 text-sm text-stera-ink-soft lg:mt-1 lg:text-base">
-              Nog geen onderhoud geregistreerd.
+        </section>
+        {plant.care_tips?.trim() ? (
+          <section className="msp-panel">
+            <h2>Verzorging</h2>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{plant.care_tips}</p>
+          </section>
+        ) : null}
+        {showMore && demoPlant ? (
+          <section className="msp-panel">
+            <h2>Voor jou</h2>
+            <p>
+              {[demoPlant.room_name, demoPlant.room_floor].filter(Boolean).join(' · ')}
             </p>
-          )}
+            {demoPlant.customer_note ? <p>{demoPlant.customer_note}</p> : null}
+            <p>
+              <a className="msp-link" href={portalHref}>
+                Open in Mijn SteraPro
+              </a>
+              {' · '}
+              <a className="msp-link" href={mspHref(`/p/${slug}/label`)}>
+                QR-label
+              </a>
+            </p>
+          </section>
+        ) : null}
+        <div className="msp-sticky">
+          <a className="msp-btn msp-btn-block" href={reportHref}>
+            Probleem melden
+          </a>
         </div>
-
-        {plant.care_tips && plant.care_tips.trim() ? (
-          <div className="rounded-xl border border-stera-line bg-white p-3 lg:p-5">
-            <p className="stera-eyebrow text-stera-green text-[10px] lg:text-xs">
-              Verzorgingstips
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stera-ink lg:mt-2 lg:text-base">
-              {plant.care_tips}
-            </p>
-          </div>
-        ) : null}
-
-        {viewer ? (
-          <div className="rounded-xl border border-stera-line bg-white p-3 lg:p-5">
-            <p className="stera-eyebrow text-stera-green text-[10px] lg:text-xs">Voor ingelogde klant</p>
-            <p className="mt-1 text-sm text-stera-ink lg:text-base">
-              {[viewer.room_name, viewer.room_floor, viewer.location_name].filter(Boolean).join(' · ')}
-            </p>
-            {viewer.customer_note ? (
-              <p className="mt-2 whitespace-pre-wrap text-sm text-stera-ink-soft">{viewer.customer_note}</p>
-            ) : null}
-            <Link href={`/portal/planten/${viewer.id}`} className="mt-3 inline-block text-sm text-stera-green underline underline-offset-2">
-              Open in Mijn SteraPro
-            </Link>
-          </div>
-        ) : null}
-
-        <Link
-          href={`/p/${slug}/report`}
-          className="block rounded-xl border border-stera-line bg-white px-4 py-3 text-center text-sm font-medium text-stera-green transition hover:border-stera-green lg:py-4 lg:text-base"
-        >
-          Iets opgevallen? Meld het hier →
-        </Link>
-        <Link
-          href={`/p/${slug}/label`}
-          className="block text-center text-xs text-stera-ink-soft underline underline-offset-2"
-        >
-          QR-label afdrukken
-        </Link>
       </div>
-    </Shell>
+    </Frame>
   )
 }
