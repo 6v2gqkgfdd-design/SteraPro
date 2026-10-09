@@ -33,8 +33,14 @@ export async function GET(request: Request) {
     auth: { persistSession: false },
   })
 
+  // ?dry=1 dwingt een read-only run, ook als de live-vlag aanstaat.
+  const forceDry = new URL(request.url).searchParams.get('dry') === '1'
+
   try {
-    const report = await runShopifyInventorySync({ supabase })
+    const report = await runShopifyInventorySync({
+      supabase,
+      ...(forceDry ? { live: false } : {}),
+    })
     const status = report.dry_run
       ? 200
       : report.guard.blocked
