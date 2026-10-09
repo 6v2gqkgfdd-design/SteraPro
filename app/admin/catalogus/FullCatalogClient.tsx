@@ -900,14 +900,17 @@ export default function FullCatalogClient() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 border-t border-stera-line/60 pt-3">
-            <button
-              type="button"
-              onClick={runSync}
-              disabled={syncing || pending}
-              className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
-            >
-              {syncing ? 'Bezig…' : '↑ Sync naar Shopify'}
-            </button>
+            <span title="Tijdelijk uitgeschakeld">
+              <button
+                type="button"
+                onClick={runSync}
+                disabled
+                title="Tijdelijk uitgeschakeld"
+                className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+              >
+                {syncing ? 'Bezig…' : 'Tijdelijk uitgeschakeld'}
+              </button>
+            </span>
             <span className="text-xs text-stera-ink-soft">
               Aangeboden ({offeredTotal}) → actief in Shopify. Uitgezet → draft
               (foto&apos;s blijven bewaard). 0-stock = op bestelling.

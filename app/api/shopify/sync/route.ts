@@ -94,6 +94,13 @@ async function generateDesc(title: string, specs: string, apiKey: string): Promi
 }
 
 export async function POST() {
+  // Hotfix: sync tijdelijk uit. De knop overschrijft handmatige Shopify-activatie
+  // (status ACTIVE/DRAFT, inventoryPolicy CONTINUE, publiceren). Logica hieronder blijft staan.
+  const shopifySyncDisabled: boolean = true
+  if (shopifySyncDisabled) {
+    return NextResponse.json({ ok: false, error: 'Tijdelijk uitgeschakeld.' }, { status: 403 })
+  }
+
   // 1) Auth: enkel beheerders.
   const supa = await createServer()
   const { data: { user } } = await supa.auth.getUser()
