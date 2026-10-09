@@ -1,23 +1,38 @@
 import Link from 'next/link'
-import PortalShell, { PageHeading, Panel, DataTable } from '@/components/portal-shell'
+import PortalShell, { PageHeading, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
+import { formatDay, formatEurFromCents } from '@/lib/company-labels'
+import { loadPortalOrders, orderItemSummary, orderTag } from '@/lib/portal-data'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Bestellingen' }
 
-export default function Page() {
+export default async function Page() {
+  const { companyName, schemaReady, rows } = await loadPortalOrders()
+
   return (
-    <PortalShell active="/portal/bestellingen" company="Bakkerij 't Stadshof">
-      <PageHeading title="Bestellingen" sub="Je webshopbestellingen. Voor herbestellen of betalen ga je naar de webshop." />
-      <Panel title="Bestellingen" source="via Shopify">
-        <DataTable
-          head={['Order', 'Datum', 'Items', 'Bedrag', 'Status']}
-          rows={[
-            ['#1187', '28 mei 2026', '4 producten', '€ 286', { tag: 'ok', text: 'Geleverd' }],
-            ['#1203', '06 jun 2026', '1 product', '€ 79', { tag: 'info', text: 'Onderweg' }],
-            ['#1156', '09 apr 2026', '2 producten', '€ 134', { tag: 'ok', text: 'Geleverd' }],
-          ]}
-        />
+    <PortalShell active="/portal/bestellingen" company={companyName}>
+      <PageHeading
+        title="Bestellingen"
+        sub="Je webshopbestellingen. Opnieuw bestellen doe je in de catalogus."
+      />
+      {schemaReady ? null : <SchemaNotice />}
+      <Panel title="Bestellingen" source="Shopify">
+        {rows.length === 0 ? (
+          <EmptyNote>Nog geen bestellingen gekoppeld aan je bedrijf.</EmptyNote>
+        ) : (
+          <DataTable
+            head={['Order', 'Datum', 'Items', 'Bedrag', 'Status']}
+            rows={rows.map((order) => [
+              order.name || (order.shopify_order_number ? `#${order.shopify_order_number}` : '—'),
+              formatDay(order.ordered_at),
+              orderItemSummary(order),
+              formatEurFromCents(order.total_price_cents, order.currency || 'EUR'),
+              orderTag(order),
+            ])}
+          />
+        )}
       </Panel>
-      <Link href="https://sterapro.be" className="text-sm text-stera-green hover:underline">
+      <Link href="/catalog" className="text-sm text-stera-green hover:underline">
         Opnieuw bestellen in de webshop →
       </Link>
     </PortalShell>

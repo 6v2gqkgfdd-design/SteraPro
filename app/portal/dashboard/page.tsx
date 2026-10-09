@@ -1,43 +1,97 @@
-import PortalShell, { PageHeading, Stat, Panel, DataTable } from '@/components/portal-shell'
+import Link from 'next/link'
+import PortalShell, { PageHeading, Stat, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
+import { formatDayTime } from '@/lib/company-labels'
+import { formatDayShort } from '@/lib/dates'
+import {
+  attentionPlants,
+  loadDashboard,
+  plantLabel,
+  plantPlace,
+  plantTag,
+  recentVisits,
+  upcomingVisits,
+  visitTag,
+} from '@/lib/portal-data'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Dashboard' }
-const COMPANY = "Bakkerij 't Stadshof"
 
-export default function Page() {
+export default async function Page() {
+  const data = await loadDashboard()
+  const next = upcomingVisits(data.visits)[0]
+  const recent = recentVisits(data.visits).slice(0, 5)
+  const attention = attentionPlants(data.plants).slice(0, 8)
+  const openQuotes = data.quotes.filter((quote) => quote.status === 'sent').length
+  const plantCount = data.company?.plant_count ?? data.plants.length
+  const locationCount = data.company?.location_count ?? 0
+
   return (
-    <PortalShell active="/portal/dashboard" company={COMPANY}>
+    <PortalShell active="/portal/dashboard" company={data.companyName}>
       <PageHeading
-        title="Welkom terug, 't Stadshof"
+        title={`Welkom terug, ${data.companyName}`}
         sub="Alles over je planten, onderhoud en bestellingen op één plek."
       />
+      {data.schemaReady ? null : <SchemaNotice />}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Volgend onderhoud" value="18 jun" hint="over 10 dagen · Jonas" />
-        <Stat label="Planten in beheer" value="24" hint="3 locaties" />
-        <Stat label="Open offertes" value="1" hint="wacht op jouw akkoord" />
-        <Stat label="Contract" value="Actief" hint="tot 31 dec 2026" />
+        <Stat
+          label="Volgend onderhoud"
+          value={next?.scheduled_start ? formatDayShort(next.scheduled_start) : '—'}
+          hint={next ? [formatDayTime(next.scheduled_start), next.performed_by].filter(Boolean).join(' · ') : 'nog niet ingepland'}
+        />
+        <Stat
+          label="Planten in beheer"
+          value={data.schemaReady ? String(plantCount) : '—'}
+          hint={locationCount ? `${locationCount} locatie${locationCount === 1 ? '' : 's'}` : undefined}
+        />
+        <Stat
+          label="Open offertes"
+          value={data.schemaReady ? String(openQuotes) : '—'}
+          hint={openQuotes === 1 ? 'wacht op jouw akkoord' : openQuotes > 1 ? 'wachten op jouw akkoord' : undefined}
+        />
+        <Stat
+          label="Contract"
+          value={data.company?.has_maintenance_contract ? 'Actief' : data.schemaReady ? 'Geen' : '—'}
+          hint={next?.scheduled_start ? `volgende beurt ${formatDayShort(next.scheduled_start)}` : undefined}
+        />
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel title="Recente onderhoudsbeurten">
-          <DataTable
-            head={['Datum', 'Door', 'Status']}
-            rows={[
-              ['21 mei 2026', 'Jonas', { tag: 'ok', text: 'Afgewerkt' }],
-              ['16 apr 2026', 'Jonas', { tag: 'ok', text: 'Afgewerkt' }],
-              ['12 mrt 2026', 'Lien', { tag: 'ok', text: 'Afgewerkt' }],
-            ]}
-          />
+          {recent.length === 0 ? (
+            <EmptyNote>Nog geen afgewerkte beurten.</EmptyNote>
+          ) : (
+            <DataTable
+              head={['Datum', 'Door', 'Status']}
+              rows={recent.map((visit) => [
+                formatDayTime(visit.ended_at || visit.scheduled_start),
+                visit.performed_by || '—',
+                visitTag(visit.status),
+              ])}
+            />
+          )}
         </Panel>
         <Panel title="Aandacht nodig">
-          <DataTable
-            head={['Plant', 'Locatie', 'Status']}
-            rows={[
-              ['Calathea', 'Inkom', { tag: 'warn', text: 'Water nodig' }],
-              ['Ficus', 'Vergaderzaal', { tag: 'info', text: 'Opvolgen' }],
-              ['Kentia', 'Balie', { tag: 'ok', text: 'Gezond' }],
-            ]}
-          />
+          {attention.length === 0 ? (
+            <EmptyNote>Geen planten die nu aandacht vragen.</EmptyNote>
+          ) : (
+            <DataTable
+              head={['Plant', 'Locatie', 'Status']}
+              rows={attention.map((plant) => [plantLabel(plant), plantPlace(plant), plantTag(plant)])}
+            />
+          )}
         </Panel>
       </div>
+      <p className="text-sm">
+        <Link href="/portal/aanvraag" className="text-stera-green hover:underline">
+          Nieuwe planten aanvragen →
+        </Link>
+      </p>
+      {openQuotes > 0 ? (
+        <p className="mt-2 text-sm">
+          <Link href="/portal/offertes" className="text-stera-green hover:underline">
+            {openQuotes === 1 ? '1 offerte te beoordelen' : `${openQuotes} offertes te beoordelen`} →
+          </Link>
+        </p>
+      ) : null}
     </PortalShell>
   )
 }

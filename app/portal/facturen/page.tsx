@@ -1,21 +1,40 @@
-import PortalShell, { PageHeading, Panel, DataTable } from '@/components/portal-shell'
+import PortalShell, { PageHeading, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
+import { formatDay } from '@/lib/company-labels'
+import { loadPortalWorkOrders, workOrderTag } from '@/lib/portal-data'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Facturen' }
 
-export default function Page() {
+export default async function Page() {
+  const { companyName, schemaReady, rows } = await loadPortalWorkOrders()
+  const invoices = rows.filter((order) => order.status === 'invoiced' || order.invoice_reference)
+
   return (
-    <PortalShell active="/portal/facturen" company="Bakkerij 't Stadshof">
-      <PageHeading title="Facturen" sub="Je facturen, met downloadbare PDF." />
-      <Panel title="Facturen" source="via Accountable">
-        <DataTable
-          head={['Factuur', 'Datum', 'Bedrag', 'Status', 'PDF']}
-          rows={[
-            ['2026-0451', '31 mei 2026', '€ 145', { tag: 'ok', text: 'Betaald' }, '⬇ PDF'],
-            ['2026-0512', '06 jun 2026', '€ 286', { tag: 'warn', text: 'Open' }, '⬇ PDF'],
-            ['2026-0399', '30 apr 2026', '€ 145', { tag: 'ok', text: 'Betaald' }, '⬇ PDF'],
-          ]}
-        />
+    <PortalShell active="/portal/facturen" company={companyName}>
+      <PageHeading
+        title="Facturen"
+        sub="Werkbonnen die in het beheer als gefactureerd gemarkeerd zijn."
+      />
+      {schemaReady ? null : <SchemaNotice />}
+      <Panel title="Facturen">
+        {invoices.length === 0 ? (
+          <EmptyNote>Er staan nog geen gefactureerde werkbonnen op je bedrijf.</EmptyNote>
+        ) : (
+          <DataTable
+            head={['Factuur', 'Datum', 'Werkbon', 'Status']}
+            rows={invoices.map((order) => [
+              order.invoice_reference || '—',
+              formatDay(order.invoiced_at || order.created_at),
+              order.reference_number || '—',
+              workOrderTag(order.status),
+            ])}
+          />
+        )}
       </Panel>
+      <p className="text-sm text-stera-ink-soft">
+        Een PDF uit de boekhouding volgt wanneer die koppeling er is. Het bedrag staat op de
+        factuur zelf.
+      </p>
     </PortalShell>
   )
 }

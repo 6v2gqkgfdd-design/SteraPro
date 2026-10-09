@@ -1,24 +1,48 @@
-import PortalShell, { PageHeading, Panel, DataTable } from '@/components/portal-shell'
+import Link from 'next/link'
+import PortalShell, { PageHeading, Panel, DataTable, SchemaNotice, EmptyNote } from '@/components/portal-shell'
+import { formatDay, formatEurFromCents } from '@/lib/company-labels'
+import { loadPortalQuotes, quoteTag } from '@/lib/portal-data'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Offertes' }
 
-export default function Page() {
+export default async function Page() {
+  const { companyName, schemaReady, rows } = await loadPortalQuotes()
+  const open = rows.filter((quote) => quote.status === 'sent' && quote.signing_token)
+
   return (
-    <PortalShell active="/portal/offertes" company="Bakkerij 't Stadshof">
-      <PageHeading title="Offertes" sub="Voorstellen van Stera Pro die wachten op jouw akkoord." />
+    <PortalShell active="/portal/offertes" company={companyName}>
+      <PageHeading title="Offertes" sub="Voorstellen van Stera Pro, met het bedrag dat voor jou geldt." />
+      {schemaReady ? null : <SchemaNotice />}
       <Panel title="Offertes">
-        <DataTable
-          head={['Nr', 'Datum', 'Omschrijving', 'Bedrag', 'Status']}
-          rows={[
-            ['OFF-0098', '02 jun 2026', 'Uitbreiding vergaderzaal (3 planten)', '€ 410', { tag: 'warn', text: 'Te beoordelen' }],
-            ['OFF-0071', '14 mrt 2026', 'Mosmuur inkom', '€ 1.250', { tag: 'ok', text: 'Goedgekeurd' }],
-          ]}
-        />
+        {rows.length === 0 ? (
+          <EmptyNote>Er staan geen offertes klaar.</EmptyNote>
+        ) : (
+          <DataTable
+            head={['Nr', 'Datum', 'Omschrijving', 'Bedrag', 'Status']}
+            rows={rows.map((quote) => [
+              quote.reference_number || '—',
+              formatDay(quote.created_at),
+              quote.title || quote.location_name || 'Offerte',
+              formatEurFromCents(quote.subtotal_cents),
+              quoteTag(quote.status),
+            ])}
+          />
+        )}
       </Panel>
-      <div className="flex flex-wrap gap-3">
-        <button className="stera-cta stera-cta-primary">Offerte OFF-0098 goedkeuren</button>
-        <button className="stera-cta stera-cta-secondary">Aanpassing vragen</button>
-      </div>
+      {open.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {open.map((quote) => (
+            <Link
+              key={quote.id}
+              href={`/q/${quote.signing_token}`}
+              className="text-sm text-stera-green hover:underline"
+            >
+              {quote.reference_number || 'Offerte'} beoordelen →
+            </Link>
+          ))}
+        </div>
+      ) : null}
     </PortalShell>
   )
 }

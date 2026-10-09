@@ -1,33 +1,49 @@
-import PortalShell, { PageHeading, Panel } from '@/components/portal-shell'
+import PortalShell, { PageHeading, Panel, SchemaNotice } from '@/components/portal-shell'
+import { formatDayTime } from '@/lib/company-labels'
+import { loadContract, upcomingVisits } from '@/lib/portal-data'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Contract' }
 
 function Row({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-stera-line px-5 py-3 text-sm last:border-0">
+    <div className="flex items-center justify-between gap-4 border-b border-stera-line px-5 py-3 text-sm last:border-0">
       <span className="text-stera-ink-soft">{k}</span>
-      <span className="font-medium text-stera-green">{v}</span>
+      <span className="text-right font-medium text-stera-green">{v}</span>
     </div>
   )
 }
 
-export default function Page() {
+export default async function Page() {
+  const data = await loadContract()
+  const next = upcomingVisits(data.visits)[0]
+  const active = Boolean(data.company?.has_maintenance_contract)
+
   return (
-    <PortalShell active="/portal/contract" company="Bakkerij 't Stadshof">
-      <PageHeading title="Onderhoudscontract" sub="De voorwaarden van je doorlopende samenwerking met Stera Pro." />
+    <PortalShell active="/portal/contract" company={data.companyName}>
+      <PageHeading
+        title="Onderhoudscontract"
+        sub="Of er een onderhoudscontract loopt, en wanneer de volgende beurt gepland staat."
+      />
+      {data.schemaReady ? null : <SchemaNotice />}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Contractdetails">
-          <Row k="Status" v="Actief" />
-          <Row k="Looptijd" v="01 jan – 31 dec 2026" />
-          <Row k="Frequentie" v="4-wekelijks onderhoud" />
-          <Row k="Locaties" v="3" />
-          <Row k="Maandbedrag" v="€ 145 / maand" />
+        <Panel title="Contract">
+          <Row k="Status" v={data.schemaReady ? (active ? 'Actief' : 'Geen contract') : '—'} />
+          <Row k="Locaties" v={data.company ? String(data.company.location_count) : '—'} />
+          <Row k="Planten in beheer" v={data.company ? String(data.company.plant_count) : '—'} />
+          <Row
+            k="Volgende beurt"
+            v={next?.scheduled_start ? formatDayTime(next.scheduled_start) : 'Nog niet ingepland'}
+          />
+          {next?.title ? <Row k="Omschrijving" v={next.title} /> : null}
+          {next?.performed_by ? <Row k="Medewerker" v={next.performed_by} /> : null}
         </Panel>
-        <Panel title="Inbegrepen">
-          <Row k="Watergeven, snoeien, voeden" v="✓" />
-          <Row k="Vervanging zieke planten" v="✓" />
-          <Row k="Seizoenswissel accenten" v="✓" />
-          <Row k="Voorrang bij bestellingen" v="✓" />
+        <Panel title="Wat hier nog niet staat">
+          <p className="px-5 py-4 text-sm leading-relaxed text-stera-ink-soft">
+            Looptijd, bezoekfrequentie en tarief zitten nog niet in een contracttabel.
+            Die cijfers komen erbij zodra ze in het beheer vastliggen. Tot dan tonen we
+            alleen het contractvlaggetje en de geplande onderhoudsbeurten.
+          </p>
         </Panel>
       </div>
     </PortalShell>

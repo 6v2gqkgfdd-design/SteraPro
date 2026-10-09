@@ -36,13 +36,14 @@ export default async function PortalHome() {
   }
 
   // Goedgekeurd → portaal-menu.
-  const tiles: Array<{ href: string; title: string; desc: string; icon: string; soon?: boolean }> = [
+  const tiles: Array<{ href: string; title: string; desc: string; icon: string }> = [
+    { href: '/portal/dashboard', title: 'Dashboard', desc: 'Planten, onderhoud en openstaande offertes', icon: '🌿' },
     { href: '/portal/profiel', title: 'Mijn gegevens', desc: 'Bedrijfs- en contactgegevens bekijken en wijzigen', icon: '👤' },
     { href: '/catalog', title: 'Webshop', desc: 'Bekijk het assortiment en bestel planten', icon: '🛒' },
-    { href: '/portal/onderhoud', title: 'Onderhoud', desc: 'Je planten en onderhoudshistorie', icon: '🌿', soon: true },
-    { href: '/portal/werkbonnen', title: 'Werkbonnen', desc: 'Rapporten van uitgevoerde bezoeken', icon: '📋', soon: true },
-    { href: '/portal/offertes', title: 'Offertes', desc: 'Je voorstellen bekijken en goedkeuren', icon: '📄', soon: true },
-    { href: '/portal/bestellingen', title: 'Bestellingen', desc: 'Je bestellingen en hun status', icon: '📦', soon: true },
+    { href: '/portal/onderhoud', title: 'Onderhoud', desc: 'Beurten en werkbonnen van je contract', icon: '🪴' },
+    { href: '/portal/aanvraag', title: 'Nieuwe planten', desc: 'Vraag extra planten of een uitbreiding aan', icon: '🌱' },
+    { href: '/portal/offertes', title: 'Offertes', desc: 'Je voorstellen bekijken en goedkeuren', icon: '📄' },
+    { href: '/portal/bestellingen', title: 'Bestellingen', desc: 'Je bestellingen en hun status', icon: '📦' },
   ]
 
   return (
@@ -54,31 +55,17 @@ export default async function PortalHome() {
         </h1>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {tiles.map((t) =>
-          t.soon ? (
-            <div
-              key={t.href}
-              className="relative rounded-xl border border-stera-line bg-white/60 p-5 opacity-70"
-            >
-              <span className="absolute right-3 top-3 rounded-full bg-stera-ink/5 px-2 py-0.5 text-[10px] text-stera-ink/50">
-                binnenkort
-              </span>
-              <div className="text-2xl">{t.icon}</div>
-              <p className="mt-2 font-semibold text-stera-ink">{t.title}</p>
-              <p className="mt-1 text-sm text-stera-ink-soft">{t.desc}</p>
-            </div>
-          ) : (
-            <Link
-              key={t.href}
-              href={t.href}
-              className="rounded-xl border border-stera-line bg-white p-5 transition hover:border-stera-green hover:shadow-md"
-            >
-              <div className="text-2xl">{t.icon}</div>
-              <p className="mt-2 font-semibold text-stera-ink">{t.title}</p>
-              <p className="mt-1 text-sm text-stera-ink-soft">{t.desc}</p>
-            </Link>
-          )
-        )}
+        {tiles.map((t) => (
+          <Link
+            key={t.href}
+            href={t.href}
+            className="rounded-xl border border-stera-line bg-white p-5 transition hover:border-stera-green hover:shadow-md"
+          >
+            <div className="text-2xl">{t.icon}</div>
+            <p className="mt-2 font-semibold text-stera-ink">{t.title}</p>
+            <p className="mt-1 text-sm text-stera-ink-soft">{t.desc}</p>
+          </Link>
+        ))}
       </div>
     </Shell>
   )

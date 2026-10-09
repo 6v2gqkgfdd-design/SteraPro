@@ -1,58 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { createClient as createServer } from '@/lib/supabase/server'
+import { verifySsoToken } from '@/lib/sso-token'
 
 /**
- * SSO stap 2 — draait op app.sterapro.be, geladen in de iframe met ?token=.
+ * SSO stap 2 — draait op app.sterapro.be, geladen met ?token=.
  *
- * Verifieert het kortlevende token uit /api/sso/token, zorgt dat er een
- * Supabase-gebruiker voor dat e-mailadres bestaat, mint serverzijdig een
- * sessie (magic-link token → verifyOtp → sessie-cookie op app.sterapro.be)
- * en stuurt door naar het portaal. Geen wachtwoord/mail nodig.
+ * Verifieert het kortlevende token uit /api/sso/token met dezelfde
+ * secret-fallback (SHOPIFY_PROXY_SECRET, anders SHOPIFY_CLIENT_SECRET;
+ * verifiëren accepteert beide). Een sessie wordt alleen aangemaakt als
+ * er een goedgekeurde portal_contacts-rij voor dat e-mailadres is.
+ * Zonder rij → registreren. Met een nog niet goedgekeurde rij → login,
+ * zonder Supabase-gebruiker aan te maken.
  */
 
 export const runtime = 'nodejs'
 
-const SECRET = process.env.SHOPIFY_PROXY_SECRET || ''
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPA_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-function verifyToken(token: string): string | null {
-  const [payload, sig] = token.split('.')
-  if (!payload || !sig || !SECRET) return null
-  const expected = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url')
-  try {
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null
-  } catch {
-    return null
-  }
-  try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString())
-    if (!data.email || !data.exp || Date.now() > data.exp) return null
-    return data.email as string
-  } catch {
-    return null
-  }
+type ContactRow = {
+  email: string | null
+  status: string | null
+  company_id: string | null
 }
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
   const fail = NextResponse.redirect(new URL('/portal/login', req.url))
   if (!token) return fail
-  const email = verifyToken(token)
+  const email = verifySsoToken(token)
   if (!email) return fail
 
   const admin = createAdmin(SUPA_URL, SUPA_SERVICE, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Zorg dat de gebruiker bestaat (negeer "already registered").
-  await admin.auth.admin
-    .createUser({ email, email_confirm: true })
-    .catch(() => {})
+  const { data: contacts } = await admin
+    .from('portal_contacts')
+    .select('email, status, company_id')
+    .ilike('email', email)
+    .limit(20)
 
-  // Magic-link token genereren en serverzijdig verzilveren → sessie-cookie.
+  const exact = ((contacts ?? []) as ContactRow[]).filter(
+    (row) => (row.email || '').trim().toLowerCase() === email
+  )
+  const approved = exact.find((row) => row.status === 'approved' && row.company_id)
+
+  const params = new URLSearchParams({ email })
+  if (exact.length === 0) {
+    return NextResponse.redirect(new URL(`/portal/registreren?${params}`, req.url))
+  }
+  if (!approved) {
+    params.set('notice', 'pending')
+    return NextResponse.redirect(new URL(`/portal/login?${params}`, req.url))
+  }
+
+  await admin.auth.admin.createUser({ email, email_confirm: true }).catch(() => {})
+
   const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
     type: 'magiclink',
     email,

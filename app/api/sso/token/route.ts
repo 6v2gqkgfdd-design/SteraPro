@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { issueSsoToken } from '@/lib/sso-token'
 
 /**
  * SSO stap 1 — draait ACHTER de Shopify App Proxy.
@@ -14,12 +15,10 @@ import crypto from 'crypto'
 
 export const runtime = 'nodejs'
 
-// De Shopify App Proxy ondertekent met het app-client-secret. Deze code las
-// eerder SHOPIFY_PROXY_SECRET / SHOPIFY_PROXY_CLIENT_ID, maar die bestaan niet:
-// in .env.local (en op Vercel) heten ze SHOPIFY_CLIENT_SECRET / SHOPIFY_CLIENT_ID.
-// Daardoor was SECRET leeg en faalde élke handtekening met "bad_signature".
-// We accepteren nu beide namen, zodat het werkt ongeacht de omgeving.
-const SECRET = process.env.SHOPIFY_PROXY_SECRET || process.env.SHOPIFY_CLIENT_SECRET || ''
+// De Shopify App Proxy ondertekent met het app-client-secret. Zowel
+// SHOPIFY_PROXY_SECRET als SHOPIFY_CLIENT_SECRET kunnen gezet zijn.
+// Het kortlevende sessietoken (issueSsoToken) gebruikt dezelfde fallback,
+// en /sso verifieert beide namen.
 const SHOP = process.env.SHOPIFY_STORE_DOMAIN
 const CLIENT_ID = process.env.SHOPIFY_PROXY_CLIENT_ID || process.env.SHOPIFY_CLIENT_ID
 const CLIENT_SECRET = process.env.SHOPIFY_PROXY_SECRET || process.env.SHOPIFY_CLIENT_SECRET
@@ -101,15 +100,6 @@ async function fetchCustomerEmail(customerId: string): Promise<string | null> {
   return j?.data?.customer?.email || null
 }
 
-// Eigen, kortlevend token (60s): base64url(payload).hmac
-function issueToken(email: string): string {
-  const payload = Buffer.from(
-    JSON.stringify({ email, exp: Date.now() + 60_000 })
-  ).toString('base64url')
-  const sig = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url')
-  return `${payload}.${sig}`
-}
-
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams
   if (!verifyProxySignature(params)) {
@@ -119,5 +109,5 @@ export async function GET(req: NextRequest) {
   if (!cid) return NextResponse.json({ ok: true, loggedIn: false })
   const email = await fetchCustomerEmail(cid)
   if (!email) return NextResponse.json({ ok: true, loggedIn: false })
-  return NextResponse.json({ ok: true, loggedIn: true, token: issueToken(email) })
+  return NextResponse.json({ ok: true, loggedIn: true, token: issueSsoToken(email) })
 }

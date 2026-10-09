@@ -2,9 +2,8 @@ import Link from 'next/link'
 
 /**
  * Klantenportaal "Mijn Stera Pro" — schil in de Stera Pro-huisstijl
- * (groene sidebar + cream content), zoals het prototype. Voorlopig met
- * voorbeelddata; de echte koppeling (Shopify-login + SECURITY DEFINER
- * RPC's per klant) volgt in een latere fase.
+ * (groene sidebar + cream content). De pagina's vullen dit met de
+ * SECURITY DEFINER-RPC's per goedgekeurd bedrijf.
  */
 
 type NavItem = { href: string; label: string }
@@ -17,6 +16,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: '/portal/planten', label: 'Mijn planten' },
       { href: '/portal/leveringen', label: 'Leveringen' },
       { href: '/portal/contract', label: 'Contract' },
+      { href: '/portal/aanvraag', label: 'Nieuwe planten' },
     ],
   },
   {
@@ -113,11 +113,41 @@ export default function PortalShell({
           </span>
         </span>
       </header>
+      <nav className="flex gap-2 overflow-x-auto border-b border-stera-line px-4 py-2 md:hidden" aria-label="Portaal">
+        {NAV.flatMap((group) => group.items).map((item) => {
+          const on = item.href === active
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={on ? 'page' : undefined}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${
+                on ? 'bg-stera-green text-stera-cream' : 'bg-white text-stera-green'
+              }`}
+            >
+              {item.label}
+            </Link>
+          )
+        })}
+      </nav>
 
       <main className="px-6 py-8 md:px-9">{children}</main>
       </div>
     </div>
   )
+}
+
+export function SchemaNotice() {
+  return (
+    <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      De koppeling met je bedrijfsgegevens is op deze omgeving nog niet geactiveerd.
+      Na de portaal-migratie verschijnen hier de gegevens van je bedrijf.
+    </p>
+  )
+}
+
+export function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p className="px-5 py-6 text-sm text-stera-ink-soft">{children}</p>
 }
 
 export function PageHeading({ title, sub }: { title: string; sub?: string }) {
