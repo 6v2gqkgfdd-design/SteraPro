@@ -17,13 +17,14 @@ export type ChangeType =
   | 'discontinued'
 
 export type CatalogSyncResult = {
-  ok: true
+  ok: boolean
   mode: 'full' | 'delta'
   since: string
   fetched: number
   upserted: number
   stockUpserted: number
   changes: Record<ChangeType, number>
+  changesWritten: number
   discontinued: number
   errors: string[]
 }
@@ -78,16 +79,37 @@ type NkItem = Record<string, unknown> & {
 
 type ExistingRow = {
   itemcode: string
-  sales_price: number | null
+  sales_price: number | string | null
   description: string | null
-  height: number | null
-  diameter: number | null
+  height: number | string | null
+  diameter: number | string | null
   item_variety_nl: string | null
   pot_size: string | null
   item_picture_name: string | null
   product_group_code: string | null
   main_group_code: string | null
   is_active_at_source: boolean | null
+}
+
+export type CatalogChangeInsert = {
+  itemcode: string
+  change_type: ChangeType
+  summary: string
+  before_data: Record<string, unknown> | null
+  after_data: Record<string, unknown> | null
+}
+
+type ChangeInsertError = {
+  message?: string
+  code?: string
+  details?: string
+  hint?: string
+}
+
+export type CatalogChangeClient = {
+  from: (table: string) => {
+    insert: (rows: CatalogChangeInsert[]) => PromiseLike<{ error: ChangeInsertError | null }>
+  }
 }
 
 type StockRow = {
@@ -192,10 +214,24 @@ function mapItem(it: NkItem, now: string) {
   }
 }
 
-function specsFingerprint(r: {
+/** PostgREST geeft numeric als string ("120.00"); de feed geeft een number (120). */
+export function specToken(value: unknown): string {
+  if (value == null || value === '') return ''
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
+  if (typeof value === 'string') {
+    const trimmed = value.replace(/\u0000/g, '').trim()
+    if (!trimmed) return ''
+    const n = Number(trimmed)
+    if (Number.isFinite(n) && /^-?\d+(\.\d+)?$/.test(trimmed)) return String(n)
+    return trimmed
+  }
+  return String(value).replace(/\u0000/g, '')
+}
+
+export function specsFingerprint(r: {
   description?: string | null
-  height?: number | null
-  diameter?: number | null
+  height?: number | string | null
+  diameter?: number | string | null
   item_variety_nl?: string | null
   pot_size?: string | null
   item_picture_name?: string | null
@@ -203,15 +239,116 @@ function specsFingerprint(r: {
   main_group_code?: string | null
 }) {
   return [
-    r.description ?? '',
-    r.height ?? '',
-    r.diameter ?? '',
-    r.item_variety_nl ?? '',
-    r.pot_size ?? '',
-    r.item_picture_name ?? '',
-    r.product_group_code ?? '',
-    r.main_group_code ?? '',
+    specToken(r.description),
+    specToken(r.height),
+    specToken(r.diameter),
+    specToken(r.item_variety_nl),
+    specToken(r.pot_size),
+    specToken(r.item_picture_name),
+    specToken(r.product_group_code),
+    specToken(r.main_group_code),
   ].join('|')
+}
+
+export function samePrice(a: unknown, b: unknown): boolean {
+  const left = specToken(a)
+  const right = specToken(b)
+  if (!left && !right) return true
+  const x = Number(left)
+  const y = Number(right)
+  if (Number.isFinite(x) && Number.isFinite(y)) return Math.abs(x - y) < 0.0001
+  return left === right
+}
+
+function stripNulls(value: unknown): unknown {
+  if (typeof value === 'string') return value.replace(/\u0000/g, '')
+  if (Array.isArray(value)) return value.map(stripNulls)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value)) out[k] = stripNulls(v)
+    return out
+  }
+  return value
+}
+
+const CHANGE_PRIORITY: ChangeType[] = [
+  'discontinued',
+  'new',
+  'back_in_stock',
+  'price_changed',
+  'spec_changed',
+]
+
+function rowIndependentError(error: ChangeInsertError): boolean {
+  return (
+    error.code === '23505' ||
+    error.code === '23503' ||
+    error.code === '23514' ||
+    error.code === '22P02' ||
+    error.code === '22021'
+  )
+}
+
+function formatChangeError(error: ChangeInsertError): string {
+  return [error.code, error.message, error.details, error.hint].filter(Boolean).join(' — ')
+}
+
+/**
+ * Schrijft de inbox. Eén foute rij mag de rest niet tegenhouden.
+ * Een privilege- of schemafout wordt niet per rij herhaald.
+ */
+export async function insertCatalogChanges(
+  supabase: CatalogChangeClient,
+  rows: CatalogChangeInsert[]
+): Promise<{ written: number; failures: string[] }> {
+  const ordered = [...rows].sort(
+    (a, b) => CHANGE_PRIORITY.indexOf(a.change_type) - CHANGE_PRIORITY.indexOf(b.change_type)
+  )
+  const clean = ordered.map((row) => ({
+    itemcode: row.itemcode,
+    change_type: row.change_type,
+    summary: String(stripNulls(row.summary) ?? ''),
+    before_data: (stripNulls(row.before_data) as Record<string, unknown> | null) ?? null,
+    after_data: (stripNulls(row.after_data) as Record<string, unknown> | null) ?? null,
+  }))
+
+  let written = 0
+  const failures: string[] = []
+
+  async function write(batch: CatalogChangeInsert[]): Promise<void> {
+    if (!batch.length) return
+    const { error } = await supabase.from('catalog_changes').insert(batch)
+    if (!error) {
+      written += batch.length
+      return
+    }
+    const formatted = formatChangeError(error)
+    console.error('catalog_changes insert failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      size: batch.length,
+      itemcode: batch[0]?.itemcode,
+      change_type: batch[0]?.change_type,
+    })
+    if (batch.length === 1 || !rowIndependentError(error)) {
+      failures.push(
+        `${batch.length === 1 ? batch[0].itemcode : `${batch.length} rijen`}: ${formatted}`
+      )
+      return
+    }
+    const mid = Math.ceil(batch.length / 2)
+    await write(batch.slice(0, mid))
+    await write(batch.slice(mid))
+  }
+
+  const BATCH_INSERT = 100
+  for (let i = 0; i < clean.length; i += BATCH_INSERT) {
+    await write(clean.slice(i, i + BATCH_INSERT))
+    if (failures.length >= 8) break
+  }
+  return { written, failures }
 }
 
 async function fetchAllCodes(
@@ -340,7 +477,7 @@ export async function runCatalogMorningSync(
 
     const oldPrice = prev.sales_price == null ? null : Number(prev.sales_price)
     const newPrice = row.sales_price == null ? null : Number(row.sales_price)
-    if (oldPrice !== newPrice) {
+    if (!samePrice(prev.sales_price, row.sales_price)) {
       changeRows.push({
         itemcode: code,
         change_type: 'price_changed',
@@ -527,24 +664,23 @@ export async function runCatalogMorningSync(
     return true
   })
 
-  for (let i = 0; i < uniqueChanges.length; i += BATCH) {
-    const batch = uniqueChanges.slice(i, i + BATCH)
-    const { error } = await supabase.from('catalog_changes').insert(batch)
-    if (error) {
-      // Tabel bestaat mogelijk nog niet (migratie niet toegepast)
-      errors.push(`catalog_changes insert: ${error.message}`)
-      break
-    }
+  const inserted = await insertCatalogChanges(supabase, uniqueChanges)
+  if (inserted.failures.length) {
+    errors.push(
+      `catalog_changes: ${inserted.written} van ${uniqueChanges.length} geschreven. ${inserted.failures.slice(0, 3).join(' | ')}`
+    )
   }
+  if (errors.length) console.error('Nieuwkoop catalog sync errors', errors)
 
   return {
-    ok: true,
+    ok: errors.length === 0,
     mode,
     since,
     fetched: valid.length,
     upserted,
     stockUpserted,
     changes,
+    changesWritten: inserted.written,
     discontinued,
     errors,
   }

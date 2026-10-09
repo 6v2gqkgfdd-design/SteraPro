@@ -27,5 +27,6 @@ export default async function CatalogusPage() {
     )
   }
 
-  return <FullCatalogClient />
+  const productSyncEnabled = process.env.SHOPIFY_PRODUCT_SYNC_ENABLED === '1'
+  return <FullCatalogClient productSyncEnabled={productSyncEnabled} />
 }

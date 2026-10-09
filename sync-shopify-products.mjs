@@ -296,11 +296,17 @@ if (!isLive) {
     }
   }
   console.log(`\n  ... en ${Math.max(0, toSync.length - 6)} andere producten.`);
-  console.log("\nℹ️  Test klein: node --env-file=.env.local sync-shopify-products.mjs --limit=10 --live");
+  console.log("\nℹ️  --live is uitgezet. Nieuwe concepten lopen via de app, achter SHOPIFY_PRODUCT_SYNC_ENABLED.");
   process.exit(0);
 }
 
 // ----- LIVE -----
+// Dit pad zette bestaande producten op ACTIVE, publiceerde ze en kon alles
+// verwijderen. De app-route maakt alleen nieuwe concepten, en alleen met de vlag.
+console.error("Dit script schrijft niet meer naar Shopify.")
+console.error("Nieuwe concepten lopen via /api/shopify/sync wanneer SHOPIFY_PRODUCT_SYNC_ENABLED=1.")
+process.exit(1)
+
 console.log("\n[2] Token ophalen...");
 TOKEN = await getAccessToken();
 

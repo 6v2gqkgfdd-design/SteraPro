@@ -5,10 +5,9 @@ import { createClient as createServer } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
 // Server-side product-sync (knop op /admin/catalogus).
-// Bron van waarheid: shopify_offered_items (itemcode) in Supabase.
-// - Aangeboden → product pushen/updaten als ACTIVE
-// - Niet (meer) aangeboden → eigen product op DRAFT (niet verwijderen),
-//   zodat foto's, media en handmatige optimalisaties behouden blijven.
+// Staat uit tenzij SHOPIFY_PRODUCT_SYNC_ENABLED=1.
+// Maakt alleen producten die nog niet in Shopify staan, als DRAFT.
+// Bestaande producten, hun status, publicatie en voorraadbeleid blijven onaangeroerd.
 //
 // Vereiste env-vars OP VERCEL (niet enkel .env.local):
 //   SHOPIFY_STORE_DOMAIN, SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET,
@@ -18,11 +17,8 @@ export const runtime = 'nodejs'
 export const maxDuration = 300 // grote selecties kunnen lang duren (plan-afhankelijk geklemd)
 
 const VENDOR = 'SteraPro'
-const MOS_WORDS = ['bolmos', 'platmos', 'rendiermos', 'bol- en', 'mosschilderij', 'moss painting']
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-const isMoss = (d: string | null, v: string | null) =>
-  MOS_WORDS.some((w) => `${d ?? ''} ${v ?? ''}`.toLowerCase().includes(w))
 const teeltOf = (v: string | null) => (/hydro/i.test(v ?? '') ? 'Hydrocultuur' : 'Aarde')
 const heightLabel = (h: number | null) => (h && h > 0 ? `${Math.round(h)} cm` : 'Standaard')
 const slug = (s: string) =>
@@ -100,6 +96,12 @@ export async function POST() {
   if (!user) return NextResponse.json({ ok: false, error: 'Niet ingelogd.' }, { status: 401 })
   const { data: staff } = await supa.rpc('is_staff')
   if (!staff) return NextResponse.json({ ok: false, error: 'Geen beheerder.' }, { status: 403 })
+  if (process.env.SHOPIFY_PRODUCT_SYNC_ENABLED !== '1') {
+    return NextResponse.json(
+      { ok: false, error: 'Shopify-productsync staat uit.' },
+      { status: 403 }
+    )
+  }
 
   const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -164,7 +166,6 @@ export async function POST() {
     }
     TOKEN = tok.access_token
     const grantedScopes = String(tok.scope || '')
-    const canPublish = /write_publications/.test(grantedScopes)
 
     // Data — selectie uitsluitend via shopify_offered_items (Supabase = waarheid).
     const [priceRows, prodRows, offeredItems] = await Promise.all([
@@ -209,8 +210,6 @@ export async function POST() {
         optionValues: multiTeelt
           ? [{ optionName: 'Hoogte', name: x.label }, { optionName: 'Teelt', name: x.teelt }]
           : [{ optionName: 'Hoogte', name: x.label }],
-        // Voorraad tonen, maar bij 0 blijven verkopen (= op bestelling).
-        inventoryPolicy: 'CONTINUE',
         inventoryItem: { sku: x.itemcode, tracked: true },
       }))
       const imgItem = chosen.find((x) => x.hasImage) || rows.find((r) => r.item_picture_name)
@@ -225,18 +224,12 @@ export async function POST() {
       }
     })
 
-    // Setup: categorie + kanaal (best-effort).
+    // Categorie is optioneel en raakt status of publicatie niet.
     let CATEGORY_ID: string | null = null
     try {
       const d = await gql(`query($q:String!){ taxonomy { categories(first:8, search:$q){ nodes { id fullName } } } }`, { q: 'Houseplant' })
       const nodes = d?.taxonomy?.categories?.nodes || []
       CATEGORY_ID = (nodes.find((n: any) => /plant/i.test(n.fullName)) || nodes[0])?.id || null
-    } catch {}
-    let PUBLICATION_ID: string | null = null
-    try {
-      const d = await gql(`{ publications(first:20){ nodes { id name } } }`, {})
-      const nodes = d?.publications?.nodes || []
-      PUBLICATION_ID = (nodes.find((n: any) => /online store/i.test(n.name)) || nodes[0])?.id || null
     } catch {}
 
     // Pushen.
@@ -249,12 +242,32 @@ export async function POST() {
     const { data: descRows } = await admin.from('shopify_product_descriptions').select('group_name, body_html')
     const cacheByName = new Map<string, string>((descRows ?? []).map((r: any) => [r.group_name, r.body_html]))
 
-    let ok = 0, failed = 0
+    let created = 0, skippedExisting = 0, failed = 0
     const errors: string[] = []
     for (const p of products) {
       try {
         const found = await gql(`query($q:String!){ products(first:1, query:$q){ nodes { id } } }`, { q: `handle:${p.handle}` })
-        const id = found?.products?.nodes?.[0]?.id || null
+        if (found?.products?.nodes?.[0]?.id) {
+          skippedExisting++
+          continue
+        }
+        let skuExists = false
+        for (const v of p.variants) {
+          const sku = v.inventoryItem?.sku
+          if (!sku) continue
+          const hit = await gql(
+            `query($q:String!){ productVariants(first:1, query:$q){ nodes { id } } }`,
+            { q: `sku:${JSON.stringify(sku)}` }
+          )
+          if (hit?.productVariants?.nodes?.[0]?.id) {
+            skuExists = true
+            break
+          }
+        }
+        if (skuExists) {
+          skippedExisting++
+          continue
+        }
         let body: string | undefined = cacheByName.get(p.title)
         if (!body && apiKey && aiGenerated < AI_CAP) {
           body = (await generateDesc(p.title, p.specs, apiKey)) || undefined
@@ -271,11 +284,10 @@ export async function POST() {
         const input: any = {
           title: p.title, handle: p.handle, vendor: p.vendor, productType: p.productType,
           descriptionHtml: (body || p.descriptionHtml) + lead,
-          status: 'ACTIVE', productOptions: p.productOptions, variants: p.variants,
+          status: 'DRAFT', productOptions: p.productOptions, variants: p.variants,
         }
         if (CATEGORY_ID) input.category = CATEGORY_ID
-        if (id) input.id = id
-        else if (p.image) input.files = [{ originalSource: p.image, contentType: 'IMAGE' }]
+        if (p.image) input.files = [{ originalSource: p.image, contentType: 'IMAGE' }]
         let d = await gql(PRODUCT_SET, { input })
         let errs = d?.productSet?.userErrors || []
         // Faalt het? Probeer opnieuw zonder categorie én zonder foto. Op een
@@ -288,69 +300,16 @@ export async function POST() {
           errs = d?.productSet?.userErrors || []
         }
         if (errs.length) { failed++; errors.push(`${p.title}: ${errs.map((e: any) => e.message).join('; ')}`); continue }
-        ok++
-        const pid = d?.productSet?.product?.id
-        if (pid && PUBLICATION_ID && canPublish) {
-          try { await gql(`mutation($id:ID!,$pubs:[PublicationInput!]!){ publishablePublish(id:$id, input:$pubs){ userErrors { message } } }`, { id: pid, pubs: [{ publicationId: PUBLICATION_ID }] }) } catch {}
-        }
+        created++
       } catch (e: any) { failed++; errors.push(`${p.title}: ${e?.message || 'fout'}`) }
       await sleep(120)
     }
 
-    // Reconcile: niet-geselecteerde eigen producten → DRAFT (niet verwijderen).
-    // Zo blijven media, foto's en handmatige edits bewaard voor later heraanbieden.
-    const keep = new Set(products.map((p) => p.handle))
-    let deactivated = 0
-    let cursor: string | null = null
-    for (;;) {
-      const d: any = await gql(
-        `query($c:String){ products(first:100, after:$c, query:"status:active"){ nodes { id handle vendor status } pageInfo { hasNextPage endCursor } } }`,
-        { c: cursor }
-      )
-      for (const n of d?.products?.nodes || []) {
-        // Onze producten = vendor 'SteraPro' (nieuw) of 'Stera' (oude testdata).
-        const managed = n.vendor === VENDOR || n.vendor === 'Stera'
-        if (keep.has(n.handle) || !managed) continue
-        try {
-          const r = await gql(
-            `mutation($id:ID!,$status:ProductStatus!){ productChangeStatus(productId:$id, status:$status){ product { id status } userErrors { message } } }`,
-            { id: n.id, status: 'DRAFT' }
-          )
-          const errs = r?.productChangeStatus?.userErrors || []
-          if (!errs.length) deactivated++
-          else {
-            // Fallback oudere API-vorm
-            await gql(
-              `mutation($input:ProductInput!){ productUpdate(input:$input){ product { id } userErrors { message } } }`,
-              { input: { id: n.id, status: 'DRAFT' } }
-            )
-            deactivated++
-          }
-        } catch {
-          try {
-            await gql(
-              `mutation($input:ProductInput!){ productUpdate(input:$input){ product { id } userErrors { message } } }`,
-              { input: { id: n.id, status: 'DRAFT' } }
-            )
-            deactivated++
-          } catch {}
-        }
-        await sleep(100)
-      }
-      if (!d?.products?.pageInfo?.hasNextPage) break
-      cursor = d.products.pageInfo.endCursor
-    }
-
-    const stockUpdated = 0
-
     return NextResponse.json({
       ok: true,
-      pushed: ok,
+      created,
+      skippedExisting,
       failed,
-      // "removed" blijft als alias voor oudere UI; betekent nu "gedeactiveerd"
-      removed: deactivated,
-      deactivated,
-      stockUpdated,
       aiGenerated,
       selected: products.length,
       errors: errors.slice(0, 3),
