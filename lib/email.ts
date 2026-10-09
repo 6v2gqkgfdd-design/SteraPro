@@ -3,13 +3,15 @@
  *
  * Eén plek waar al onze uitgaande mail door loopt. Twee primaire
  * gebruiken:
- *   - Klantmeldingen vanaf de publieke QR-pagina → naar jelle@stera.be
+ *   - Klantmeldingen vanaf de publieke QR-pagina → naar OPS_NOTIFY_EMAIL
  *   - Klantrapport van een afgesloten onderhoudsbeurt → naar de klant
  *
  * Vereiste env-vars (ingesteld in Vercel én optioneel in .env.local):
  *   RESEND_API_KEY     Resend API-key (begint met re_…)
  *   RESEND_FROM_EMAIL  Standaard afzender, bv. "Stera <noreply@stera.be>"
- *   OPS_NOTIFY_EMAIL   Adres dat klantmeldingen ontvangt, bv. jelle@stera.be
+ *   OPS_NOTIFY_EMAIL   Adres dat klantmeldingen ontvangt. Standaard jelle@sterapro.be
+ *   EMAIL_MODE         log | send. Leeg: preview en development loggen,
+ *                      productie verstuurt via Resend.
  *
  * Faalveilig: als de key ontbreekt of Resend down is, geven we een
  * Result terug i.p.v. te crashen. De caller beslist of dat een probleem
@@ -48,9 +50,35 @@ function formatRecipients(
 
 const DEFAULT_FROM = 'Stera Pro <onboarding@resend.dev>'
 
+export function opsNotifyEmail(): string {
+  return process.env.OPS_NOTIFY_EMAIL?.trim() || 'jelle@sterapro.be'
+}
+
+/** Preview verstuurt geen mail, ook niet als een Resend-sleutel aanwezig is. */
+export function emailDeliveryMode(): 'log' | 'send' {
+  const mode = (process.env.EMAIL_MODE || '').trim().toLowerCase()
+  if (mode === 'log' || mode === 'test') return 'log'
+  if (mode === 'send') return 'send'
+  if (process.env.VERCEL_ENV === 'production') return 'send'
+  return 'log'
+}
+
 export async function sendEmail(
   input: SendEmailInput
 ): Promise<SendEmailResult> {
+  if (emailDeliveryMode() === 'log') {
+    const to = formatRecipients(input.to)
+    console.info(
+      '[email:log]',
+      JSON.stringify({
+        to,
+        subject: input.subject,
+        text: input.text || '',
+      })
+    )
+    return { ok: true, id: 'logged' }
+  }
+
   const apiKey = process.env.RESEND_API_KEY
   const fromEnv = process.env.RESEND_FROM_EMAIL
 

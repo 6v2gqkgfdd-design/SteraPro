@@ -153,3 +153,44 @@ export async function fetchRecentShopifyOrders(opts?: {
     }
   })
 }
+
+/**
+ * Zoek het numerieke Shopify-klant-id bij een e-mailadres (read-only).
+ * Zelfde id-vorm als shopify_orders.shopify_customer_id uit de REST-sync.
+ * Geeft null terug als Shopify niet bereikbaar is of de klant niet bestaat.
+ */
+export async function findShopifyCustomerIdByEmail(
+  email: string
+): Promise<string | null> {
+  const trimmed = email.trim().toLowerCase()
+  if (!trimmed || !trimmed.includes('@')) return null
+  try {
+    const { shop, token, apiVersion } = await getShopifyAdminToken()
+    const res = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': token,
+      },
+      body: JSON.stringify({
+        query: `query ($q: String!) {
+          customers(first: 5, query: $q) {
+            nodes { legacyResourceId email }
+          }
+        }`,
+        variables: { q: `email:"${trimmed.replace(/"/g, '')}"` },
+      }),
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as {
+      data?: { customers?: { nodes?: Array<{ legacyResourceId?: string | number; email?: string | null }> } }
+    }
+    const nodes = json.data?.customers?.nodes ?? []
+    const match = nodes.find((node) => (node.email || '').trim().toLowerCase() === trimmed)
+    const id = match?.legacyResourceId
+    return id != null && String(id) !== '' ? String(id) : null
+  } catch {
+    return null
+  }
+}

@@ -2,8 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { findShopifyCustomerIdByEmail } from '@/lib/shopify-admin'
 
-type Result = { ok: true } | { ok: false; error: string }
+type Result =
+  | { ok: true; shopify: 'linked' | 'unchanged' | 'not_found' }
+  | { ok: false; error: string }
 
 /**
  * Keurt een portaal-aanvraag goed: koppelt aan een bestaand bedrijf, of
@@ -18,6 +21,9 @@ export async function approvePortalRequest(
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Niet ingelogd.' }
+
+  const { data: staff } = await supabase.rpc('is_staff')
+  if (!staff) return { ok: false, error: 'Geen toegang.' }
 
   const { data: contact } = await supabase
     .from('portal_contacts')
@@ -59,6 +65,37 @@ export async function approvePortalRequest(
     .eq('id', contactId)
   if (error) return { ok: false, error: error.message }
 
+  const shopify = await linkShopifyCustomer(supabase, companyId, contact.email as string)
+
   revalidatePath('/portal-aanvragen')
-  return { ok: true }
+  return { ok: true, shopify }
+}
+
+/**
+ * Vult companies.shopify_customer_id als die nog leeg is.
+ * Alleen een Shopify-read (customers query). Een mislukte lookup
+ * blokkeert de goedkeuring niet.
+ */
+async function linkShopifyCustomer(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string,
+  email: string
+): Promise<'linked' | 'unchanged' | 'not_found'> {
+  const { data: company } = await supabase
+    .from('companies')
+    .select('id, shopify_customer_id')
+    .eq('id', companyId)
+    .maybeSingle()
+  if (!company) return 'not_found'
+  if (company.shopify_customer_id) return 'unchanged'
+
+  const shopifyId = await findShopifyCustomerIdByEmail(email)
+  if (!shopifyId) return 'not_found'
+
+  const { error } = await supabase
+    .from('companies')
+    .update({ shopify_customer_id: shopifyId })
+    .eq('id', companyId)
+    .is('shopify_customer_id', null)
+  return error ? 'not_found' : 'linked'
 }

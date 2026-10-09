@@ -23,6 +23,7 @@ export default function ApproveList({
   const [busy, setBusy] = useState<string | null>(null)
   const [choice, setChoice] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
+  const [note, setNote] = useState('')
 
   async function approve(id: string) {
     const c = choice[id] || 'new'
@@ -30,8 +31,20 @@ export default function ApproveList({
     setError('')
     const res = await approvePortalRequest(id, c)
     setBusy(null)
-    if (!res.ok) setError(res.error)
-    else router.refresh()
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    if (res.shopify === 'not_found') {
+      setNote(
+        'Goedgekeurd. Er is geen Shopify-klant met dit e-mailadres, dus shopify_customer_id blijft leeg.'
+      )
+    } else if (res.shopify === 'linked') {
+      setNote('Goedgekeurd. Het Shopify-klantnummer staat op het bedrijf.')
+    } else {
+      setNote('Goedgekeurd.')
+    }
+    router.refresh()
   }
 
   if (contacts.length === 0) {
@@ -43,6 +56,11 @@ export default function ApproveList({
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
+        </p>
+      ) : null}
+      {note ? (
+        <p className="rounded-lg border border-stera-green/30 bg-stera-green/5 px-3 py-2 text-sm text-stera-green">
+          {note}
         </p>
       ) : null}
       {contacts.map((c) => {

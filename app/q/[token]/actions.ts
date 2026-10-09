@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { maybeProvisionPortalAccess, portalAutoProvisionEnabled } from '@/lib/portal-provision'
 
 export type SubmitDecisionInput = {
   token: string
@@ -63,6 +65,26 @@ export async function submitQuoteDecision(
   }
 
   revalidatePath(`/q/${input.token}`)
+
+  if (portalAutoProvisionEnabled()) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (url && key) {
+      const admin = createServiceClient(url, key, { auth: { persistSession: false } })
+      const { data: quote } = await admin
+        .from('quotes')
+        .select('company_id, status')
+        .eq('signing_token', input.token)
+        .maybeSingle()
+      if (quote?.status === 'accepted' && quote.company_id) {
+        await maybeProvisionPortalAccess(admin, {
+          companyId: quote.company_id,
+          email: input.email,
+          name: input.name,
+        })
+      }
+    }
+  }
 
   const payload = data as unknown as {
     ok: boolean

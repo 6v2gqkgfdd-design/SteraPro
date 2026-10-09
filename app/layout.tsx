@@ -4,7 +4,6 @@ import { Toaster } from 'sonner'
 import './globals.css'
 import AppNav from '@/components/app-nav'
 import AppNavFrame from '@/components/app-nav-frame'
-
 const instrumentSans = Instrument_Sans({
   variable: '--font-instrument-sans',
   subsets: ['latin'],

@@ -1,20 +1,30 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { DEMO_COOKIE, demoEnabled, verifyDemoSession } from '@/lib/demo-session'
 
 /**
  * Scheidt twee werelden:
  *  - Klantenportaal (/portal/*): vereist een ingelogde gebruiker.
  *  - Beheer (al de rest): vereist login, en houdt portaal-klanten buiten.
  *
- * Publiek (geen login): /login, /portal/login, /q/*, /sign/*, /api/*.
+ * Publiek (geen login): /login, /portal/login, /p/* (QR), /q/*, /sign/*, /api/*.
+ * /portal/demo zet alleen een voorbeeld-cookie en is ook publiek.
  * De "is deze gebruiker een klant?"-check gebeurt via de SECURITY DEFINER
  * RPC my_portal_company (geeft enkel de eigen rij terug).
+ *
+ * Alle /portal/*-pagina's behalve login, auth-callback en registreren
+ * vereisen een sessie. De datapagina's vereisen daarbovenop een
+ * goedgekeurde portal_contacts-rij. Zonder die rij is er geen
+ * voorbeelddata zichtbaar.
  */
 
 function isPublic(path: string): boolean {
   if (path === '/login' || path === '/portal/login' || path === '/logout') return true
   if (path === '/sso') return true
   if (path === '/portal/registreren') return true
+  if (path === '/portal/demo' || path === '/portal/demo/uit') return true
+  // QR van een plant: status en verzorging, ook zonder login.
+  if (path.startsWith('/p/')) return true
   // Plantconfigurator: publiek bereikbaar vanaf de webshop, zonder login.
   if (path === '/configurator' || path.startsWith('/configurator/')) return true
   return (
@@ -27,6 +37,22 @@ function isPublic(path: string): boolean {
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const path = req.nextUrl.pathname
+
+  // Afgedrukte labels op app.sterapro.be/p/… horen op de shop, onder de proxy.
+  const host = (req.headers.get('x-forwarded-host') || req.headers.get('host') || '')
+    .split(',')[0]
+    .trim()
+    .split(':')[0]
+  if (host === 'app.sterapro.be' && path.startsWith('/p/')) {
+    const dest = new URL(`https://sterapro.be/apps/mijn${path}`)
+    dest.search = req.nextUrl.search
+    return NextResponse.redirect(dest, 302)
+  }
+
+  // De App Proxy rendert zelf (handtekening of voorbeeldroute). Geen medewerkerspoort.
+  if (path === '/apps/mijn' || path.startsWith('/apps/mijn/')) {
+    return NextResponse.next()
+  }
 
   // Shopify App Proxy stuurt /apps/mijn door naar deze route MÉT trailing slash
   // (/api/sso/token/). Met `skipTrailingSlashRedirect` (next.config.ts) doet
@@ -67,29 +93,36 @@ export async function middleware(req: NextRequest) {
   const isPortalAuth =
     path === '/portal/login' ||
     path.startsWith('/portal/auth') ||
-    path === '/portal/registreren'
+    path === '/portal/registreren' ||
+    path === '/portal/demo' ||
+    path === '/portal/demo/uit'
 
-  // Tijdelijk: de portaal-preview (mockup-stijl, voorbeelddata) is publiek
-  // bekijkbaar zodat de toggle en het ontwerp zonder login te zien zijn.
-  // Wordt opnieuw afgeschermd zodra de echte klantdata + Shopify-login
-  // gekoppeld zijn.
-  const isPortalPreview =
-    path === '/portal/dashboard' ||
-    path === '/portal/onderhoud' ||
-    path === '/portal/planten' ||
-    path === '/portal/leveringen' ||
-    path === '/portal/contract' ||
-    path === '/portal/offertes' ||
-    path === '/portal/bestellingen' ||
-    path === '/portal/facturen'
+  // Login, callback en demosessie moeten de route halen vóór de
+  // medewerkerscheck. De callback zet pas daarna de Supabase-sessie.
+  if (inPortal && isPortalAuth) return res
 
-  if (isPortalPreview) return res
-
-  // Portaal-zone: enkel inloggen vereist (toegang tot een bedrijf checkt
-  // de portaalpagina zelf).
+  // Portaal-zone: sessie verplicht. Datapagina's ook een goedgekeurd
+  // contact — anders doorsturen naar /portal (in behandeling / registreren).
+  // /portal zelf blijft bereikbaar met alleen een sessie, zodat een
+  // pending aanvraag daar een status ziet in plaats van een redirect-lus.
+  // Een geldige democookie toont enkel Demo Kantoor, nooit een echte klant.
   if (inPortal && !isPortalAuth) {
+    if (demoEnabled() && (await verifyDemoSession(req.cookies.get(DEMO_COOKIE)?.value))) {
+      return res
+    }
     if (!user) {
       return NextResponse.redirect(new URL('/portal/login', req.url))
+    }
+    if (path !== '/portal') {
+      const { data: portal } = await supabase.rpc('my_portal_company')
+      const row = (Array.isArray(portal) ? portal[0] : null) as {
+        status?: string
+        company_id?: string | null
+      } | null
+      const approved = row?.status === 'approved' && !!row.company_id
+      if (!approved) {
+        return NextResponse.redirect(new URL('/portal', req.url))
+      }
     }
     return res
   }

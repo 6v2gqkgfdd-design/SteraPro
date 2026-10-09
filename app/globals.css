@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./msp.css";
 
 /* Stera brand tokens — direct afgeleid van het Stera-themaschema:
    crème achtergrond, donkergroen voor logo + accenten + primaire knoppen,
@@ -33,6 +34,7 @@
   --color-stera-green-deep: var(--stera-green-deep);
   --color-stera-ink: var(--stera-ink);
   --color-stera-ink-soft: var(--stera-ink-soft);
+  --color-stera-line: rgba(47, 88, 64, 0.14);
   --font-sans: var(--font-instrument-sans);
   --font-serif: var(--font-instrument-serif);
   --font-display: var(--font-instrument-serif);
