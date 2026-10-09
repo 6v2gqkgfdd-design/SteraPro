@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import {
   setItemOffered,
@@ -163,7 +164,11 @@ function loadSavedState(): {
   }
 }
 
-export default function FullCatalogClient() {
+export default function FullCatalogClient({
+  productSyncEnabled = false,
+}: {
+  productSyncEnabled?: boolean
+}) {
   const saved = useRef(loadSavedState())
   const listScrollRef = useRef(saved.current?.scroll ?? 0)
   const restoreScrollOnce = useRef(true)
@@ -542,10 +547,8 @@ export default function FullCatalogClient() {
       if (!data.ok) setMsg(`Sync-fout: ${data.error}`)
       else
         setMsg(
-          `Sync klaar — ${data.pushed} actief gepusht` +
-            (data.deactivated || data.removed
-              ? `, ${data.deactivated ?? data.removed} op non-actief (draft, niet verwijderd)`
-              : '') +
+          `Sync klaar — ${data.created ?? 0} nieuwe concepten` +
+            (data.skippedExisting ? `, ${data.skippedExisting} bestaande overgeslagen` : '') +
             (data.failed ? `, ${data.failed} fout` : '') +
             '.'
         )
@@ -588,7 +591,11 @@ export default function FullCatalogClient() {
           <h1 className="stera-display text-3xl sm:text-4xl">Catalogus</h1>
           <p className="mt-2 text-sm text-stera-ink-soft">
             Filter eerst (type, locatie, stock, prijs…), bekijk specs, en kies wat je
-            aanbiedt. Alleen de selectie gaat naar Shopify — bij 0 stock = op bestelling.
+            aanbiedt. De dagelijkse voorraad loopt via het{' '}
+            <Link href="/admin/stock-verslag" className="text-stera-green underline-offset-2 hover:underline">
+              voorraadverslag
+            </Link>
+            .
           </p>
         </div>
 
@@ -900,17 +907,24 @@ export default function FullCatalogClient() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 border-t border-stera-line/60 pt-3">
-            <button
-              type="button"
-              onClick={runSync}
-              disabled={syncing || pending}
-              className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
-            >
-              {syncing ? 'Bezig…' : '↑ Sync naar Shopify'}
-            </button>
+            {productSyncEnabled ? (
+              <button
+                type="button"
+                onClick={runSync}
+                disabled={syncing || pending}
+                className="stera-cta stera-cta-primary text-sm disabled:opacity-50"
+              >
+                {syncing ? 'Bezig…' : 'Nieuwe concepten naar Shopify'}
+              </button>
+            ) : (
+              <span className="text-xs text-stera-ink-soft">
+                Sync naar Shopify staat uit.
+              </span>
+            )}
             <span className="text-xs text-stera-ink-soft">
-              Aangeboden ({offeredTotal}) → actief in Shopify. Uitgezet → draft
-              (foto&apos;s blijven bewaard). 0-stock = op bestelling.
+              {productSyncEnabled
+                ? 'Alleen producten die nog niet bestaan, als concept. Bestaande status, publicatie en voorraadbeleid blijven staan.'
+                : `Aangeboden in de selectie: ${offeredTotal}.`}
             </span>
           </div>
 

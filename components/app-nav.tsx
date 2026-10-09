@@ -52,7 +52,8 @@ const TABS: Tab[] = [
     label: 'Catalogus',
     icon: 'webshop',
     // Admin-selectie + detail-drawer blijven op /admin/catalogus (URL-params).
-    matches: (p) => p.startsWith('/admin/catalogus'),
+    matches: (p) =>
+      p.startsWith('/admin/catalogus') || p.startsWith('/admin/stock-verslag'),
   },
 ]
 

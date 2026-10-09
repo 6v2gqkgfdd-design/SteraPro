@@ -51,7 +51,11 @@ export async function GET(request: Request) {
       { NK_BASE, NK_USER, NK_PASS },
       { mode, lookbackDays: 3 }
     )
-    const status = result.errors.length ? 207 : 200
+    if (!result.ok) {
+      console.error('sync-catalog failed', result.errors)
+    }
+    // 207 liet Vercel de cron als geslaagd zien terwijl de inbox leeg bleef.
+    const status = result.ok ? 200 : 500
     return NextResponse.json(result, { status })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Onbekende fout'
