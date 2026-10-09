@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { MSP_FONT_LINK } from '@/lib/msp-request'
 
 let cssCache: string | null = null
 
@@ -36,8 +37,9 @@ export function mspResponse(fragment: string, liquid: boolean, status = 200): Re
     return new Response(fragment, { status, headers })
   }
   const css = mspCss()
+  const fonts = `<link rel="stylesheet" href="${MSP_FONT_LINK}">`
   if (liquid) {
-    return new Response(`<style>${css}</style>\n${fragment}`, { status, headers })
+    return new Response(`${fonts}\n<style>${css}</style>\n${fragment}`, { status, headers })
   }
   const body = `<!doctype html>
 <html lang="nl">
@@ -46,9 +48,8 @@ export function mspResponse(fragment: string, liquid: boolean, status = 200): Re
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mijn SteraPro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap">
+${fonts}
 <style>
-  :root { --font-instrument-sans: "Instrument Sans"; --font-instrument-serif: "Instrument Serif"; }
   body { margin: 0; background: #FFFDF7; color: #23322B; }
 </style>
 <style>${css}</style>

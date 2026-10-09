@@ -35,16 +35,17 @@ export default function PlantReportForm({
           </label>
         ))}
       </div>
-      <label className="msp-file" style={{ marginTop: 16 }}>
+      <div className="msp-file" style={{ marginTop: 16 }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
           <path d="M4 8h3l2-2h6l2 2h3v10H4z" />
           <circle cx="12" cy="13" r="3" />
         </svg>
-        <span>
-          Foto toevoegen, optioneel
-          <input type="file" name="photo" accept="image/*" />
-        </span>
-      </label>
+        <span>Een foto helpt ons, dit is optioneel.</span>
+        <label className="msp-upload">
+          Foto toevoegen
+          <input type="file" name="photo" accept="image/*" capture="environment" />
+        </label>
+      </div>
       <label className="msp-label" htmlFor="report-message">
         Toelichting
       </label>

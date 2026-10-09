@@ -2,7 +2,7 @@ import QRCode from 'qrcode'
 import { createClient } from '@/lib/supabase/server'
 import { demoEnabled } from '@/lib/demo-session'
 import { demoPublicPlant } from '@/lib/portal-demo-data'
-import { plantPublicUrl } from '@/lib/msp-request'
+import { MSP_FONT_LINK, plantPublicUrl, SHOP_LOGO_URL } from '@/lib/msp-request'
 import { escapeHtml } from '@/lib/email'
 
 async function lookup(slug: string) {
@@ -42,7 +42,8 @@ export async function labelDocument(slug: string, backHref = `/p/${slug}`): Prom
   .name { margin: 2mm 0 0; color: #2F5840; font-size: 11pt; font-weight: 600; }
   .latin { margin: 1mm 0 0; font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; font-size: 9pt; color: rgba(35,50,43,.72); }
   .hint { margin: 2mm 0 0; font-size: 8pt; color: rgba(35,50,43,.72); }
-  .tools { max-width: 420px; margin: 24px auto; padding: 0 16px; font-size: 15px; }
+  .tools { max-width: 420px; margin: 24px auto; padding: 0 16px; font-size: 15px; font-family: "Instrument Sans", system-ui, sans-serif; }
+  .label-title { margin: 8px 0; font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 32px; color: #2F5840; }
   button { min-height: 48px; padding: 12px 24px; border-radius: 999px; border: 1.5px solid #2F5840; background: #2F5840; color: #FFFDF7; font: 600 15px/1.2 "Instrument Sans", system-ui, sans-serif; cursor: pointer; }
   a { color: #2F5840; }
   @media print {
@@ -53,12 +54,12 @@ export async function labelDocument(slug: string, backHref = `/p/${slug}`): Prom
 </style>
 <div class="tools">
   <p><a href="${escapeHtml(backHref)}">Terug naar de plant</a></p>
-  <h1 style="font-family:Georgia,serif;font-weight:400;font-size:32px;color:#2F5840">QR-label</h1>
+  <h1 class="label-title">QR-label</h1>
   <p>Alleen de plant en de QR. Geen klantnaam.</p>
   <button type="button" onclick="window.print()">Afdrukken of bewaren als PDF</button>
 </div>
 <article class="sheet">
-  <img class="logo" src="/sterapro-shop-logo.png" alt="SteraPro">
+  <img class="logo" src="${SHOP_LOGO_URL}" alt="SteraPro">
   <img class="qr" src="${qr}" alt="">
   <p class="name">${name}</p>
   ${latin}
@@ -69,6 +70,7 @@ export async function labelDocument(slug: string, backHref = `/p/${slug}`): Prom
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="${MSP_FONT_LINK}">
 <title>QR-label · ${name}</title>
 </head>
 <body>

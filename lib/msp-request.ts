@@ -31,6 +31,12 @@ export function plantPublicUrl(slug: string): string {
   return `https://sterapro.be/apps/mijn/p/${slug}`
 }
 
+/** Absoluut, anders zoekt sterapro.be het bestand in de shop en krijgt een 404. */
+export const SHOP_LOGO_URL = 'https://app.sterapro.be/sterapro-shop-logo.png'
+
+export const MSP_FONT_LINK =
+  'https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap'
+
 /** Formulieren posten hierheen. Onder de proxy blijft de browser op sterapro.be. */
 export function mspApi(kind: 'melding' | 'notitie' | 'aanvraag'): string {
   return mspStore().base.startsWith('/apps/') ? `/apps/mijn/api/${kind}` : `/api/portal/${kind}`

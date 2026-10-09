@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { demoEnabled } from '@/lib/demo-session'
 import { demoPublicPlant, demoPlantBySlug } from '@/lib/portal-demo-data'
 import { hasDemoPortalSession } from '@/lib/portal-demo'
-import { mspHref, mspStore } from '@/lib/msp-request'
+import { mspHref, mspStore, SHOP_LOGO_URL } from '@/lib/msp-request'
 
 type LatestVisit = {
   performed_at: string | null
@@ -105,7 +105,7 @@ function Frame({ children }: { children: React.ReactNode }) {
         <p className="msp-logo-row">
           <a href="https://sterapro.be">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/sterapro-shop-logo.png" alt="SteraPro" className="msp-logo" />
+            <img src={SHOP_LOGO_URL} alt="SteraPro" className="msp-logo" />
           </a>
         </p>
       )}
@@ -198,7 +198,7 @@ export default async function PublicPlantPage({
         </p>
         <p className="msp-lead">{status.line}</p>
         <p style={{ marginTop: 16 }}>
-          <a className="msp-btn" href={reportHref}>
+          <a className="msp-btn msp-qr-report" href={reportHref}>
             Probleem melden
           </a>
         </p>
@@ -233,11 +233,6 @@ export default async function PublicPlantPage({
             </p>
           </section>
         ) : null}
-        <div className="msp-sticky">
-          <a className="msp-btn msp-btn-block" href={reportHref}>
-            Probleem melden
-          </a>
-        </div>
       </div>
     </Frame>
   )
