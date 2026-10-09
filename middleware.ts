@@ -9,6 +9,11 @@ import { createServerClient } from '@supabase/ssr'
  * Publiek (geen login): /login, /portal/login, /q/*, /sign/*, /api/*.
  * De "is deze gebruiker een klant?"-check gebeurt via de SECURITY DEFINER
  * RPC my_portal_company (geeft enkel de eigen rij terug).
+ *
+ * Alle /portal/*-pagina's behalve login, auth-callback en registreren
+ * vereisen een sessie. De datapagina's vereisen daarbovenop een
+ * goedgekeurde portal_contacts-rij. Zonder die rij is er geen
+ * voorbeelddata zichtbaar.
  */
 
 function isPublic(path: string): boolean {
@@ -69,27 +74,24 @@ export async function middleware(req: NextRequest) {
     path.startsWith('/portal/auth') ||
     path === '/portal/registreren'
 
-  // Tijdelijk: de portaal-preview (mockup-stijl, voorbeelddata) is publiek
-  // bekijkbaar zodat de toggle en het ontwerp zonder login te zien zijn.
-  // Wordt opnieuw afgeschermd zodra de echte klantdata + Shopify-login
-  // gekoppeld zijn.
-  const isPortalPreview =
-    path === '/portal/dashboard' ||
-    path === '/portal/onderhoud' ||
-    path === '/portal/planten' ||
-    path === '/portal/leveringen' ||
-    path === '/portal/contract' ||
-    path === '/portal/offertes' ||
-    path === '/portal/bestellingen' ||
-    path === '/portal/facturen'
-
-  if (isPortalPreview) return res
-
-  // Portaal-zone: enkel inloggen vereist (toegang tot een bedrijf checkt
-  // de portaalpagina zelf).
+  // Portaal-zone: sessie verplicht. Datapagina's ook een goedgekeurd
+  // contact — anders doorsturen naar /portal (in behandeling / registreren).
+  // /portal zelf blijft bereikbaar met alleen een sessie, zodat een
+  // pending aanvraag daar een status ziet in plaats van een redirect-lus.
   if (inPortal && !isPortalAuth) {
     if (!user) {
       return NextResponse.redirect(new URL('/portal/login', req.url))
+    }
+    if (path !== '/portal') {
+      const { data: portal } = await supabase.rpc('my_portal_company')
+      const row = (Array.isArray(portal) ? portal[0] : null) as {
+        status?: string
+        company_id?: string | null
+      } | null
+      const approved = row?.status === 'approved' && !!row.company_id
+      if (!approved) {
+        return NextResponse.redirect(new URL('/portal', req.url))
+      }
     }
     return res
   }
