@@ -24,7 +24,11 @@ type ReportRow = {
   details: ReportDetails | null
 }
 
-const COUNTERS: { key: keyof SyncCounts; label: string }[] = [
+type NumericCountKey = {
+  [K in keyof SyncCounts]: SyncCounts[K] extends number ? K : never
+}[keyof SyncCounts]
+
+const COUNTERS: { key: NumericCountKey; label: string }[] = [
   { key: 'synced', label: 'Gesynchroniseerd' },
   { key: 'with_stock', label: 'Met voorraad' },
   { key: 'at_zero', label: 'Op 0' },

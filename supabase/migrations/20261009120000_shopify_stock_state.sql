@@ -2,8 +2,10 @@
 -- Nog niet toepassen op productie: de cron draait dry-run tot de migratie
 -- bewust is uitgevoerd en SHOPIFY_INVENTORY_SYNC_LIVE=1 staat.
 
+-- Geen foreign key naar nieuwkoop_products: een Shopify-SKU kan alleen in
+-- nieuwkoop_stock staan (fallback). Die rij moet hier ook bewaard kunnen worden.
 create table if not exists public.shopify_stock_state (
-  itemcode text primary key references public.nieuwkoop_products(itemcode) on delete cascade,
+  itemcode text primary key,
   shopify_product_id text,
   shopify_variant_id text,
   inventory_item_id text,

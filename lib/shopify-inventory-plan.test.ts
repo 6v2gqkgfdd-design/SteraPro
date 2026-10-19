@@ -4,16 +4,31 @@ import path from 'node:path'
 import test from 'node:test'
 import {
   FORBIDDEN_SHOPIFY_OPERATIONS,
+  OOS_STATUS_TEXT,
   SHOP_LOCATION_ID,
   buildCounts,
+  isArtificialCatalog,
   decideProducts,
   decideSku,
   evaluateGuards,
+  groupVariantsBySku,
+  isQtyDropOutlier,
+  assessPageCoverage,
+  outlierReviewRows,
+  pageCoverageWarning,
+  PAGE_ORDER_COLUMN,
+  parsePotserieTag,
+  parseQtyDropRatio,
+  planInventorySync,
+  stockFallbackCatalog,
+  stockSyncExclusionReason,
   targetQuantity,
+  type CatalogStock,
   type SavedStockState,
   type ShopifyVariantSnap,
 } from './shopify-inventory-plan.ts'
 import { insertCatalogChanges, samePrice, specsFingerprint } from './nieuwkoop-catalog-sync.ts'
+import { inferCatalogType } from './location.ts'
 
 const TODAY = '2026-10-15'
 
@@ -29,7 +44,21 @@ function variant(over: Partial<ShopifyVariantSnap> = {}): ShopifyVariantSnap {
     inventoryPolicy: 'DENY',
     publishedOnline: true,
     metafieldOos: null,
+    voorraadstatus: null,
     productStatus: 'ACTIVE',
+    tags: [],
+    productType: null,
+    ...over,
+  }
+}
+
+function catalog(over: Partial<CatalogStock> = {}): CatalogStock {
+  return {
+    itemcode: 'AA',
+    title: 'Plant',
+    discontinued: false,
+    discontinuedAt: null,
+    stockAvailable: 4,
     ...over,
   }
 }
@@ -232,6 +261,546 @@ test('een variant met voorraad houdt het product online', () => {
   assert.equal(buildCounts([zero, stocked], [product], 0).with_stock, 1)
 })
 
+test('ARCHIVED en uitsluit-tags worden niet gepland', () => {
+  const rows = [
+    catalog({ itemcode: 'CC1', stockAvailable: 3 }),
+    catalog({ itemcode: 'PLANT1', title: 'Ficus', stockAvailable: 0, mainGroupDescription: 'Planten' }),
+  ]
+  const byCode = new Map(rows.map((row) => [row.itemcode, row]))
+  const planned = planInventorySync({
+    today: TODAY,
+    catalog: byCode,
+    state: new Map(),
+    variants: [
+      variant({
+        sku: 'CC1',
+        productStatus: 'ARCHIVED',
+        shopifyQty: 9,
+        inventoryPolicy: 'CONTINUE',
+        tracked: false,
+      }),
+      variant({
+        sku: 'PLANT1',
+        variantId: 'gid://shopify/ProductVariant/2',
+        productId: 'gid://shopify/Product/2',
+        tags: ['showroom', 'Geen-Voorraadsync'],
+        shopifyQty: 2,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: 'CC1',
+        variantId: 'gid://shopify/ProductVariant/3',
+        productId: 'gid://shopify/Product/3',
+        tags: ['legacy-per-maat'],
+        productStatus: 'ACTIVE',
+        shopifyQty: 1,
+      }),
+      variant({
+        sku: 'SERIE1',
+        variantId: 'gid://shopify/ProductVariant/4',
+        productId: 'gid://shopify/Product/4',
+        tags: ['Legacy-Serie'],
+        productStatus: 'ACTIVE',
+        shopifyQty: 6,
+        inventoryPolicy: 'CONTINUE',
+        tracked: false,
+      }),
+    ],
+  })
+  assert.equal(planned.excluded.length, 4)
+  assert.deepEqual(
+    planned.excluded.map((row) => row.reason).sort(),
+    ['archived', 'tag', 'tag', 'tag']
+  )
+  assert.equal(planned.excluded.find((row) => row.sku === 'SERIE1')?.reason, 'tag')
+  assert.equal(planned.skus.length, 0)
+  assert.equal(planned.products.length, 0)
+  assert.equal(planned.counts.qty_set, 0)
+  assert.equal(planned.counts.policy_deny, 0)
+  assert.equal(planned.counts.track_on, 0)
+  assert.equal(planned.counts.metafield_set, 0)
+  assert.equal(planned.counts.archive, 0)
+  assert.equal(planned.counts.unpublish, 0)
+  assert.equal(planned.counts.excluded, 4)
+  assert.equal(planned.counts.excluded_by_reason.archived, 1)
+  assert.equal(planned.counts.excluded_by_reason.tag, 3)
+  assert.equal(planned.counts.excluded_by_reason.buiten_assortiment, 0)
+  assert.equal(planned.counts.excluded_by_reason.pot_draft_buiten_set, 0)
+  assert.equal(planned.counts.updates_on_buiten_assortiment, 0)
+})
+
+test('buiten-assortiment en een draft-pot buiten potserie-v2 worden niet bijgewerkt', () => {
+  assert.equal(parsePotserieTag(undefined), 'potserie-v2')
+  assert.equal(parsePotserieTag('  Potten-2026 '), 'potten-2026')
+  assert.equal(
+    stockSyncExclusionReason({ productStatus: 'ACTIVE', tags: ['Buiten-Assortiment'] }),
+    'buiten_assortiment'
+  )
+  assert.equal(
+    stockSyncExclusionReason({
+      productStatus: 'DRAFT',
+      productType: 'Pot',
+      tags: [],
+    }),
+    'pot_draft_buiten_set'
+  )
+  assert.equal(
+    stockSyncExclusionReason({
+      productStatus: 'DRAFT',
+      productType: 'Pot',
+      tags: ['potserie-v2'],
+    }),
+    null
+  )
+  assert.equal(
+    stockSyncExclusionReason(
+      { productStatus: 'DRAFT', productType: 'Pot', tags: ['Potten-2026'] },
+      'Potten-2026'
+    ),
+    null
+  )
+  assert.equal(
+    stockSyncExclusionReason({ productStatus: 'ACTIVE', productType: 'Pot', tags: [] }),
+    null
+  )
+  assert.equal(
+    stockSyncExclusionReason({ productStatus: 'DRAFT', productType: 'Plant', tags: [] }),
+    null
+  )
+
+  const planned = planInventorySync({
+    today: TODAY,
+    potserieTag: 'potten-2026',
+    catalog: new Map([
+      ['BUITEN1', catalog({ itemcode: 'BUITEN1', stockAvailable: 5 })],
+      ['POTOLD', catalog({ itemcode: 'POTOLD', stockAvailable: 3 })],
+      ['POTSET', catalog({ itemcode: 'POTSET', stockAvailable: 7 })],
+      ['POTACT', catalog({ itemcode: 'POTACT', stockAvailable: 2 })],
+    ]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: 'BUITEN1',
+        tags: ['showroom', 'buiten-assortiment'],
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+        tracked: false,
+      }),
+      variant({
+        sku: 'POTOLD',
+        variantId: 'gid://shopify/ProductVariant/old',
+        productId: 'gid://shopify/Product/old',
+        productType: 'Pot',
+        productStatus: 'DRAFT',
+        publishedOnline: false,
+        shopifyQty: 9,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: 'POTSET',
+        variantId: 'gid://shopify/ProductVariant/set',
+        productId: 'gid://shopify/Product/set',
+        productType: 'Pot',
+        productStatus: 'DRAFT',
+        tags: ['Potten-2026'],
+        publishedOnline: false,
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: 'POTACT',
+        variantId: 'gid://shopify/ProductVariant/act',
+        productId: 'gid://shopify/Product/act',
+        productType: 'Pot',
+        productStatus: 'ACTIVE',
+        shopifyQty: 0,
+        inventoryPolicy: 'CONTINUE',
+      }),
+    ],
+  })
+
+  assert.deepEqual(
+    planned.excluded.map((row) => [row.sku, row.reason]).sort(),
+    [
+      ['BUITEN1', 'buiten_assortiment'],
+      ['POTOLD', 'pot_draft_buiten_set'],
+    ]
+  )
+  assert.equal(planned.counts.excluded_by_reason.buiten_assortiment, 1)
+  assert.equal(planned.counts.excluded_by_reason.pot_draft_buiten_set, 1)
+  assert.equal(planned.counts.updates_on_buiten_assortiment, 0)
+  assert.equal(planned.skus.some((sku) => sku.sku === 'BUITEN1'), false)
+  assert.equal(planned.skus.some((sku) => sku.sku === 'POTOLD'), false)
+  const potSet = planned.skus.find((sku) => sku.sku === 'POTSET')
+  assert.ok(potSet)
+  assert.equal(potSet.excluded, false)
+  assert.equal(potSet.setQty, true)
+  assert.equal(potSet.targetQty, 7)
+  const activePot = planned.skus.find((sku) => sku.sku === 'POTACT')
+  assert.ok(activePot)
+  assert.equal(activePot.excluded, false)
+  assert.equal(activePot.setQty, true)
+})
+
+test('elke variant met dezelfde SKU krijgt qty, DENY en de nulvoorraad-tekst', () => {
+  const item = catalog({
+    itemcode: 'CC0060777',
+    stockAvailable: 0,
+    groupDescription: 'Combinaties',
+    productGroupDescription: 'All-in-1',
+  })
+  const planned = planInventorySync({
+    today: TODAY,
+    catalog: new Map([[item.itemcode, item]]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: 'CC0060777',
+        shopifyQty: 4,
+        inventoryPolicy: 'CONTINUE',
+        variantId: 'gid://shopify/ProductVariant/10',
+        inventoryItemId: 'gid://shopify/InventoryItem/10',
+      }),
+      variant({
+        sku: 'CC0060777',
+        shopifyQty: 4,
+        inventoryPolicy: 'CONTINUE',
+        variantId: 'gid://shopify/ProductVariant/11',
+        inventoryItemId: 'gid://shopify/InventoryItem/11',
+        productId: 'gid://shopify/Product/1',
+      }),
+    ],
+  })
+  const grouped = groupVariantsBySku(planned.included)
+  assert.equal(grouped.get('CC0060777')?.length, 2)
+  assert.equal(planned.counts.duplicate_sku_variants, 2)
+  assert.equal(planned.skus.length, 2)
+  for (const sku of planned.skus) {
+    assert.equal(sku.setQty, true)
+    assert.equal(sku.targetQty, 0)
+    assert.equal(sku.setPolicyDeny, true)
+    assert.equal(sku.setOosMessage, true)
+    assert.equal(sku.oosMessage, OOS_STATUS_TEXT)
+  }
+  assert.equal(new Set(planned.skus.map((s) => s.variantId)).size, 2)
+  assert.equal(new Set(planned.skus.map((s) => s.inventoryItemId)).size, 2)
+})
+
+test('niet-CC volgt de CC-regels, artificial niet, archief alleen bij ongepubliceerde DRAFT', () => {
+  const samples = [
+    { groupDescription: 'Combinaties', productGroupDescription: 'All-in-1', mainGroupDescription: 'Planten' },
+    { productGroupDescription: 'Artificial plants', groupDescription: 'Artificial' },
+    { mainGroupDescription: 'Planten', productGroupDescription: 'Hydrocultuur' },
+    { productGroupDescription: 'Plantenbakken' },
+    { productGroupDescription: 'Moswanden' },
+    { productGroupDescription: 'Hulpmiddelen' },
+  ]
+  for (const sample of samples) {
+    const artificial =
+      inferCatalogType({
+        group_description_nl: sample.groupDescription,
+        product_group_description_nl: sample.productGroupDescription,
+        main_group_description_nl: sample.mainGroupDescription,
+      }) === 'artificial'
+    assert.equal(isArtificialCatalog(catalog(sample)), artificial)
+  }
+
+  const hidden = {
+    lastQty: 0,
+    zeroSince: '2026-10-01',
+    hiddenAt: null,
+    hiddenReason: null,
+    lastSyncedAt: null,
+  } satisfies SavedStockState
+  const plant = catalog({
+    itemcode: '6BS100',
+    title: 'Ficus',
+    stockAvailable: 0,
+    mainGroupDescription: 'Planten',
+    productGroupDescription: 'Hydrocultuur',
+  })
+  const pot = catalog({
+    itemcode: 'POT300',
+    title: 'Buitenpot',
+    stockAvailable: 0,
+    productGroupDescription: 'Plantenbakken',
+  })
+  const cc = catalog({
+    itemcode: 'CC0060777',
+    title: 'Combi',
+    stockAvailable: 0,
+    groupDescription: 'Combinaties',
+  })
+  const artificial = catalog({
+    itemcode: 'ART1',
+    title: 'Kunstficus',
+    stockAvailable: 0,
+    productGroupDescription: 'Artificial plants',
+    groupDescription: 'Artificial',
+  })
+  const planned = planInventorySync({
+    today: TODAY,
+    publicationKnown: true,
+    catalog: new Map([plant, pot, cc, artificial].map((row) => [row.itemcode, row])),
+    state: new Map([
+      [plant.itemcode, hidden],
+      [pot.itemcode, hidden],
+      [cc.itemcode, hidden],
+      [artificial.itemcode, hidden],
+    ]),
+    variants: [
+      variant({
+        sku: plant.itemcode,
+        productId: 'gid://shopify/Product/p',
+        variantId: 'gid://shopify/ProductVariant/p',
+        productStatus: 'DRAFT',
+        publishedOnline: false,
+        shopifyQty: 0,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: pot.itemcode,
+        productId: 'gid://shopify/Product/o',
+        variantId: 'gid://shopify/ProductVariant/o',
+        productStatus: 'DRAFT',
+        publishedOnline: false,
+        shopifyQty: 0,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: cc.itemcode,
+        productId: 'gid://shopify/Product/c',
+        variantId: 'gid://shopify/ProductVariant/c',
+        productStatus: 'ACTIVE',
+        publishedOnline: true,
+        shopifyQty: 0,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: artificial.itemcode,
+        productId: 'gid://shopify/Product/a',
+        variantId: 'gid://shopify/ProductVariant/a',
+        productStatus: 'DRAFT',
+        publishedOnline: false,
+        shopifyQty: 2,
+        inventoryPolicy: 'CONTINUE',
+        tracked: false,
+      }),
+    ],
+  })
+  const bySku = new Map(planned.skus.map((s) => [s.sku, s]))
+  for (const code of [plant.itemcode, pot.itemcode, cc.itemcode]) {
+    const sku = bySku.get(code)
+    assert.ok(sku)
+    assert.equal(sku.zeroStockRules, true)
+    assert.equal(sku.setPolicyDeny, true)
+    assert.equal(sku.oosMessage, OOS_STATUS_TEXT)
+    assert.equal(sku.setOosMessage, true)
+  }
+  const art = bySku.get(artificial.itemcode)
+  assert.ok(art)
+  assert.equal(art.zeroStockRules, false)
+  assert.equal(art.setPolicyDeny, false)
+  assert.equal(art.oosMessage, null)
+  assert.equal(art.setOosMessage, false)
+  assert.equal(art.setQty, true)
+  assert.equal(art.setTracked, true)
+
+  const byProduct = new Map(planned.products.map((p) => [p.productId, p]))
+  assert.equal(byProduct.get('gid://shopify/Product/p')?.archive, true)
+  assert.equal(byProduct.get('gid://shopify/Product/p')?.unpublish, false)
+  assert.equal(byProduct.get('gid://shopify/Product/o')?.archive, true)
+  assert.equal(byProduct.get('gid://shopify/Product/c')?.archive, false)
+  assert.equal(byProduct.get('gid://shopify/Product/c')?.unpublish, true)
+  assert.equal(byProduct.get('gid://shopify/Product/a')?.archive, false)
+  assert.equal(byProduct.get('gid://shopify/Product/a')?.unpublish, false)
+  assert.equal(byProduct.get('gid://shopify/Product/a')?.metafield, 'keep')
+
+  const direct = decideSku(
+    variant({ productStatus: 'ARCHIVED', tags: ['legacy-per-maat'], inventoryPolicy: 'CONTINUE' }),
+    catalog({ stockAvailable: 1 }),
+    undefined,
+    TODAY
+  )
+  assert.equal(direct.excluded, true)
+  assert.equal(direct.setQty, false)
+  assert.equal(direct.setPolicyDeny, false)
+  assert.equal(direct.setTracked, false)
+  assert.equal(direct.setOosMessage, false)
+  const [product] = decideProducts([variant({ productStatus: 'ARCHIVED' })], [direct])
+  assert.equal(product, undefined)
+})
+
+test('voorraad zonder productrij matcht, CC krijgt de combinatie-regels', () => {
+  const cc = stockFallbackCatalog('CC0057814', 6)
+  const plant = stockFallbackCatalog('6BS999', 2)
+  const planned = planInventorySync({
+    today: TODAY,
+    catalog: new Map([
+      [cc.itemcode, cc],
+      [plant.itemcode, plant],
+    ]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: cc.itemcode,
+        title: 'Shopify-titel',
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+        productId: 'gid://shopify/Product/cc',
+        variantId: 'gid://shopify/ProductVariant/cc1',
+      }),
+      variant({
+        sku: cc.itemcode,
+        title: 'Shopify-titel',
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+        productId: 'gid://shopify/Product/cc',
+        variantId: 'gid://shopify/ProductVariant/cc2',
+        inventoryItemId: 'gid://shopify/InventoryItem/cc2',
+      }),
+      variant({
+        sku: plant.itemcode,
+        shopifyQty: 9,
+        inventoryPolicy: 'CONTINUE',
+        productId: 'gid://shopify/Product/nk',
+        variantId: 'gid://shopify/ProductVariant/nk',
+        inventoryItemId: 'gid://shopify/InventoryItem/nk',
+      }),
+    ],
+  })
+  assert.equal(planned.counts.stock_fallback, 2)
+  assert.equal(planned.counts.synced, 3)
+  const ccRows = planned.skus.filter((s) => s.sku === 'CC0057814')
+  assert.equal(ccRows.length, 2)
+  for (const row of ccRows) {
+    assert.equal(row.matchedViaStock, true)
+    assert.equal(row.targetQty, 6)
+    assert.equal(row.setQty, true)
+    assert.equal(row.zeroStockRules, true)
+    assert.equal(row.setPolicyDeny, true)
+  }
+  const bare = planned.skus.find((s) => s.sku === '6BS999')
+  assert.ok(bare)
+  assert.equal(bare.matchedViaStock, true)
+  assert.equal(bare.targetQty, 2)
+  assert.equal(bare.setQty, true)
+  assert.equal(bare.zeroStockRules, false)
+  assert.equal(bare.setPolicyDeny, false)
+  assert.equal(bare.returned, false)
+})
+
+test('een grote daling gaat naar review en wordt niet gezet; zonder staat geen restored', () => {
+  assert.equal(parseQtyDropRatio('80'), 0.8)
+  assert.equal(parseQtyDropRatio('0.8'), 0.8)
+  assert.equal(isQtyDropOutlier({ shopifyQty: 41, targetQty: 1 }), true)
+  assert.equal(isQtyDropOutlier({ shopifyQty: 40, targetQty: 20 }), false)
+  assert.equal(isQtyDropOutlier({ shopifyQty: 20, targetQty: 0 }), false)
+
+  const item = catalog({ itemcode: 'CC0028574', stockAvailable: 1, groupDescription: 'Combinaties' })
+  const planned = planInventorySync({
+    today: TODAY,
+    catalog: new Map([[item.itemcode, item]]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: item.itemcode,
+        shopifyQty: 41,
+        inventoryPolicy: 'DENY',
+      }),
+    ],
+  })
+  const sku = planned.skus[0]
+  assert.equal(sku.outlierReview, true)
+  assert.equal(sku.setQty, false)
+  assert.equal(sku.targetQty, 1)
+  assert.equal(planned.counts.outlier_review, 1)
+  assert.equal(planned.counts.qty_set, 0)
+  const [review] = outlierReviewRows(planned.skus)
+  assert.equal(review.sku, 'CC0028574')
+  assert.equal(review.old, 41)
+  assert.equal(review.new, 1)
+  assert.ok(review.pct > 80)
+
+  const backWithoutState = decideSku(
+    variant({ shopifyQty: 0 }),
+    catalog({ stockAvailable: 5 }),
+    undefined,
+    TODAY
+  )
+  assert.equal(backWithoutState.returned, false)
+
+  const backWithState = decideSku(
+    variant({ shopifyQty: 0 }),
+    catalog({ stockAvailable: 5 }),
+    {
+      lastQty: 0,
+      zeroSince: '2026-10-01',
+      hiddenAt: null,
+      hiddenReason: null,
+      lastSyncedAt: null,
+    },
+    TODAY
+  )
+  assert.equal(backWithState.returned, true)
+})
+
+test('paginatie op itemcode: dubbele keys of een count die niet klopt dekt de tabel niet', () => {
+  assert.equal(PAGE_ORDER_COLUMN, 'itemcode')
+
+  const stable = assessPageCoverage({
+    pages: [
+      ['CC0028574', 'CC0054265'],
+      ['CC0057814'],
+    ],
+    expectedCount: 3,
+  })
+  assert.equal(stable.duplicateKeys, false)
+  assert.equal(stable.countMismatch, false)
+  assert.equal(stable.orderBroken, false)
+  assert.equal(pageCoverageWarning('nieuwkoop_products', stable), null)
+
+  // Zelfde vorm als de live read: meer rijen dan unieke codes, pagina's overlappen.
+  const repeated = assessPageCoverage({
+    pages: [
+      ['CC0028574', 'CC0054265', 'CC0057814'],
+      ['CC0028574', 'CC0054265'],
+    ],
+    expectedCount: 5,
+  })
+  assert.equal(repeated.rowsRead, 5)
+  assert.equal(repeated.uniqueKeys, 3)
+  assert.equal(repeated.duplicateKeys, true)
+  assert.equal(repeated.orderBroken, true)
+  assert.equal(repeated.countMismatch, true)
+  const warning = pageCoverageWarning('nieuwkoop_products', repeated)
+  assert.ok(warning)
+  assert.match(warning, /5 rijen gelezen/)
+  assert.match(warning, /3 unieke itemcodes/)
+  assert.match(warning, /count 5/)
+  assert.match(warning, /Live writes worden geweigerd/)
+
+  const missed = assessPageCoverage({
+    pages: [['CC0028574', 'CC0054265', 'CC0057814']],
+    expectedCount: 5,
+  })
+  assert.equal(missed.duplicateKeys, false)
+  assert.equal(missed.orderBroken, false)
+  assert.equal(missed.countMismatch, true)
+  assert.match(pageCoverageWarning('nieuwkoop_stock', missed) ?? '', /count 5/)
+
+  const unordered = assessPageCoverage({
+    pages: [
+      ['CC0057814', 'CC0028574'],
+      ['CC0054265'],
+    ],
+    expectedCount: 3,
+  })
+  assert.equal(unordered.duplicateKeys, false)
+  assert.equal(unordered.orderBroken, true)
+  assert.ok(pageCoverageWarning('shopify_stock_state', unordered))
+})
+
 test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   const root = path.resolve(import.meta.dirname, '..')
   const files = [
@@ -250,8 +819,67 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   assert.match(sync, /if \(live && !guard\.blocked\)/)
   assert.equal(sync.includes('ignoreCompareQuantity'), false)
   assert.match(sync, /SHOP_LOCATION_ID/)
+  assert.match(sync, /tags/)
+  assert.match(sync, /status/)
+  assert.match(sync, /planInventorySync/)
+  assert.match(sync, /productChangeStatus/)
+  assert.match(sync, /status: 'ARCHIVED'/)
+  assert.equal(sync.includes("status: 'ACTIVE'"), false)
+  assert.match(sync, /product\.archive/)
+  assert.match(sync, /!== 'DRAFT'/)
   const plan = fs.readFileSync(path.join(root, 'lib/shopify-inventory-plan.ts'), 'utf8')
   assert.ok(plan.includes(SHOP_LOCATION_ID))
+  assert.match(plan, /legacy-per-maat/)
+  assert.match(plan, /legacy-serie/)
+  assert.match(plan, /geen-voorraadsync/)
+  assert.match(plan, /buiten-assortiment/)
+  assert.match(plan, /pot_draft_buiten_set/)
+  assert.match(plan, /POTSERIE_TAG/)
+  assert.match(plan, /voorlopig niet op voorraad/)
+  assert.match(sync, /legacy-serie/)
+  assert.match(sync, /buiten-assortiment/)
+  assert.match(sync, /productType/)
+  assert.match(sync, /SHOPIFY_INVENTORY_POTSERIE_TAG/)
+  assert.match(sync, /updates_on_buiten_assortiment/)
+  assert.match(sync, /MISSING_STATE_WARNING/)
+  assert.match(sync, /stockFallbackCatalog/)
+  assert.match(sync, /outlierReview/)
+  assert.match(sync, /SHOPIFY_INVENTORY_QTY_DROP_RATIO/)
+  assert.match(sync, /PAGE_ORDER_COLUMN/)
+  assert.match(sync, /pageCoverageWarning/)
+  assert.match(sync, /live && coverageBlocked/)
+  const fetchSrc = sync.slice(sync.indexOf('async function fetchAll'), sync.indexOf('function num('))
+  const orderAt = fetchSrc.indexOf('.order(PAGE_ORDER_COLUMN')
+  const rangeAt = fetchSrc.indexOf('.range(from')
+  assert.ok(orderAt !== -1 && rangeAt !== -1 && orderAt < rangeAt, 'order staat vóór range')
+  const stockScript = fs.readFileSync(path.join(root, 'sync-shopify-stock.mjs'), 'utf8')
+  assert.match(stockScript, /legacy-per-maat/)
+  assert.match(stockScript, /legacy-serie/)
+  assert.match(stockScript, /geen-voorraadsync/)
+  assert.match(stockScript, /buiten-assortiment/)
+  assert.match(stockScript, /pot_draft_buiten_set/)
+  assert.match(stockScript, /SHOPIFY_INVENTORY_POTSERIE_TAG/)
+  assert.match(stockScript, /updates_on_buiten_assortiment/)
+  assert.match(stockScript, /ARCHIVED/)
+  assert.match(stockScript, /product \{ status tags productType \}/)
+  const dryRun = fs.readFileSync(path.join(root, 'scripts/stock-sync-dry-run.mjs'), 'utf8')
+  assert.match(dryRun, /buiten-assortiment/)
+  assert.match(dryRun, /pot_draft_buiten_set/)
+  assert.match(dryRun, /updates_on_buiten_assortiment/)
+  assert.match(dryRun, /SHOPIFY_INVENTORY_POTSERIE_TAG/)
+  assert.match(stockScript, /variantsBySku/)
+  const stockFetch = stockScript.slice(
+    stockScript.indexOf('Voorraad ophalen uit nieuwkoop_stock'),
+    stockScript.indexOf('const EXCLUDED_TAGS')
+  )
+  const stockOrderAt = stockFetch.indexOf('.order("itemcode"')
+  const stockRangeAt = stockFetch.indexOf('.range(')
+  assert.ok(stockOrderAt !== -1 && stockRangeAt !== -1 && stockOrderAt < stockRangeAt)
+  assert.match(stockFetch, /Live writes geweigerd/)
+  assert.equal(stockScript.includes('invByCode.set'), false)
+  const liveExit = stockScript.indexOf('if (!isLive)')
+  const mutation = stockScript.indexOf('inventorySetQuantities')
+  assert.ok(liveExit !== -1 && mutation > liveExit)
   const applyAt = sync.indexOf('await applyWrites')
   const gateAt = sync.indexOf('if (live && !guard.blocked)')
   assert.ok(gateAt !== -1 && applyAt > gateAt)
