@@ -10,11 +10,16 @@
  *
  * Verplichte env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
  * SHOPIFY_STORE_DOMAIN, en SHOPIFY_ADMIN_TOKEN of SHOPIFY_CLIENT_ID plus
- * SHOPIFY_CLIENT_SECRET. Optioneel: SHOPIFY_API_VERSION (standaard 2026-04).
+ * SHOPIFY_CLIENT_SECRET. Optioneel: SHOPIFY_API_VERSION (standaard 2026-04),
+ * SHOPIFY_INVENTORY_POTSERIE_TAG (standaard potserie-v2).
  * De run zet live en persistReport uit. Het JSON-rapport heeft writes=false.
+ * counts.excluded_by_reason telt per reden, waaronder buiten_assortiment en
+ * pot_draft_buiten_set. counts.updates_on_buiten_assortiment moet 0 zijn.
  */
 
-import { planInventorySync } from '../lib/shopify-inventory-plan.ts'
+import { parsePotserieTag, planInventorySync } from '../lib/shopify-inventory-plan.ts'
+
+const POTSERIE_TAG = parsePotserieTag(process.env.SHOPIFY_INVENTORY_POTSERIE_TAG)
 
 const TODAY = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Brussels',
@@ -38,6 +43,7 @@ function variant(over) {
     voorraadstatus: null,
     productStatus: 'ACTIVE',
     tags: [],
+    productType: null,
     ...over,
   }
 }
@@ -98,10 +104,19 @@ function fixturePlan() {
   const archived = catalog({ itemcode: 'CCARCH', title: 'Archief', stockAvailable: 8 })
   const tagged = catalog({ itemcode: 'LEG1', title: 'Oude maat', stockAvailable: 1 })
   const serie = catalog({ itemcode: 'SERIE1', title: 'Oude serie', stockAvailable: 4 })
+  const buiten = catalog({ itemcode: 'BUITEN1', title: 'Buiten assortiment', stockAvailable: 5 })
+  const potDraft = catalog({ itemcode: 'POTDRAFT', title: 'Oude draftpot', stockAvailable: 3 })
+  const potSet = catalog({ itemcode: 'POTSET', title: 'Nieuwe potset', stockAvailable: 7 })
   return planInventorySync({
     today: TODAY,
     publicationKnown: true,
-    catalog: new Map([cc, plant, pot, artificial, archived, tagged, serie].map((row) => [row.itemcode, row])),
+    potserieTag: POTSERIE_TAG,
+    catalog: new Map(
+      [cc, plant, pot, artificial, archived, tagged, serie, buiten, potDraft, potSet].map((row) => [
+        row.itemcode,
+        row,
+      ])
+    ),
     state: new Map([
       [cc.itemcode, hidden],
       [plant.itemcode, hidden],
@@ -192,6 +207,38 @@ function fixturePlan() {
         shopifyQty: 4,
         inventoryPolicy: 'CONTINUE',
       }),
+      variant({
+        sku: buiten.itemcode,
+        title: buiten.title,
+        productId: 'gid://shopify/Product/buiten',
+        variantId: 'gid://shopify/ProductVariant/buiten',
+        tags: ['buiten-assortiment'],
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: potDraft.itemcode,
+        title: potDraft.title,
+        productId: 'gid://shopify/Product/potdraft',
+        variantId: 'gid://shopify/ProductVariant/potdraft',
+        productType: 'Pot',
+        productStatus: 'DRAFT',
+        publishedOnline: false,
+        shopifyQty: 0,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: potSet.itemcode,
+        title: potSet.title,
+        productId: 'gid://shopify/Product/potset',
+        variantId: 'gid://shopify/ProductVariant/potset',
+        productType: 'Pot',
+        productStatus: 'DRAFT',
+        tags: [POTSERIE_TAG],
+        publishedOnline: false,
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+      }),
     ],
   })
 }
@@ -235,6 +282,8 @@ function summarize(planned, source) {
     dry_run: true,
     today: TODAY,
     counts: planned.counts,
+    excluded_by_reason: planned.counts.excluded_by_reason,
+    updates_on_buiten_assortiment: planned.counts.updates_on_buiten_assortiment,
     excluded: planned.excluded,
     products,
     variants: lines,
@@ -268,6 +317,8 @@ if (credentialed) {
   try {
     report = await readOnlyRemote()
     report.source_mode = 'shopify+supabase-readonly'
+    report.excluded_by_reason = report.counts?.excluded_by_reason ?? null
+    report.updates_on_buiten_assortiment = report.counts?.updates_on_buiten_assortiment ?? null
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (!/Cannot find module '@\//.test(message) && !/ERR_MODULE_NOT_FOUND/.test(message)) {

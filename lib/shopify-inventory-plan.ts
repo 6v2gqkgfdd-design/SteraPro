@@ -3,8 +3,10 @@
  * Puur: geen netwerk. De runner past dit toe, of stopt bij een dry-run.
  *
  * Uitgesloten vóór elke planning: status ARCHIVED, tag `legacy-per-maat`,
- * `legacy-serie` of `geen-voorraadsync`. Die varianten krijgen geen qty, tracking, DENY,
- * metafield of verbergen.
+ * `legacy-serie`, `geen-voorraadsync` of `buiten-assortiment`. Een product
+ * met productType Pot dat niet ACTIVE is en de tag `potserie-v2` niet draagt
+ * (env `SHOPIFY_INVENTORY_POTSERIE_TAG`) valt ook af. Die varianten krijgen
+ * geen qty, tracking, DENY, metafield of verbergen.
  *
  * CC-codes én niet-CC (planten, potten, elke productgroep behalve artificial)
  * volgen dezelfde nulvoorraad-regels: qty 0 zet de tekst
@@ -19,7 +21,16 @@ export const OOS_METAFIELD_NAMESPACE = 'stera'
 export const OOS_METAFIELD_KEY = 'oos_sinds'
 export const OOS_STATUS_METAFIELD_KEY = 'voorraadstatus'
 export const OOS_STATUS_TEXT = 'voorlopig niet op voorraad'
-export const EXCLUDED_STOCK_SYNC_TAGS = ['legacy-per-maat', 'legacy-serie', 'geen-voorraadsync'] as const
+export const EXCLUDED_STOCK_SYNC_TAGS = [
+  'legacy-per-maat',
+  'legacy-serie',
+  'geen-voorraadsync',
+  'buiten-assortiment',
+] as const
+export const BUITEN_ASSORTIMENT_TAG = 'buiten-assortiment'
+/** Standaardtag voor de nieuwe potset. Overschrijf met SHOPIFY_INVENTORY_POTSERIE_TAG. */
+export const POTSERIE_TAG = 'potserie-v2'
+export const POT_PRODUCT_TYPE = 'Pot'
 export const STOCK_CAP = 100
 export const HIDE_AFTER_ELAPSED_DAYS = 14
 export const NEWLY_ZERO_ABORT_RATIO = 0.2
@@ -41,7 +52,7 @@ export type CatalogStock = {
   stockOnly?: boolean
 }
 
-export type StockSyncExclusion = 'archived' | 'tag'
+export type StockSyncExclusion = 'archived' | 'tag' | 'buiten_assortiment' | 'pot_draft_buiten_set'
 
 export type SavedStockState = {
   lastQty: number | null
@@ -67,6 +78,8 @@ export type ShopifyVariantSnap = {
   voorraadstatus: string | null
   productStatus: string | null
   tags: string[]
+  /** Shopify productType. Leeg als de variant niet van een Pot-product komt. */
+  productType: string | null
 }
 
 export type SkuDecision = {
@@ -170,6 +183,10 @@ export type SyncCounts = {
   stock_fallback: number
   /** Varianten waarvan het aantal niet geschreven wordt (te grote daling). */
   outlier_review: number
+  /** Uitgesloten varianten per reden. De nieuwe sleutels staan er ook op 0. */
+  excluded_by_reason: Record<StockSyncExclusion, number>
+  /** Geplande writes op een variant met tag buiten-assortiment. Moet 0 zijn. */
+  updates_on_buiten_assortiment: number
 }
 
 export const QTY_DROP_REVIEW_RATIO = 0.8
@@ -186,6 +203,7 @@ export type OutlierReviewRow = {
 export type PlanOptions = {
   qtyDropRatio?: number
   qtyDropMinShopifyQty?: number
+  potserieTag?: string
 }
 
 export function brusselsDate(date: Date): string {
@@ -221,21 +239,81 @@ export function sourceIsFresh(latestSyncedAt: string | null | undefined, today: 
   return isSameBrusselsDay(latestSyncedAt, today)
 }
 
-export function stockSyncExclusionReason(input: {
-  productStatus?: string | null
-  tags?: readonly string[] | null
-}): StockSyncExclusion | null {
+export function parsePotserieTag(raw: string | undefined | null): string {
+  const tag = (raw ?? '').trim().toLowerCase()
+  return tag || POTSERIE_TAG
+}
+
+function normalizedTags(tags: readonly string[] | null | undefined): Set<string> {
+  return new Set((tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean))
+}
+
+export function emptyExcludedByReason(): Record<StockSyncExclusion, number> {
+  return { archived: 0, tag: 0, buiten_assortiment: 0, pot_draft_buiten_set: 0 }
+}
+
+export function stockSyncExclusionReason(
+  input: {
+    productStatus?: string | null
+    tags?: readonly string[] | null
+    productType?: string | null
+  },
+  potserieTag?: string | null
+): StockSyncExclusion | null {
   if ((input.productStatus || '').toUpperCase() === 'ARCHIVED') return 'archived'
-  const tags = new Set((input.tags ?? []).map((tag) => tag.trim().toLowerCase()))
-  if (EXCLUDED_STOCK_SYNC_TAGS.some((tag) => tags.has(tag))) return 'tag'
+  const tags = normalizedTags(input.tags)
+  if (tags.has(BUITEN_ASSORTIMENT_TAG)) return 'buiten_assortiment'
+  if (EXCLUDED_STOCK_SYNC_TAGS.some((tag) => tag !== BUITEN_ASSORTIMENT_TAG && tags.has(tag))) {
+    return 'tag'
+  }
+  const status = (input.productStatus || '').toUpperCase()
+  const productType = (input.productType || '').trim().toLowerCase()
+  const keep = parsePotserieTag(potserieTag)
+  if (productType === POT_PRODUCT_TYPE.toLowerCase() && status !== 'ACTIVE' && !tags.has(keep)) {
+    return 'pot_draft_buiten_set'
+  }
   return null
 }
 
-export function isExcludedFromStockSync(input: {
-  productStatus?: string | null
-  tags?: readonly string[] | null
-}): boolean {
-  return stockSyncExclusionReason(input) != null
+export function isExcludedFromStockSync(
+  input: {
+    productStatus?: string | null
+    tags?: readonly string[] | null
+    productType?: string | null
+  },
+  potserieTag?: string | null
+): boolean {
+  return stockSyncExclusionReason(input, potserieTag) != null
+}
+
+/** Writes op een variant die de tag buiten-assortiment draagt. */
+export function countUpdatesOnBuitenAssortiment(
+  variants: readonly ShopifyVariantSnap[],
+  skus: readonly SkuDecision[],
+  products: readonly ProductDecision[]
+): number {
+  const skuByVariant = new Map(skus.map((sku) => [sku.variantId, sku]))
+  const productById = new Map(products.map((product) => [product.productId, product]))
+  let updates = 0
+  for (const variant of variants) {
+    if (!normalizedTags(variant.tags).has(BUITEN_ASSORTIMENT_TAG)) continue
+    const sku = skuByVariant.get(variant.variantId)
+    const product = productById.get(variant.productId)
+    const skuWrite =
+      sku != null &&
+      !sku.excluded &&
+      (sku.setQty ||
+        sku.activate ||
+        sku.setPolicyDeny ||
+        sku.setTracked ||
+        sku.setOosMessage ||
+        sku.clearOosMessage)
+    const productWrite =
+      product != null &&
+      (product.unpublish || product.republish || product.archive || product.metafield !== 'keep')
+    if (skuWrite || productWrite) updates += 1
+  }
+  return updates
 }
 
 /**
@@ -452,7 +530,7 @@ export function decideSku(
   today: string,
   options?: PlanOptions
 ): SkuDecision {
-  if (isExcludedFromStockSync(variant)) return inertSku(variant, true)
+  if (isExcludedFromStockSync(variant, options?.potserieTag)) return inertSku(variant, true)
 
   const matched = Boolean(catalog)
   const discontinued = catalog?.discontinued === true
@@ -666,7 +744,8 @@ export function buildCounts(
   skus: SkuDecision[],
   products: ProductDecision[],
   errorCount: number,
-  excluded = 0
+  excluded: number | readonly { reason: StockSyncExclusion }[] = 0,
+  variants: readonly ShopifyVariantSnap[] = []
 ): SyncCounts {
   const matched = skus.filter((s) => s.matched)
   const skuCounts = new Map<string, number>()
@@ -710,10 +789,18 @@ export function buildCounts(
     oos_message_set: matched.filter((s) => s.setOosMessage).length,
     oos_message_clear: matched.filter((s) => s.clearOosMessage).length,
     archive: products.filter((p) => p.archive).length,
-    excluded,
+    excluded: typeof excluded === 'number' ? excluded : excluded.length,
     duplicate_sku_variants: duplicateSkuVariants,
     stock_fallback: new Set(matched.filter((s) => s.matchedViaStock).map((s) => s.sku)).size,
     outlier_review: matched.filter((s) => s.outlierReview).length,
+    excluded_by_reason:
+      typeof excluded === 'number'
+        ? emptyExcludedByReason()
+        : excluded.reduce((counts, row) => {
+            counts[row.reason] += 1
+            return counts
+          }, emptyExcludedByReason()),
+    updates_on_buiten_assortiment: countUpdatesOnBuitenAssortiment(variants, skus, products),
   }
 }
 
@@ -738,6 +825,7 @@ export function planInventorySync(input: {
   errorCount?: number
   qtyDropRatio?: number
   qtyDropMinShopifyQty?: number
+  potserieTag?: string
 }): {
   included: ShopifyVariantSnap[]
   excluded: ExcludedSnap[]
@@ -747,8 +835,9 @@ export function planInventorySync(input: {
 } {
   const included: ShopifyVariantSnap[] = []
   const excluded: ExcludedSnap[] = []
+  const potserieTag = parsePotserieTag(input.potserieTag)
   for (const variant of input.variants) {
-    const reason = stockSyncExclusionReason(variant)
+    const reason = stockSyncExclusionReason(variant, potserieTag)
     if (reason) {
       excluded.push({
         sku: variant.sku,
@@ -765,6 +854,7 @@ export function planInventorySync(input: {
     decideSku(variant, input.catalog.get(variant.sku), input.state.get(variant.sku), input.today, {
       qtyDropRatio: input.qtyDropRatio,
       qtyDropMinShopifyQty: input.qtyDropMinShopifyQty,
+      potserieTag,
     })
   )
   const products = decideProducts(included, skus, {
@@ -775,7 +865,7 @@ export function planInventorySync(input: {
     excluded,
     skus,
     products,
-    counts: buildCounts(skus, products, input.errorCount ?? 0, excluded.length),
+    counts: buildCounts(skus, products, input.errorCount ?? 0, excluded, input.variants),
   }
 }
 

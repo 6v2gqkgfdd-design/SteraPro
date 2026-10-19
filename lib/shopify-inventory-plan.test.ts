@@ -17,9 +17,11 @@ import {
   outlierReviewRows,
   pageCoverageWarning,
   PAGE_ORDER_COLUMN,
+  parsePotserieTag,
   parseQtyDropRatio,
   planInventorySync,
   stockFallbackCatalog,
+  stockSyncExclusionReason,
   targetQuantity,
   type CatalogStock,
   type SavedStockState,
@@ -45,6 +47,7 @@ function variant(over: Partial<ShopifyVariantSnap> = {}): ShopifyVariantSnap {
     voorraadstatus: null,
     productStatus: 'ACTIVE',
     tags: [],
+    productType: null,
     ...over,
   }
 }
@@ -319,6 +322,124 @@ test('ARCHIVED en uitsluit-tags worden niet gepland', () => {
   assert.equal(planned.counts.archive, 0)
   assert.equal(planned.counts.unpublish, 0)
   assert.equal(planned.counts.excluded, 4)
+  assert.equal(planned.counts.excluded_by_reason.archived, 1)
+  assert.equal(planned.counts.excluded_by_reason.tag, 3)
+  assert.equal(planned.counts.excluded_by_reason.buiten_assortiment, 0)
+  assert.equal(planned.counts.excluded_by_reason.pot_draft_buiten_set, 0)
+  assert.equal(planned.counts.updates_on_buiten_assortiment, 0)
+})
+
+test('buiten-assortiment en een draft-pot buiten potserie-v2 worden niet bijgewerkt', () => {
+  assert.equal(parsePotserieTag(undefined), 'potserie-v2')
+  assert.equal(parsePotserieTag('  Potten-2026 '), 'potten-2026')
+  assert.equal(
+    stockSyncExclusionReason({ productStatus: 'ACTIVE', tags: ['Buiten-Assortiment'] }),
+    'buiten_assortiment'
+  )
+  assert.equal(
+    stockSyncExclusionReason({
+      productStatus: 'DRAFT',
+      productType: 'Pot',
+      tags: [],
+    }),
+    'pot_draft_buiten_set'
+  )
+  assert.equal(
+    stockSyncExclusionReason({
+      productStatus: 'DRAFT',
+      productType: 'Pot',
+      tags: ['potserie-v2'],
+    }),
+    null
+  )
+  assert.equal(
+    stockSyncExclusionReason(
+      { productStatus: 'DRAFT', productType: 'Pot', tags: ['Potten-2026'] },
+      'Potten-2026'
+    ),
+    null
+  )
+  assert.equal(
+    stockSyncExclusionReason({ productStatus: 'ACTIVE', productType: 'Pot', tags: [] }),
+    null
+  )
+  assert.equal(
+    stockSyncExclusionReason({ productStatus: 'DRAFT', productType: 'Plant', tags: [] }),
+    null
+  )
+
+  const planned = planInventorySync({
+    today: TODAY,
+    potserieTag: 'potten-2026',
+    catalog: new Map([
+      ['BUITEN1', catalog({ itemcode: 'BUITEN1', stockAvailable: 5 })],
+      ['POTOLD', catalog({ itemcode: 'POTOLD', stockAvailable: 3 })],
+      ['POTSET', catalog({ itemcode: 'POTSET', stockAvailable: 7 })],
+      ['POTACT', catalog({ itemcode: 'POTACT', stockAvailable: 2 })],
+    ]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: 'BUITEN1',
+        tags: ['showroom', 'buiten-assortiment'],
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+        tracked: false,
+      }),
+      variant({
+        sku: 'POTOLD',
+        variantId: 'gid://shopify/ProductVariant/old',
+        productId: 'gid://shopify/Product/old',
+        productType: 'Pot',
+        productStatus: 'DRAFT',
+        publishedOnline: false,
+        shopifyQty: 9,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: 'POTSET',
+        variantId: 'gid://shopify/ProductVariant/set',
+        productId: 'gid://shopify/Product/set',
+        productType: 'Pot',
+        productStatus: 'DRAFT',
+        tags: ['Potten-2026'],
+        publishedOnline: false,
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: 'POTACT',
+        variantId: 'gid://shopify/ProductVariant/act',
+        productId: 'gid://shopify/Product/act',
+        productType: 'Pot',
+        productStatus: 'ACTIVE',
+        shopifyQty: 0,
+        inventoryPolicy: 'CONTINUE',
+      }),
+    ],
+  })
+
+  assert.deepEqual(
+    planned.excluded.map((row) => [row.sku, row.reason]).sort(),
+    [
+      ['BUITEN1', 'buiten_assortiment'],
+      ['POTOLD', 'pot_draft_buiten_set'],
+    ]
+  )
+  assert.equal(planned.counts.excluded_by_reason.buiten_assortiment, 1)
+  assert.equal(planned.counts.excluded_by_reason.pot_draft_buiten_set, 1)
+  assert.equal(planned.counts.updates_on_buiten_assortiment, 0)
+  assert.equal(planned.skus.some((sku) => sku.sku === 'BUITEN1'), false)
+  assert.equal(planned.skus.some((sku) => sku.sku === 'POTOLD'), false)
+  const potSet = planned.skus.find((sku) => sku.sku === 'POTSET')
+  assert.ok(potSet)
+  assert.equal(potSet.excluded, false)
+  assert.equal(potSet.setQty, true)
+  assert.equal(potSet.targetQty, 7)
+  const activePot = planned.skus.find((sku) => sku.sku === 'POTACT')
+  assert.ok(activePot)
+  assert.equal(activePot.excluded, false)
+  assert.equal(activePot.setQty, true)
 })
 
 test('elke variant met dezelfde SKU krijgt qty, DENY en de nulvoorraad-tekst', () => {
@@ -711,8 +832,15 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   assert.match(plan, /legacy-per-maat/)
   assert.match(plan, /legacy-serie/)
   assert.match(plan, /geen-voorraadsync/)
+  assert.match(plan, /buiten-assortiment/)
+  assert.match(plan, /pot_draft_buiten_set/)
+  assert.match(plan, /POTSERIE_TAG/)
   assert.match(plan, /voorlopig niet op voorraad/)
   assert.match(sync, /legacy-serie/)
+  assert.match(sync, /buiten-assortiment/)
+  assert.match(sync, /productType/)
+  assert.match(sync, /SHOPIFY_INVENTORY_POTSERIE_TAG/)
+  assert.match(sync, /updates_on_buiten_assortiment/)
   assert.match(sync, /MISSING_STATE_WARNING/)
   assert.match(sync, /stockFallbackCatalog/)
   assert.match(sync, /outlierReview/)
@@ -728,8 +856,17 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   assert.match(stockScript, /legacy-per-maat/)
   assert.match(stockScript, /legacy-serie/)
   assert.match(stockScript, /geen-voorraadsync/)
+  assert.match(stockScript, /buiten-assortiment/)
+  assert.match(stockScript, /pot_draft_buiten_set/)
+  assert.match(stockScript, /SHOPIFY_INVENTORY_POTSERIE_TAG/)
+  assert.match(stockScript, /updates_on_buiten_assortiment/)
   assert.match(stockScript, /ARCHIVED/)
-  assert.match(stockScript, /product \{ status tags \}/)
+  assert.match(stockScript, /product \{ status tags productType \}/)
+  const dryRun = fs.readFileSync(path.join(root, 'scripts/stock-sync-dry-run.mjs'), 'utf8')
+  assert.match(dryRun, /buiten-assortiment/)
+  assert.match(dryRun, /pot_draft_buiten_set/)
+  assert.match(dryRun, /updates_on_buiten_assortiment/)
+  assert.match(dryRun, /SHOPIFY_INVENTORY_POTSERIE_TAG/)
   assert.match(stockScript, /variantsBySku/)
   const stockFetch = stockScript.slice(
     stockScript.indexOf('Voorraad ophalen uit nieuwkoop_stock'),

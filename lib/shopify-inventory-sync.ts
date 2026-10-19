@@ -7,7 +7,9 @@
  * "voorlopig niet op voorraad". zero_since gaat naar stera.oos_sinds.
  * Na 14 dagen op 0 verdwijnt een gepubliceerd product alleen van Online Store.
  * Alleen een ongepubliceerde DRAFT wordt gearchiveerd.
- * ARCHIVED en de tags legacy-per-maat / legacy-serie / geen-voorraadsync worden niet gepland.
+ * ARCHIVED en de tags legacy-per-maat / legacy-serie / geen-voorraadsync /
+ * buiten-assortiment worden niet gepland. Een Pot die niet ACTIVE is zonder
+ * de tag potserie-v2 (SHOPIFY_INVENTORY_POTSERIE_TAG) evenmin.
  * Elke variant met dezelfde SKU krijgt de update.
  */
 
@@ -29,6 +31,7 @@ import {
   PAGE_ORDER_COLUMN,
   assessPageCoverage,
   pageCoverageWarning,
+  parsePotserieTag,
   parseQtyDropMin,
   parseQtyDropRatio,
   planInventorySync,
@@ -243,6 +246,7 @@ function variantQuery(withPublication: boolean, withInventory: boolean): string 
           title
           status
           tags
+          productType
           ${published}
           metafield(namespace: "${OOS_METAFIELD_NAMESPACE}", key: "${OOS_METAFIELD_KEY}") { value }
         }
@@ -319,6 +323,7 @@ type VariantNode = {
     title?: string
     status?: string
     tags?: string[] | null
+    productType?: string | null
     publishedOnPublication?: boolean
     metafield?: { value?: string | null } | null
   } | null
@@ -363,6 +368,7 @@ async function loadVariants(
         voorraadstatus: str(node.metafield?.value),
         productStatus: node.product.status ?? null,
         tags: (node.product.tags ?? []).filter((tag): tag is string => typeof tag === 'string'),
+        productType: str(node.product.productType),
       })
     }
     if (!data.productVariants?.pageInfo?.hasNextPage) return out
@@ -714,6 +720,7 @@ export async function runShopifyInventorySync(opts: {
     errorCount: errors.length,
     qtyDropRatio: parseQtyDropRatio(process.env.SHOPIFY_INVENTORY_QTY_DROP_RATIO),
     qtyDropMinShopifyQty: parseQtyDropMin(process.env.SHOPIFY_INVENTORY_QTY_DROP_MIN),
+    potserieTag: parsePotserieTag(process.env.SHOPIFY_INVENTORY_POTSERIE_TAG),
   })
   const { skus, products } = planned
   let counts = planned.counts
@@ -726,7 +733,7 @@ export async function runShopifyInventorySync(opts: {
       sku.setOosMessage = false
       sku.clearOosMessage = false
     }
-    counts = buildCounts(skus, products, errors.length, planned.excluded.length)
+    counts = buildCounts(skus, products, errors.length, planned.excluded, variants)
   }
   for (const sku of skus) {
     if (sku.matched && !sku.inventoryItemId) {
@@ -755,6 +762,12 @@ export async function runShopifyInventorySync(opts: {
     guard.blocked = true
     guard.reasons.push(
       'Paginatie dekt de catalogus niet (dubbele of ontbrekende itemcodes). Er wordt niet geschreven.'
+    )
+  }
+  if (live && counts.updates_on_buiten_assortiment > 0) {
+    guard.blocked = true
+    guard.reasons.push(
+      'updates_on_buiten_assortiment is niet 0. Er wordt niet geschreven.'
     )
   }
 
