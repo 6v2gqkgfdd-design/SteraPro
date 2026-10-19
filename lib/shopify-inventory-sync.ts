@@ -2,9 +2,13 @@
  * Dagelijkse voorraad Supabase → Shopify.
  *
  * Dry-run tenzij SHOPIFY_INVENTORY_SYNC_LIVE=1.
- * Schrijft aantallen op de winkellocatie, zet tracking aan en inventoryPolicy
- * DENY, spiegelt zero_since naar stera.oos_sinds, en haalt na 14 dagen op 0
- * alleen de Online Store-publicatie weg.
+ * Schrijft aantallen op de winkellocatie, zet tracking aan en — behalve bij
+ * artificial — inventoryPolicy DENY. Qty 0 zet stera.voorraadstatus op
+ * "voorlopig niet op voorraad". zero_since gaat naar stera.oos_sinds.
+ * Na 14 dagen op 0 verdwijnt een gepubliceerd product alleen van Online Store.
+ * Alleen een ongepubliceerde DRAFT wordt gearchiveerd.
+ * ARCHIVED en de tags legacy-per-maat / geen-voorraadsync worden niet gepland.
+ * Elke variant met dezelfde SKU krijgt de update.
  */
 
 import { createHash } from 'node:crypto'
@@ -14,16 +18,18 @@ import {
   DETAIL_LIMIT,
   OOS_METAFIELD_KEY,
   OOS_METAFIELD_NAMESPACE,
+  OOS_STATUS_METAFIELD_KEY,
+  OOS_STATUS_TEXT,
   SHOP_LOCATION_ID,
   brusselsDate,
   buildCounts,
-  decideProducts,
-  decideSku,
   detailRows,
   evaluateGuards,
+  planInventorySync,
   sourceIsFresh,
   type CatalogStock,
   type DetailRow,
+  type ExcludedSnap,
   type ProductDecision,
   type SavedStockState,
   type ShopifyVariantSnap,
@@ -70,9 +76,10 @@ export type InventorySyncReport = {
     hidden_today: DetailRow[]
     restored: DetailRow[]
     unmatched: DetailRow[]
+    excluded: ExcludedSnap[]
     errors: string[]
   }
-  status_unchanged: true
+  status_unchanged: boolean
   report_persisted: boolean
   report_persist_error: string | null
 }
@@ -193,11 +200,13 @@ function variantQuery(withPublication: boolean, withInventory: boolean): string 
         id
         sku
         inventoryPolicy
+        metafield(namespace: "${OOS_METAFIELD_NAMESPACE}", key: "${OOS_STATUS_METAFIELD_KEY}") { value }
         inventoryItem { id tracked ${level} }
         product {
           id
           title
           status
+          tags
           ${published}
           metafield(namespace: "${OOS_METAFIELD_NAMESPACE}", key: "${OOS_METAFIELD_KEY}") { value }
         }
@@ -253,10 +262,17 @@ const PUBLISH = `mutation publishablePublish($id: ID!, $input: [PublicationInput
   }
 }`
 
+const ARCHIVE_STATUS = `mutation productChangeStatus($productId: ID!, $status: ProductStatus!) {
+  productChangeStatus(productId: $productId, status: $status) {
+    userErrors { field message }
+  }
+}`
+
 type VariantNode = {
   id?: string
   sku?: string | null
   inventoryPolicy?: string | null
+  metafield?: { value?: string | null } | null
   inventoryItem?: {
     id?: string
     tracked?: boolean
@@ -266,6 +282,7 @@ type VariantNode = {
     id?: string
     title?: string
     status?: string
+    tags?: string[] | null
     publishedOnPublication?: boolean
     metafield?: { value?: string | null } | null
   } | null
@@ -307,7 +324,9 @@ async function loadVariants(
         inventoryPolicy: node.inventoryPolicy || '',
         publishedOnline: publicationId ? node.product.publishedOnPublication === true : false,
         metafieldOos: str(node.product.metafield?.value),
+        voorraadstatus: str(node.metafield?.value),
         productStatus: node.product.status ?? null,
+        tags: (node.product.tags ?? []).filter((tag): tag is string => typeof tag === 'string'),
       })
     }
     if (!data.productVariants?.pageInfo?.hasNextPage) return out
@@ -331,10 +350,10 @@ async function applyWrites(input: {
   skus: SkuDecision[]
   products: ProductDecision[]
   errors: string[]
-}): Promise<{ failedSkus: Set<string>; failedProducts: Set<string> }> {
-  const failedSkus = new Set<string>()
+}): Promise<{ failedVariants: Set<string>; failedProducts: Set<string> }> {
+  const failedVariants = new Set<string>()
   const failedProducts = new Set<string>()
-  const matched = input.skus.filter((s) => s.matched && s.inventoryItemId)
+  const matched = input.skus.filter((s) => s.matched && s.inventoryItemId && !s.excluded)
 
   for (const sku of matched.filter((s) => s.activate)) {
     const data = await input.graphql(INVENTORY_ACTIVATE, {
@@ -345,13 +364,13 @@ async function applyWrites(input: {
     })
     const errs = userErrorText(data, 'inventoryActivate')
     if (errs.length) {
-      failedSkus.add(sku.sku)
+      failedVariants.add(sku.variantId)
       input.errors.push(`${sku.sku}: ${errs.join('; ')}`)
     }
     await sleep(80)
   }
 
-  const qtyRows = matched.filter((s) => s.setQty && !s.activate && !failedSkus.has(s.sku))
+  const qtyRows = matched.filter((s) => s.setQty && !s.activate && !failedVariants.has(s.variantId))
   for (let i = 0; i < qtyRows.length; i += QTY_BATCH) {
     const batch = qtyRows.slice(i, i + QTY_BATCH)
     const seed = batch
@@ -373,7 +392,7 @@ async function applyWrites(input: {
     })
     const errs = userErrorText(data, 'inventorySetQuantities')
     if (errs.length) {
-      for (const sku of batch) failedSkus.add(sku.sku)
+      for (const sku of batch) failedVariants.add(sku.variantId)
       input.errors.push(`voorraadbatch: ${errs.join('; ')}`)
     }
     await sleep(120)
@@ -381,7 +400,7 @@ async function applyWrites(input: {
 
   const policyByProduct = new Map<string, SkuDecision[]>()
   for (const sku of matched) {
-    if ((!sku.setPolicyDeny && !sku.setTracked) || failedSkus.has(sku.sku)) continue
+    if ((!sku.setPolicyDeny && !sku.setTracked) || failedVariants.has(sku.variantId)) continue
     const list = policyByProduct.get(sku.productId) ?? []
     list.push(sku)
     policyByProduct.set(sku.productId, list)
@@ -398,10 +417,45 @@ async function applyWrites(input: {
     })
     const errs = userErrorText(data, 'productVariantsBulkUpdate')
     if (errs.length) {
-      for (const sku of list) failedSkus.add(sku.sku)
+      for (const sku of list) failedVariants.add(sku.variantId)
       input.errors.push(`${list[0]?.sku ?? productId}: ${errs.join('; ')}`)
     }
     await sleep(80)
+  }
+
+  const messageSet = matched.filter((s) => s.setOosMessage && !failedVariants.has(s.variantId))
+  for (let i = 0; i < messageSet.length; i += META_BATCH) {
+    const batch = messageSet.slice(i, i + META_BATCH)
+    const data = await input.graphql(META_SET, {
+      metafields: batch.map((sku) => ({
+        ownerId: sku.variantId,
+        namespace: OOS_METAFIELD_NAMESPACE,
+        key: OOS_STATUS_METAFIELD_KEY,
+        type: 'single_line_text_field',
+        value: OOS_STATUS_TEXT,
+      })),
+    })
+    const errs = userErrorText(data, 'metafieldsSet')
+    if (errs.length) {
+      for (const sku of batch) failedVariants.add(sku.variantId)
+      input.errors.push(`voorraadstatus: ${errs.join('; ')}`)
+    }
+  }
+  const messageClear = matched.filter((s) => s.clearOosMessage && !failedVariants.has(s.variantId))
+  for (let i = 0; i < messageClear.length; i += META_BATCH) {
+    const batch = messageClear.slice(i, i + META_BATCH)
+    const data = await input.graphql(META_DELETE, {
+      metafields: batch.map((sku) => ({
+        ownerId: sku.variantId,
+        namespace: OOS_METAFIELD_NAMESPACE,
+        key: OOS_STATUS_METAFIELD_KEY,
+      })),
+    })
+    const errs = userErrorText(data, 'metafieldsDelete')
+    if (errs.length) {
+      for (const sku of batch) failedVariants.add(sku.variantId)
+      input.errors.push(`voorraadstatus wissen: ${errs.join('; ')}`)
+    }
   }
 
   const toSet = input.products.filter((p) => p.metafield === 'set' && p.metafieldValue)
@@ -457,7 +511,27 @@ async function applyWrites(input: {
     }
   }
 
-  return { failedSkus, failedProducts }
+  for (const product of input.products) {
+    if (!product.archive) continue
+    if ((product.productStatus || '').toUpperCase() !== 'DRAFT' || product.publishedOnline) {
+      input.errors.push(
+        `${product.title}: archiveren overgeslagen, alleen een ongepubliceerde DRAFT.`
+      )
+      continue
+    }
+    const data = await input.graphql(ARCHIVE_STATUS, {
+      productId: product.productId,
+      status: 'ARCHIVED',
+    })
+    const errs = userErrorText(data, 'productChangeStatus')
+    if (errs.length) {
+      failedProducts.add(product.productId)
+      input.errors.push(`${product.title}: ${errs.join('; ')}`)
+    }
+    await sleep(80)
+  }
+
+  return { failedVariants, failedProducts }
 }
 
 export async function runShopifyInventorySync(opts: {
@@ -466,6 +540,8 @@ export async function runShopifyInventorySync(opts: {
   now?: Date
   live?: boolean
   acknowledgeAnomaly?: boolean
+  /** Dry-run tegen echte data zet dit op false: geen rapport-rij, geen andere write. */
+  persistReport?: boolean
 }): Promise<InventorySyncReport> {
   const now = opts.now ?? new Date()
   const today = brusselsDate(now)
@@ -478,7 +554,7 @@ export async function runShopifyInventorySync(opts: {
     fetchAll(
       opts.supabase,
       'nieuwkoop_products',
-      'itemcode, description, discontinued_at, is_active_at_source, synced_at'
+      'itemcode, description, discontinued_at, is_active_at_source, synced_at, product_group_description_nl, group_description_nl, main_group_description_nl'
     ),
     fetchAll(opts.supabase, 'nieuwkoop_stock', 'itemcode, stock_available, synced_at'),
     fetchAll(
@@ -498,6 +574,9 @@ export async function runShopifyInventorySync(opts: {
       discontinued: Boolean(row.discontinued_at) || row.is_active_at_source === false,
       discontinuedAt: str(row.discontinued_at),
       stockAvailable: null,
+      groupDescription: str(row.group_description_nl),
+      productGroupDescription: str(row.product_group_description_nl),
+      mainGroupDescription: str(row.main_group_description_nl),
     })
   }
   for (const row of stockRes.rows) {
@@ -562,24 +641,32 @@ export async function runShopifyInventorySync(opts: {
       variants = await loadVariants(graphql, null, false)
     }
   }
-  const skus = variants.map((variant) =>
-    decideSku(variant, catalog.get(variant.sku), state.get(variant.sku), today)
-  )
+  const planned = planInventorySync({
+    variants,
+    catalog,
+    state,
+    today,
+    publicationKnown: Boolean(publicationId),
+    errorCount: errors.length,
+  })
+  const { skus, products } = planned
+  let counts = planned.counts
   if (!inventoryKnown) {
     for (const sku of skus) {
       sku.setQty = false
       sku.activate = false
       sku.setPolicyDeny = false
       sku.setTracked = false
+      sku.setOosMessage = false
+      sku.clearOosMessage = false
     }
+    counts = buildCounts(skus, products, errors.length, planned.excluded.length)
   }
   for (const sku of skus) {
     if (sku.matched && !sku.inventoryItemId) {
       errors.push(`${sku.sku}: geen inventory item, aantal niet te zetten.`)
     }
   }
-  const products = decideProducts(variants, skus)
-  const counts = buildCounts(skus, products, errors.length)
   const guard = evaluateGuards({
     stockFresh,
     catalogFresh,
@@ -606,7 +693,7 @@ export async function runShopifyInventorySync(opts: {
     hidden_today: detailRows(skus, (s) => hiddenToday.has(s.sku)),
     restored: detailRows(skus, (s) => s.returned),
     unmatched: skus
-      .filter((s) => !s.matched)
+      .filter((s) => !s.matched && !s.excluded)
       .slice(0, DETAIL_LIMIT)
       .map((s) => ({
         itemcode: s.sku,
@@ -615,13 +702,14 @@ export async function runShopifyInventorySync(opts: {
         qty: s.shopifyQty ?? 0,
         from_qty: s.shopifyQty,
       })),
+    excluded: planned.excluded.slice(0, DETAIL_LIMIT),
     errors: errors.slice(0, DETAIL_LIMIT),
   }
 
   let writes = false
   if (live && !guard.blocked) {
     writes = true
-    const { failedSkus, failedProducts } = await applyWrites({
+    const { failedVariants, failedProducts } = await applyWrites({
       graphql,
       today,
       publicationId,
@@ -630,25 +718,41 @@ export async function runShopifyInventorySync(opts: {
       errors,
     })
     const nowIso = now.toISOString()
-    const stateRows = skus
-      .filter((s) => s.matched && !failedSkus.has(s.sku) && !failedProducts.has(s.productId))
-      .map((s) => {
-        const product = products.find((p) => p.productId === s.productId)
-        const mark = product?.markHiddenSkus.includes(s.sku)
-        const clear = product?.clearHiddenSkus.includes(s.sku)
-        return {
-          itemcode: s.sku,
-          shopify_product_id: s.productId,
-          shopify_variant_id: s.variantId,
-          inventory_item_id: s.inventoryItemId,
-          last_qty: s.targetQty,
-          last_synced_at: nowIso,
-          zero_since: s.zeroSince,
-          hidden_at: mark ? nowIso : clear ? null : s.hiddenAt,
-          hidden_reason: mark ? 'oos_14d' : clear ? null : s.hiddenReason,
-          updated_at: nowIso,
-        }
+    const stateByCode = new Map<
+      string,
+      {
+        itemcode: string
+        shopify_product_id: string
+        shopify_variant_id: string
+        inventory_item_id: string | null
+        last_qty: number
+        last_synced_at: string
+        zero_since: string | null
+        hidden_at: string | null
+        hidden_reason: string | null
+        updated_at: string
+      }
+    >()
+    for (const s of skus) {
+      if (!s.matched || failedVariants.has(s.variantId) || failedProducts.has(s.productId)) continue
+      if (stateByCode.has(s.sku)) continue
+      const product = products.find((p) => p.productId === s.productId)
+      const mark = product?.markHiddenSkus.includes(s.sku)
+      const clear = product?.clearHiddenSkus.includes(s.sku)
+      stateByCode.set(s.sku, {
+        itemcode: s.sku,
+        shopify_product_id: s.productId,
+        shopify_variant_id: s.variantId,
+        inventory_item_id: s.inventoryItemId,
+        last_qty: s.targetQty,
+        last_synced_at: nowIso,
+        zero_since: s.zeroSince,
+        hidden_at: mark ? nowIso : clear ? null : s.hiddenAt,
+        hidden_reason: mark ? 'oos_14d' : clear ? null : s.hiddenReason,
+        updated_at: nowIso,
       })
+    }
+    const stateRows = [...stateByCode.values()]
     for (let i = 0; i < stateRows.length; i += 200) {
       const { error } = await opts.supabase
         .from('shopify_stock_state')
@@ -685,37 +789,44 @@ export async function runShopifyInventorySync(opts: {
     },
     counts,
     details,
-    status_unchanged: true,
+    status_unchanged: !writes || products.every((p) => !p.archive),
     report_persisted: false,
     report_persist_error: null,
   }
 
-  const { error: reportError } = await opts.supabase.from('stock_sync_reports').insert({
-    ok: report.ok,
-    dry_run: report.dry_run,
-    counts: report.counts,
-    details: {
-      guard: report.guard,
-      source: report.source,
-      zero_new: details.zero_new,
-      oos_1_13: details.oos_1_13,
-      hidden_today: details.hidden_today,
-      restored: details.restored,
-      unmatched: details.unmatched,
-      errors: details.errors,
-    },
-  })
-  if (reportError) {
-    report.source.report_table = !isMissingRelation(reportError)
+  const persistReport = opts.persistReport !== false
+  if (!persistReport) {
     report.report_persisted = false
-    report.report_persist_error = isMissingRelation(reportError)
-      ? 'stock_sync_reports bestaat nog niet (migratie niet toegepast).'
-      : reportError.message
-    if (!isMissingRelation(reportError)) {
-      console.error('stock_sync_reports insert failed', reportError)
-    }
+    report.report_persist_error = null
   } else {
-    report.report_persisted = true
+    const { error: reportError } = await opts.supabase.from('stock_sync_reports').insert({
+      ok: report.ok,
+      dry_run: report.dry_run,
+      counts: report.counts,
+      details: {
+        guard: report.guard,
+        source: report.source,
+        zero_new: details.zero_new,
+        oos_1_13: details.oos_1_13,
+        hidden_today: details.hidden_today,
+        restored: details.restored,
+        unmatched: details.unmatched,
+        excluded: details.excluded,
+        errors: details.errors,
+      },
+    })
+    if (reportError) {
+      report.source.report_table = !isMissingRelation(reportError)
+      report.report_persisted = false
+      report.report_persist_error = isMissingRelation(reportError)
+        ? 'stock_sync_reports bestaat nog niet (migratie niet toegepast).'
+        : reportError.message
+      if (!isMissingRelation(reportError)) {
+        console.error('stock_sync_reports insert failed', reportError)
+      }
+    } else {
+      report.report_persisted = true
+    }
   }
 
   if (errors.length) console.error('shopify inventory sync errors', errors.slice(0, 20))

@@ -2,14 +2,24 @@
  * Beslissingen voor de dagelijkse Supabase → Shopify voorraad-sync.
  * Puur: geen netwerk. De runner past dit toe, of stopt bij een dry-run.
  *
- * Een product dat op 0 valt blijft staan (qty 0, tracking aan, DENY).
- * Na 14 opeenvolgende dagen op 0 verdwijnt alleen de Online Store-publicatie.
- * Terug op voorraad → opnieuw publiceren, enkel als déze job het verborg.
+ * Uitgesloten vóór elke planning: status ARCHIVED, tag `legacy-per-maat`
+ * of `geen-voorraadsync`. Die varianten krijgen geen qty, tracking, DENY,
+ * metafield of verbergen.
+ *
+ * CC-codes én niet-CC (planten, potten, elke productgroep behalve artificial)
+ * volgen dezelfde nulvoorraad-regels: qty 0 zet de tekst
+ * "voorlopig niet op voorraad" en inventoryPolicy DENY. Na 14 opeenvolgende
+ * dagen op 0 verdwijnt een gepubliceerd product alleen van Online Store.
+ * Archiveren (status ARCHIVED) gebeurt alleen bij een DRAFT die niet
+ * gepubliceerd is. Artificial krijgt wel het aantal, niet die regels.
  */
 
 export const SHOP_LOCATION_ID = 'gid://shopify/Location/110900904317'
 export const OOS_METAFIELD_NAMESPACE = 'stera'
 export const OOS_METAFIELD_KEY = 'oos_sinds'
+export const OOS_STATUS_METAFIELD_KEY = 'voorraadstatus'
+export const OOS_STATUS_TEXT = 'voorlopig niet op voorraad'
+export const EXCLUDED_STOCK_SYNC_TAGS = ['legacy-per-maat', 'geen-voorraadsync'] as const
 export const STOCK_CAP = 100
 export const HIDE_AFTER_ELAPSED_DAYS = 14
 export const NEWLY_ZERO_ABORT_RATIO = 0.2
@@ -24,7 +34,12 @@ export type CatalogStock = {
   discontinued: boolean
   discontinuedAt: string | null
   stockAvailable: number | null
+  groupDescription?: string | null
+  productGroupDescription?: string | null
+  mainGroupDescription?: string | null
 }
+
+export type StockSyncExclusion = 'archived' | 'tag'
 
 export type SavedStockState = {
   lastQty: number | null
@@ -46,7 +61,10 @@ export type ShopifyVariantSnap = {
   inventoryPolicy: string
   publishedOnline: boolean
   metafieldOos: string | null
+  /** Huidige variant-metafield stera.voorraadstatus, of null. */
+  voorraadstatus: string | null
   productStatus: string | null
+  tags: string[]
 }
 
 export type SkuDecision = {
@@ -75,6 +93,13 @@ export type SkuDecision = {
   inStock: boolean
   atZero: boolean
   oosDays1to13: boolean
+  /** ARCHIVED of een uitsluit-tag: er wordt niets voor gepland. */
+  excluded: boolean
+  /** Nulvoorraad-regels (tekst, DENY, verbergen, archief). Niet voor artificial. */
+  zeroStockRules: boolean
+  setOosMessage: boolean
+  clearOosMessage: boolean
+  oosMessage: string | null
 }
 
 export type ProductDecision = {
@@ -84,7 +109,11 @@ export type ProductDecision = {
   republish: boolean
   metafield: 'set' | 'clear' | 'keep'
   metafieldValue: string | null
-  /** SKUs waarvan hidden_at gezet wordt omdat we nu unpublishen. */
+  /** Alleen een DRAFT die niet op Online Store staat, na 14 dagen op 0. */
+  archive: boolean
+  productStatus: string | null
+  publishedOnline: boolean
+  /** SKUs waarvan hidden_at gezet wordt omdat we nu unpublishen of archiveren. */
   markHiddenSkus: string[]
   /** SKUs waarvan hidden_at gewist wordt omdat we nu republishen. */
   clearHiddenSkus: string[]
@@ -124,6 +153,12 @@ export type SyncCounts = {
   republish: number
   metafield_set: number
   metafield_clear: number
+  oos_message_set: number
+  oos_message_clear: number
+  archive: number
+  excluded: number
+  /** Varianten die een SKU delen met minstens één andere geplande variant. */
+  duplicate_sku_variants: number
 }
 
 export function brusselsDate(date: Date): string {
@@ -159,6 +194,57 @@ export function sourceIsFresh(latestSyncedAt: string | null | undefined, today: 
   return isSameBrusselsDay(latestSyncedAt, today)
 }
 
+export function stockSyncExclusionReason(input: {
+  productStatus?: string | null
+  tags?: readonly string[] | null
+}): StockSyncExclusion | null {
+  if ((input.productStatus || '').toUpperCase() === 'ARCHIVED') return 'archived'
+  const tags = new Set((input.tags ?? []).map((tag) => tag.trim().toLowerCase()))
+  if (EXCLUDED_STOCK_SYNC_TAGS.some((tag) => tags.has(tag))) return 'tag'
+  return null
+}
+
+export function isExcludedFromStockSync(input: {
+  productStatus?: string | null
+  tags?: readonly string[] | null
+}): boolean {
+  return stockSyncExclusionReason(input) != null
+}
+
+/**
+ * Zelfde volgorde als inferCatalogType: combinaties en mos winnen van het
+ * woord Artificial. Alleen de artificial-groep valt buiten de nulvoorraad-regels.
+ * CC én niet-CC (planten, potten, overige groepen) vallen erbinnen.
+ */
+export function isArtificialCatalog(catalog: CatalogStock | undefined): boolean {
+  if (!catalog) return false
+  const group = catalog.groupDescription || ''
+  const pg = catalog.productGroupDescription || ''
+  if (/^Combinaties/i.test(group)) return false
+  if (/Mos|Mummie|Groene wanden/i.test(pg)) return false
+  return /Artificial/i.test(pg) || /Artificial/i.test(group)
+}
+
+export function zeroStockRulesApply(catalog: CatalogStock | undefined): boolean {
+  if (!catalog) return false
+  return !isArtificialCatalog(catalog)
+}
+
+/** Zelfde SKU kan op meerdere varianten staan. De lijst houdt ze allemaal. */
+export function groupVariantsBySku(
+  variants: readonly ShopifyVariantSnap[]
+): Map<string, ShopifyVariantSnap[]> {
+  const map = new Map<string, ShopifyVariantSnap[]>()
+  for (const variant of variants) {
+    const sku = variant.sku.trim()
+    if (!sku) continue
+    const list = map.get(sku) ?? []
+    list.push(variant)
+    map.set(sku, list)
+  }
+  return map
+}
+
 function previousQuantity(
   state: SavedStockState | undefined,
   shopifyQty: number | null
@@ -168,14 +254,52 @@ function previousQuantity(
   return null
 }
 
+function inertSku(variant: ShopifyVariantSnap, excluded: boolean): SkuDecision {
+  return {
+    sku: variant.sku,
+    title: variant.title,
+    productId: variant.productId,
+    variantId: variant.variantId,
+    inventoryItemId: variant.inventoryItemId,
+    matched: false,
+    discontinued: false,
+    targetQty: variant.shopifyQty ?? 0,
+    shopifyQty: variant.shopifyQty,
+    previousQty: null,
+    setQty: false,
+    activate: false,
+    setPolicyDeny: false,
+    setTracked: false,
+    zeroSince: null,
+    previousZeroSince: null,
+    hiddenAt: null,
+    hiddenReason: null,
+    oosElapsedDays: null,
+    newlyZero: false,
+    newlyDiscontinued: false,
+    returned: false,
+    inStock: false,
+    atZero: false,
+    oosDays1to13: false,
+    excluded,
+    zeroStockRules: false,
+    setOosMessage: false,
+    clearOosMessage: false,
+    oosMessage: null,
+  }
+}
+
 export function decideSku(
   variant: ShopifyVariantSnap,
   catalog: CatalogStock | undefined,
   state: SavedStockState | undefined,
   today: string
 ): SkuDecision {
+  if (isExcludedFromStockSync(variant)) return inertSku(variant, true)
+
   const matched = Boolean(catalog)
   const discontinued = catalog?.discontinued === true
+  const rules = matched && zeroStockRulesApply(catalog)
   const targetQty = matched ? targetQuantity(discontinued, catalog?.stockAvailable ?? null) : 0
   const prev = previousQuantity(state, variant.shopifyQty)
   const previousZeroSince = state?.zeroSince ?? null
@@ -184,6 +308,9 @@ export function decideSku(
 
   const oosElapsedDays =
     matched && zeroSince ? calendarDaysBetween(zeroSince, today) : null
+  const atZero = matched && targetQty === 0
+  const inStock = matched && targetQty > 0
+  const currentMessage = variant.voorraadstatus?.trim() || null
 
   return {
     sku: variant.sku,
@@ -198,7 +325,7 @@ export function decideSku(
     previousQty: prev,
     setQty: matched && variant.inventoryItemId != null && variant.shopifyQty !== targetQty,
     activate: matched && variant.inventoryItemId != null && variant.shopifyQty == null,
-    setPolicyDeny: matched && variant.inventoryPolicy !== 'DENY',
+    setPolicyDeny: rules && variant.inventoryPolicy !== 'DENY',
     setTracked: matched && variant.tracked !== true,
     zeroSince,
     previousZeroSince,
@@ -214,14 +341,19 @@ export function decideSku(
       ((prev != null && prev <= 0) ||
         previousZeroSince != null ||
         state?.hiddenReason === 'oos_14d'),
-    inStock: matched && targetQty > 0,
-    atZero: matched && targetQty === 0,
+    inStock,
+    atZero,
     oosDays1to13:
       matched &&
       targetQty === 0 &&
       oosElapsedDays != null &&
       oosElapsedDays >= 1 &&
       oosElapsedDays <= 13,
+    excluded: false,
+    zeroStockRules: rules,
+    setOosMessage: rules && atZero && currentMessage !== OOS_STATUS_TEXT,
+    clearOosMessage: rules && inStock && currentMessage != null,
+    oosMessage: rules && atZero ? OOS_STATUS_TEXT : null,
   }
 }
 
@@ -233,8 +365,10 @@ export function decideSku(
  */
 export function decideProducts(
   variants: ShopifyVariantSnap[],
-  skus: SkuDecision[]
+  skus: SkuDecision[],
+  opts?: { publicationKnown?: boolean }
 ): ProductDecision[] {
+  const publicationKnown = opts?.publicationKnown !== false
   const variantsByProduct = new Map<string, ShopifyVariantSnap[]>()
   for (const variant of variants) {
     const list = variantsByProduct.get(variant.productId) ?? []
@@ -254,9 +388,12 @@ export function decideProducts(
     const snaps = variantsByProduct.get(productId) ?? []
     const title = snaps[0]?.title || matched[0].title
     const published = snaps.some((v) => v.publishedOnline)
+    const productStatus = snaps[0]?.productStatus ?? null
     const allZero = matched.every((s) => s.atZero)
     const anyStock = matched.some((s) => s.inStock)
+    const rules = matched.every((s) => s.zeroStockRules)
     const readyToHide =
+      rules &&
       allZero &&
       matched.every(
         (s) => s.oosElapsedDays != null && s.oosElapsedDays >= HIDE_AFTER_ELAPSED_DAYS
@@ -264,7 +401,12 @@ export function decideProducts(
     const hiddenByUs = matched.filter((s) => s.hiddenAt && s.hiddenReason === 'oos_14d')
 
     const unpublish = published && readyToHide
-    const republish = anyStock && hiddenByUs.length > 0
+    const archive =
+      publicationKnown &&
+      readyToHide &&
+      !published &&
+      (productStatus || '').toUpperCase() === 'DRAFT'
+    const republish = rules && anyStock && hiddenByUs.length > 0
 
     const earliestZero =
       matched
@@ -275,13 +417,16 @@ export function decideProducts(
 
     let metafield: ProductDecision['metafield'] = 'keep'
     let metafieldValue: string | null = null
-    if (anyStock) {
+    if (!rules) {
+      metafield = 'keep'
+    } else if (anyStock) {
       if (currentMeta) metafield = 'clear'
     } else if (allZero && earliestZero && currentMeta !== earliestZero) {
       metafield = 'set'
       metafieldValue = earliestZero
     }
 
+    const hideNow = unpublish || archive
     out.push({
       productId,
       title,
@@ -289,7 +434,10 @@ export function decideProducts(
       republish,
       metafield,
       metafieldValue,
-      markHiddenSkus: unpublish
+      archive,
+      productStatus,
+      publishedOnline: published,
+      markHiddenSkus: hideNow
         ? matched.filter((s) => !(s.hiddenAt && s.hiddenReason === 'oos_14d')).map((s) => s.sku)
         : [],
       clearHiddenSkus: republish ? hiddenByUs.map((s) => s.sku) : [],
@@ -341,16 +489,29 @@ function pct(ratio: number): string {
 export function buildCounts(
   skus: SkuDecision[],
   products: ProductDecision[],
-  errorCount: number
+  errorCount: number,
+  excluded = 0
 ): SyncCounts {
   const matched = skus.filter((s) => s.matched)
+  const skuCounts = new Map<string, number>()
+  for (const sku of skus) {
+    if (!sku.sku || sku.excluded) continue
+    skuCounts.set(sku.sku, (skuCounts.get(sku.sku) ?? 0) + 1)
+  }
+  let duplicateSkuVariants = 0
+  for (const count of skuCounts.values()) {
+    if (count > 1) duplicateSkuVariants += count
+  }
   const markedToday = new Set(products.flatMap((p) => p.markHiddenSkus))
   const cleared = new Set(products.flatMap((p) => p.clearHiddenSkus))
-  const hiddenTotal = matched.filter((s) => {
-    if (cleared.has(s.sku)) return false
-    if (markedToday.has(s.sku)) return true
-    return Boolean(s.hiddenAt && s.hiddenReason === 'oos_14d')
-  }).length
+  const hiddenSkus = new Set<string>()
+  for (const sku of matched) {
+    if (cleared.has(sku.sku)) continue
+    if (markedToday.has(sku.sku) || (sku.hiddenAt && sku.hiddenReason === 'oos_14d')) {
+      hiddenSkus.add(sku.sku)
+    }
+  }
+  const hiddenTotal = hiddenSkus.size
   return {
     synced: matched.length,
     with_stock: matched.filter((s) => s.inStock).length,
@@ -361,7 +522,7 @@ export function buildCounts(
     hidden_total: hiddenTotal,
     restored: matched.filter((s) => s.returned).length,
     errors: errorCount,
-    unmatched: skus.filter((s) => !s.matched && s.sku).length,
+    unmatched: skus.filter((s) => !s.matched && !s.excluded && s.sku).length,
     qty_set: matched.filter((s) => s.setQty || s.activate).length,
     policy_deny: matched.filter((s) => s.setPolicyDeny).length,
     track_on: matched.filter((s) => s.setTracked).length,
@@ -370,6 +531,68 @@ export function buildCounts(
     republish: products.filter((p) => p.republish).length,
     metafield_set: products.filter((p) => p.metafield === 'set').length,
     metafield_clear: products.filter((p) => p.metafield === 'clear').length,
+    oos_message_set: matched.filter((s) => s.setOosMessage).length,
+    oos_message_clear: matched.filter((s) => s.clearOosMessage).length,
+    archive: products.filter((p) => p.archive).length,
+    excluded,
+    duplicate_sku_variants: duplicateSkuVariants,
+  }
+}
+
+export type ExcludedSnap = {
+  sku: string
+  variantId: string
+  productId: string
+  title: string
+  reason: StockSyncExclusion
+}
+
+/**
+ * Filtert ARCHIVED en de uitsluit-tags vóór decideSku / decideProducts.
+ * Elke overgebleven variant wordt gepland, ook als de SKU dubbel is.
+ */
+export function planInventorySync(input: {
+  variants: ShopifyVariantSnap[]
+  catalog: ReadonlyMap<string, CatalogStock>
+  state: ReadonlyMap<string, SavedStockState>
+  today: string
+  publicationKnown?: boolean
+  errorCount?: number
+}): {
+  included: ShopifyVariantSnap[]
+  excluded: ExcludedSnap[]
+  skus: SkuDecision[]
+  products: ProductDecision[]
+  counts: SyncCounts
+} {
+  const included: ShopifyVariantSnap[] = []
+  const excluded: ExcludedSnap[] = []
+  for (const variant of input.variants) {
+    const reason = stockSyncExclusionReason(variant)
+    if (reason) {
+      excluded.push({
+        sku: variant.sku,
+        variantId: variant.variantId,
+        productId: variant.productId,
+        title: variant.title,
+        reason,
+      })
+      continue
+    }
+    included.push(variant)
+  }
+  const skus = included.map((variant) =>
+    decideSku(variant, input.catalog.get(variant.sku), input.state.get(variant.sku), input.today)
+  )
+  const products = decideProducts(included, skus, {
+    publicationKnown: input.publicationKnown,
+  })
+  return {
+    included,
+    excluded,
+    skus,
+    products,
+    counts: buildCounts(skus, products, input.errorCount ?? 0, excluded.length),
   }
 }
 
@@ -383,10 +606,13 @@ export function detailRows(skus: SkuDecision[], pred: (s: SkuDecision) => boolea
   }))
 }
 
-/** Mutaties die deze job nooit mag aanroepen. De test leest de bron. */
+/**
+ * Mutaties die deze job nooit mag aanroepen. De test leest de bron.
+ * productChangeStatus staat hier niet bij: die mag alleen ARCHIVED zetten,
+ * en alleen voor een DRAFT die niet gepubliceerd is.
+ */
 export const FORBIDDEN_SHOPIFY_OPERATIONS = [
   'productDelete',
-  'productChangeStatus',
   'productSet',
   'productUpdate',
 ] as const

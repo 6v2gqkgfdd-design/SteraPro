@@ -3,8 +3,11 @@
  * Sync voorraad Supabase (nieuwkoop_stock) -> Shopify inventory.
  *
  * Zet per variant (gematcht op SKU = itemcode) het beschikbare aantal op de
- * winkel-locatie, gelijk aan stock_available uit Nieuwkoop. Draai dit los van
- * de product-sync (voorraad wijzigt dagelijks) — ideaal als geplande taak.
+ * winkel-locatie, gelijk aan stock_available uit Nieuwkoop. Elke variant met
+ * dezelfde SKU krijgt dat aantal. Producten met status ARCHIVED of met de tag
+ * legacy-per-maat / geen-voorraadsync worden vóór de planning overgeslagen.
+ * Nulvoorraad-tekst, DENY en archiveren na 14 dagen zitten in
+ * lib/shopify-inventory-sync.ts (niet in dit script).
  *
  * Vereist dat de producten al gesynct zijn met voorraad-tracking aan
  * (sync-shopify-products.mjs doet dat: inventoryItem.tracked = true).
@@ -83,46 +86,68 @@ for (;;) {
 const stockByCode = new Map(stockRows.map((r) => [r.itemcode, Math.max(0, Math.floor(Number(r.stock_available ?? 0)))]));
 console.log(`    ✅ ${stockByCode.size} voorraad-rijen`);
 
-if (!isLive) {
-  console.log("\n[2] DRY-RUN — voorbeeld (eerste 10):");
-  let i = 0;
-  for (const [code, qty] of stockByCode) { console.log(`    ${code}: ${qty}`); if (++i >= 10) break; }
-  console.log("\nℹ️  Toepassen: node --env-file=.env.local sync-shopify-stock.mjs --live");
-  process.exit(0);
+const EXCLUDED_TAGS = new Set(["legacy-per-maat", "geen-voorraadsync"]);
+function exclusionReason(product) {
+  if (String(product?.status || "").toUpperCase() === "ARCHIVED") return "archived";
+  const tags = Array.isArray(product?.tags) ? product.tags : [];
+  if (tags.some((tag) => EXCLUDED_TAGS.has(String(tag).trim().toLowerCase()))) return "tag";
+  return null;
 }
 
 TOKEN = await getToken();
 
-// 2) Locatie
+// 2) Locatie (lezen)
 const locData = await gql(`{ locations(first: 1) { nodes { id name } } }`, {});
 const location = locData?.locations?.nodes?.[0];
 if (!location) { console.error("❌ Geen winkel-locatie gevonden."); process.exit(1); }
 console.log(`\n[2] Locatie: ${location.name}`);
 
-// 3) SKU -> inventoryItem map (enkel getrackte varianten)
-console.log("[3] Varianten ophalen uit Shopify...");
-const invByCode = new Map();
+// 3) SKU -> lijst van varianten. ARCHIVED en uitsluit-tags gaan er vóór de planning af.
+console.log("[3] Varianten lezen uit Shopify" + (isLive ? "..." : " (geen mutaties)..."));
+const variantsBySku = new Map();
+const excluded = { archived: 0, tag: 0 };
 let cursor = null;
 for (;;) {
   const d = await gql(
-    `query($c:String){ productVariants(first:200, after:$c){ nodes { sku inventoryItem { id tracked } } pageInfo { hasNextPage endCursor } } }`,
+    `query($c:String){ productVariants(first:200, after:$c){ nodes { id sku inventoryItem { id tracked } product { status tags } } pageInfo { hasNextPage endCursor } } }`,
     { c: cursor }
   );
   for (const v of d.productVariants.nodes) {
-    if (v.sku && v.inventoryItem?.tracked) invByCode.set(v.sku, v.inventoryItem.id);
+    const reason = exclusionReason(v.product);
+    if (reason) { excluded[reason] += 1; continue; }
+    if (!v.sku || !v.inventoryItem?.tracked || !v.inventoryItem.id) continue;
+    const list = variantsBySku.get(v.sku) ?? [];
+    list.push(v.inventoryItem.id);
+    variantsBySku.set(v.sku, list);
   }
   if (!d.productVariants.pageInfo.hasNextPage) break;
   cursor = d.productVariants.pageInfo.endCursor;
 }
-console.log(`    ✅ ${invByCode.size} getrackte varianten`);
+const trackedVariants = [...variantsBySku.values()].reduce((n, list) => n + list.length, 0);
+console.log(`    ✅ ${trackedVariants} getrackte varianten op ${variantsBySku.size} SKU's`);
+console.log(`    overgeslagen: ${excluded.archived} ARCHIVED, ${excluded.tag} met uitsluit-tag`);
 
-// 4) Aantallen bouwen + in batches zetten
+// 4) Elke variant van een SKU krijgt hetzelfde aantal.
 const quantities = [];
+let duplicateSkuVariants = 0;
 for (const [code, qty] of stockByCode) {
-  const invId = invByCode.get(code);
-  if (invId) quantities.push({ inventoryItemId: invId, locationId: location.id, quantity: qty });
+  const inventoryItemIds = variantsBySku.get(code);
+  if (!inventoryItemIds?.length) continue;
+  if (inventoryItemIds.length > 1) duplicateSkuVariants += inventoryItemIds.length;
+  for (const inventoryItemId of inventoryItemIds) {
+    quantities.push({ inventoryItemId, locationId: location.id, quantity: qty });
+  }
 }
-console.log(`\n[4] ${quantities.length} varianten bijwerken...`);
+console.log(`\n[4] ${quantities.length} varianten gepland (${duplicateSkuVariants} delen een SKU)`);
+
+if (!isLive) {
+  console.log("\nDRY-RUN — eerste 10 geplande aantallen:");
+  quantities.slice(0, 10).forEach((row) => console.log(`    ${row.inventoryItemId}: ${row.quantity}`));
+  console.log("\nℹ️  Toepassen: node --env-file=.env.local sync-shopify-stock.mjs --live");
+  process.exit(0);
+}
+
+console.log(`\n[5] ${quantities.length} varianten bijwerken...`);
 
 let done = 0, failed = 0;
 for (let i = 0; i < quantities.length; i += 200) {
