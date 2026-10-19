@@ -73,17 +73,48 @@ async function gql(query, variables, attempt = 1) {
   return j.data;
 }
 
-// 1) Voorraad uit Supabase
+// 1) Voorraad uit Supabase. itemcode is de primary key; zonder order is
+//    offset-paginatie instabiel (dubbele én gemiste rijen).
 console.log("\n[1] Voorraad ophalen uit nieuwkoop_stock...");
-let stockRows = [], from = 0;
+let stockRows = [], from = 0, expectedCount = null;
 for (;;) {
-  const { data, error } = await supabase.from("nieuwkoop_stock").select("itemcode, stock_available").range(from, from + 999);
+  const { data, error, count } = await supabase
+    .from("nieuwkoop_stock")
+    .select("itemcode, stock_available", from === 0 ? { count: "exact" } : {})
+    .order("itemcode", { ascending: true })
+    .range(from, from + 999);
   if (error) { console.error("❌", error.message); process.exit(1); }
-  stockRows = stockRows.concat(data || []);
-  if (!data || data.length < 1000) break;
+  if (from === 0) expectedCount = typeof count === "number" ? count : null;
+  const batch = data || [];
+  stockRows = stockRows.concat(batch);
+  if (batch.length < 1000) break;
   from += 1000;
 }
 const stockByCode = new Map(stockRows.map((r) => [r.itemcode, Math.max(0, Math.floor(Number(r.stock_available ?? 0)))]));
+let stockOrderOk = true;
+let previousCode = null;
+for (const row of stockRows) {
+  const code = row.itemcode;
+  if (typeof code !== "string" || !code || (previousCode != null && code <= previousCode)) {
+    stockOrderOk = false;
+    break;
+  }
+  previousCode = code;
+}
+const stockCoverageOk =
+  stockOrderOk &&
+  stockByCode.size === stockRows.length &&
+  expectedCount != null &&
+  stockByCode.size === expectedCount;
+if (!stockCoverageOk) {
+  console.warn(
+    `⚠️  nieuwkoop_stock paginatie dekt de tabel niet (${stockRows.length} rijen, ${stockByCode.size} unieke, count ${expectedCount ?? "onbekend"}).`
+  );
+  if (isLive) {
+    console.error("❌ Live writes geweigerd.");
+    process.exit(1);
+  }
+}
 console.log(`    ✅ ${stockByCode.size} voorraad-rijen`);
 
 const EXCLUDED_TAGS = new Set(["legacy-per-maat", "legacy-serie", "geen-voorraadsync"]);

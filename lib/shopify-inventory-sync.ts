@@ -26,6 +26,9 @@ import {
   detailRows,
   evaluateGuards,
   MISSING_STATE_WARNING,
+  PAGE_ORDER_COLUMN,
+  assessPageCoverage,
+  pageCoverageWarning,
   parseQtyDropMin,
   parseQtyDropRatio,
   planInventorySync,
@@ -33,6 +36,7 @@ import {
   sourceIsFresh,
   stockFallbackCatalog,
   type CatalogStock,
+  type PageCoverage,
   type DetailRow,
   type ExcludedSnap,
   type OutlierReviewRow,
@@ -124,21 +128,45 @@ async function fetchAll(
   supabase: SupabaseClient,
   table: string,
   columns: string
-): Promise<{ rows: Record<string, unknown>[]; missing: boolean }> {
+): Promise<{ rows: Record<string, unknown>[]; missing: boolean; coverage: PageCoverage }> {
   const rows: Record<string, unknown>[] = []
+  const keyPages: string[][] = []
   let from = 0
+  let expectedCount: number | null = null
   for (;;) {
-    const { data, error } = await supabase.from(table).select(columns).range(from, from + PAGE - 1)
+    // itemcode is de primary key. Zonder die order herhaalt PostgREST rijen
+    // en slaat het andere over bij .range()-offset.
+    const { data, error, count } = (await supabase
+      .from(table)
+      .select(columns, from === 0 ? { count: 'exact' } : {})
+      .order(PAGE_ORDER_COLUMN, { ascending: true })
+      .range(from, from + PAGE - 1)) as {
+      data: Record<string, unknown>[] | null
+      error: DbError | null
+      count: number | null
+    }
     if (error) {
-      if (isMissingRelation(error)) return { rows: [], missing: true }
+      if (isMissingRelation(error)) {
+        return {
+          rows: [],
+          missing: true,
+          coverage: assessPageCoverage({ pages: [], expectedCount: 0 }),
+        }
+      }
       throw new Error(`${table}: ${error.message}`)
     }
-    const batch = (data ?? []) as unknown as Record<string, unknown>[]
+    if (from === 0) expectedCount = typeof count === 'number' ? count : null
+    const batch = data ?? []
     rows.push(...batch)
+    keyPages.push(batch.map((row) => str(row.itemcode) ?? ''))
     if (batch.length < PAGE) break
     from += PAGE
   }
-  return { rows, missing: false }
+  return {
+    rows,
+    missing: false,
+    coverage: assessPageCoverage({ pages: keyPages, expectedCount }),
+  }
 }
 
 function num(value: unknown): number | null {
@@ -587,12 +615,11 @@ export async function runShopifyInventorySync(opts: {
       mainGroupDescription: str(row.main_group_description_nl),
     })
   }
-  // Stock zonder productrij. sync-nieuwkoop-items.mjs --combos-only houdt alleen
-  // combinaties met substraat Grond, Hydrokorrels of Bims (plus mos in groep 275).
-  // Zonder --full schrijft dat script de eerste 100 items. De voorraad-syncs
-  // upserten nieuwkoop_stock alleen voor bekende productrijen en wissen oude
-  // stockrijen niet. Een CC-code kan daardoor in nieuwkoop_stock blijven terwijl
-  // de productrij ontbreekt. Die matchen we hier als combinatie.
+  // Vangnet: een SKU die écht geen productrij heeft maar wel voorraad, matcht
+  // op stock. De ~2008 'unmatched' CC-codes (groep 275) stonden wél in
+  // nieuwkoop_products. fetchAll gebruikte .range() zonder order, waardoor
+  // PostgREST rijen herhaalde en andere miste. Met order op itemcode hoort
+  // stock_fallback ongeveer 0 te zijn.
   for (const row of stockRes.rows) {
     const itemcode = str(row.itemcode)
     if (!itemcode) continue
@@ -605,9 +632,22 @@ export async function runShopifyInventorySync(opts: {
     catalog.set(itemcode, stockFallbackCatalog(itemcode, qty))
   }
   const warnings: string[] = []
+  let coverageBlocked = false
   if (stateRes.missing) {
     warnings.push(MISSING_STATE_WARNING)
     console.warn(MISSING_STATE_WARNING)
+  }
+  for (const check of [
+    { table: 'nieuwkoop_products', res: productsRes },
+    { table: 'nieuwkoop_stock', res: stockRes },
+    { table: 'shopify_stock_state', res: stateRes },
+  ]) {
+    if (check.res.missing) continue
+    const warning = pageCoverageWarning(check.table, check.res.coverage)
+    if (!warning) continue
+    coverageBlocked = true
+    warnings.push(warning)
+    console.warn(warning)
   }
   const state = new Map<string, SavedStockState>()
   for (const row of stateRes.rows) {
@@ -709,6 +749,12 @@ export async function runShopifyInventorySync(opts: {
     guard.blocked = true
     guard.reasons.push(
       'shopify_stock_state ontbreekt. Migratie is nog niet toegepast, dus er wordt niet geschreven.'
+    )
+  }
+  if (live && coverageBlocked) {
+    guard.blocked = true
+    guard.reasons.push(
+      'Paginatie dekt de catalogus niet (dubbele of ontbrekende itemcodes). Er wordt niet geschreven.'
     )
   }
 

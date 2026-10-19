@@ -319,6 +319,70 @@ export function qtyDropPercent(shopifyQty: number, targetQty: number): number {
 export const MISSING_STATE_WARNING =
   'shopify_stock_state ontbreekt. Dry-run gaat door: zero_since start vandaag en restored blijft 0 tot de migratie is toegepast.'
 
+/**
+ * Primary key van nieuwkoop_products, nieuwkoop_stock en shopify_stock_state.
+ * Eén unieke kolom is een totale volgorde; een extra tiebreaker is niet nodig.
+ */
+export const PAGE_ORDER_COLUMN = 'itemcode'
+
+export type PageCoverage = {
+  rowsRead: number
+  uniqueKeys: number
+  expectedCount: number | null
+  duplicateKeys: boolean
+  countMismatch: boolean
+  orderBroken: boolean
+}
+
+/**
+ * Offset-paginatie is alleen betrouwbaar als elke pagina op itemcode stijgt
+ * en het aantal unieke codes gelijk is aan de gelezen rijen én aan count.
+ */
+export function assessPageCoverage(input: {
+  pages: readonly (readonly (string | null | undefined)[])[]
+  expectedCount: number | null
+}): PageCoverage {
+  const keys = input.pages.flat()
+  const rowsRead = keys.length
+  const uniqueKeys = new Set(
+    keys.filter((key): key is string => typeof key === 'string' && key.length > 0)
+  ).size
+  let orderBroken = false
+  let previous: string | null = null
+  for (const key of keys) {
+    if (typeof key !== 'string' || key.length === 0 || (previous != null && key <= previous)) {
+      orderBroken = true
+      break
+    }
+    previous = key
+  }
+  const countMismatch =
+    input.expectedCount == null ||
+    uniqueKeys !== input.expectedCount ||
+    rowsRead !== input.expectedCount
+  return {
+    rowsRead,
+    uniqueKeys,
+    expectedCount: input.expectedCount,
+    duplicateKeys: uniqueKeys < rowsRead,
+    countMismatch,
+    orderBroken,
+  }
+}
+
+export function pageCoverageProblem(coverage: PageCoverage): boolean {
+  return coverage.duplicateKeys || coverage.countMismatch || coverage.orderBroken
+}
+
+export function pageCoverageWarning(table: string, coverage: PageCoverage): string | null {
+  if (!pageCoverageProblem(coverage)) return null
+  const count = coverage.expectedCount == null ? 'onbekend' : String(coverage.expectedCount)
+  return (
+    `${table}: paginatie dekt de tabel niet (${coverage.rowsRead} rijen gelezen, ` +
+    `${coverage.uniqueKeys} unieke itemcodes, count ${count}). Live writes worden geweigerd.`
+  )
+}
+
 /** Zelfde SKU kan op meerdere varianten staan. De lijst houdt ze allemaal. */
 export function groupVariantsBySku(
   variants: readonly ShopifyVariantSnap[]

@@ -13,7 +13,10 @@ import {
   evaluateGuards,
   groupVariantsBySku,
   isQtyDropOutlier,
+  assessPageCoverage,
   outlierReviewRows,
+  pageCoverageWarning,
+  PAGE_ORDER_COLUMN,
   parseQtyDropRatio,
   planInventorySync,
   stockFallbackCatalog,
@@ -621,6 +624,62 @@ test('een grote daling gaat naar review en wordt niet gezet; zonder staat geen r
   assert.equal(backWithState.returned, true)
 })
 
+test('paginatie op itemcode: dubbele keys of een count die niet klopt dekt de tabel niet', () => {
+  assert.equal(PAGE_ORDER_COLUMN, 'itemcode')
+
+  const stable = assessPageCoverage({
+    pages: [
+      ['CC0028574', 'CC0054265'],
+      ['CC0057814'],
+    ],
+    expectedCount: 3,
+  })
+  assert.equal(stable.duplicateKeys, false)
+  assert.equal(stable.countMismatch, false)
+  assert.equal(stable.orderBroken, false)
+  assert.equal(pageCoverageWarning('nieuwkoop_products', stable), null)
+
+  // Zelfde vorm als de live read: meer rijen dan unieke codes, pagina's overlappen.
+  const repeated = assessPageCoverage({
+    pages: [
+      ['CC0028574', 'CC0054265', 'CC0057814'],
+      ['CC0028574', 'CC0054265'],
+    ],
+    expectedCount: 5,
+  })
+  assert.equal(repeated.rowsRead, 5)
+  assert.equal(repeated.uniqueKeys, 3)
+  assert.equal(repeated.duplicateKeys, true)
+  assert.equal(repeated.orderBroken, true)
+  assert.equal(repeated.countMismatch, true)
+  const warning = pageCoverageWarning('nieuwkoop_products', repeated)
+  assert.ok(warning)
+  assert.match(warning, /5 rijen gelezen/)
+  assert.match(warning, /3 unieke itemcodes/)
+  assert.match(warning, /count 5/)
+  assert.match(warning, /Live writes worden geweigerd/)
+
+  const missed = assessPageCoverage({
+    pages: [['CC0028574', 'CC0054265', 'CC0057814']],
+    expectedCount: 5,
+  })
+  assert.equal(missed.duplicateKeys, false)
+  assert.equal(missed.orderBroken, false)
+  assert.equal(missed.countMismatch, true)
+  assert.match(pageCoverageWarning('nieuwkoop_stock', missed) ?? '', /count 5/)
+
+  const unordered = assessPageCoverage({
+    pages: [
+      ['CC0057814', 'CC0028574'],
+      ['CC0054265'],
+    ],
+    expectedCount: 3,
+  })
+  assert.equal(unordered.duplicateKeys, false)
+  assert.equal(unordered.orderBroken, true)
+  assert.ok(pageCoverageWarning('shopify_stock_state', unordered))
+})
+
 test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   const root = path.resolve(import.meta.dirname, '..')
   const files = [
@@ -658,6 +717,13 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   assert.match(sync, /stockFallbackCatalog/)
   assert.match(sync, /outlierReview/)
   assert.match(sync, /SHOPIFY_INVENTORY_QTY_DROP_RATIO/)
+  assert.match(sync, /PAGE_ORDER_COLUMN/)
+  assert.match(sync, /pageCoverageWarning/)
+  assert.match(sync, /live && coverageBlocked/)
+  const fetchSrc = sync.slice(sync.indexOf('async function fetchAll'), sync.indexOf('function num('))
+  const orderAt = fetchSrc.indexOf('.order(PAGE_ORDER_COLUMN')
+  const rangeAt = fetchSrc.indexOf('.range(from')
+  assert.ok(orderAt !== -1 && rangeAt !== -1 && orderAt < rangeAt, 'order staat vóór range')
   const stockScript = fs.readFileSync(path.join(root, 'sync-shopify-stock.mjs'), 'utf8')
   assert.match(stockScript, /legacy-per-maat/)
   assert.match(stockScript, /legacy-serie/)
@@ -665,6 +731,14 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   assert.match(stockScript, /ARCHIVED/)
   assert.match(stockScript, /product \{ status tags \}/)
   assert.match(stockScript, /variantsBySku/)
+  const stockFetch = stockScript.slice(
+    stockScript.indexOf('Voorraad ophalen uit nieuwkoop_stock'),
+    stockScript.indexOf('const EXCLUDED_TAGS')
+  )
+  const stockOrderAt = stockFetch.indexOf('.order("itemcode"')
+  const stockRangeAt = stockFetch.indexOf('.range(')
+  assert.ok(stockOrderAt !== -1 && stockRangeAt !== -1 && stockOrderAt < stockRangeAt)
+  assert.match(stockFetch, /Live writes geweigerd/)
   assert.equal(stockScript.includes('invByCode.set'), false)
   const liveExit = stockScript.indexOf('if (!isLive)')
   const mutation = stockScript.indexOf('inventorySetQuantities')
