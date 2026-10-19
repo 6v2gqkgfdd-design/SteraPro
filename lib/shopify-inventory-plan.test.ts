@@ -12,7 +12,11 @@ import {
   decideSku,
   evaluateGuards,
   groupVariantsBySku,
+  isQtyDropOutlier,
+  outlierReviewRows,
+  parseQtyDropRatio,
   planInventorySync,
+  stockFallbackCatalog,
   targetQuantity,
   type CatalogStock,
   type SavedStockState,
@@ -503,6 +507,120 @@ test('niet-CC volgt de CC-regels, artificial niet, archief alleen bij ongepublic
   assert.equal(product, undefined)
 })
 
+test('voorraad zonder productrij matcht, CC krijgt de combinatie-regels', () => {
+  const cc = stockFallbackCatalog('CC0057814', 6)
+  const plant = stockFallbackCatalog('6BS999', 2)
+  const planned = planInventorySync({
+    today: TODAY,
+    catalog: new Map([
+      [cc.itemcode, cc],
+      [plant.itemcode, plant],
+    ]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: cc.itemcode,
+        title: 'Shopify-titel',
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+        productId: 'gid://shopify/Product/cc',
+        variantId: 'gid://shopify/ProductVariant/cc1',
+      }),
+      variant({
+        sku: cc.itemcode,
+        title: 'Shopify-titel',
+        shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+        productId: 'gid://shopify/Product/cc',
+        variantId: 'gid://shopify/ProductVariant/cc2',
+        inventoryItemId: 'gid://shopify/InventoryItem/cc2',
+      }),
+      variant({
+        sku: plant.itemcode,
+        shopifyQty: 9,
+        inventoryPolicy: 'CONTINUE',
+        productId: 'gid://shopify/Product/nk',
+        variantId: 'gid://shopify/ProductVariant/nk',
+        inventoryItemId: 'gid://shopify/InventoryItem/nk',
+      }),
+    ],
+  })
+  assert.equal(planned.counts.stock_fallback, 2)
+  assert.equal(planned.counts.synced, 3)
+  const ccRows = planned.skus.filter((s) => s.sku === 'CC0057814')
+  assert.equal(ccRows.length, 2)
+  for (const row of ccRows) {
+    assert.equal(row.matchedViaStock, true)
+    assert.equal(row.targetQty, 6)
+    assert.equal(row.setQty, true)
+    assert.equal(row.zeroStockRules, true)
+    assert.equal(row.setPolicyDeny, true)
+  }
+  const bare = planned.skus.find((s) => s.sku === '6BS999')
+  assert.ok(bare)
+  assert.equal(bare.matchedViaStock, true)
+  assert.equal(bare.targetQty, 2)
+  assert.equal(bare.setQty, true)
+  assert.equal(bare.zeroStockRules, false)
+  assert.equal(bare.setPolicyDeny, false)
+  assert.equal(bare.returned, false)
+})
+
+test('een grote daling gaat naar review en wordt niet gezet; zonder staat geen restored', () => {
+  assert.equal(parseQtyDropRatio('80'), 0.8)
+  assert.equal(parseQtyDropRatio('0.8'), 0.8)
+  assert.equal(isQtyDropOutlier({ shopifyQty: 41, targetQty: 1 }), true)
+  assert.equal(isQtyDropOutlier({ shopifyQty: 40, targetQty: 20 }), false)
+  assert.equal(isQtyDropOutlier({ shopifyQty: 20, targetQty: 0 }), false)
+
+  const item = catalog({ itemcode: 'CC0028574', stockAvailable: 1, groupDescription: 'Combinaties' })
+  const planned = planInventorySync({
+    today: TODAY,
+    catalog: new Map([[item.itemcode, item]]),
+    state: new Map(),
+    variants: [
+      variant({
+        sku: item.itemcode,
+        shopifyQty: 41,
+        inventoryPolicy: 'DENY',
+      }),
+    ],
+  })
+  const sku = planned.skus[0]
+  assert.equal(sku.outlierReview, true)
+  assert.equal(sku.setQty, false)
+  assert.equal(sku.targetQty, 1)
+  assert.equal(planned.counts.outlier_review, 1)
+  assert.equal(planned.counts.qty_set, 0)
+  const [review] = outlierReviewRows(planned.skus)
+  assert.equal(review.sku, 'CC0028574')
+  assert.equal(review.old, 41)
+  assert.equal(review.new, 1)
+  assert.ok(review.pct > 80)
+
+  const backWithoutState = decideSku(
+    variant({ shopifyQty: 0 }),
+    catalog({ stockAvailable: 5 }),
+    undefined,
+    TODAY
+  )
+  assert.equal(backWithoutState.returned, false)
+
+  const backWithState = decideSku(
+    variant({ shopifyQty: 0 }),
+    catalog({ stockAvailable: 5 }),
+    {
+      lastQty: 0,
+      zeroSince: '2026-10-01',
+      hiddenAt: null,
+      hiddenReason: null,
+      lastSyncedAt: null,
+    },
+    TODAY
+  )
+  assert.equal(backWithState.returned, true)
+})
+
 test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   const root = path.resolve(import.meta.dirname, '..')
   const files = [
@@ -536,6 +654,10 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   assert.match(plan, /geen-voorraadsync/)
   assert.match(plan, /voorlopig niet op voorraad/)
   assert.match(sync, /legacy-serie/)
+  assert.match(sync, /MISSING_STATE_WARNING/)
+  assert.match(sync, /stockFallbackCatalog/)
+  assert.match(sync, /outlierReview/)
+  assert.match(sync, /SHOPIFY_INVENTORY_QTY_DROP_RATIO/)
   const stockScript = fs.readFileSync(path.join(root, 'sync-shopify-stock.mjs'), 'utf8')
   assert.match(stockScript, /legacy-per-maat/)
   assert.match(stockScript, /legacy-serie/)

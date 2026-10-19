@@ -37,6 +37,8 @@ export type CatalogStock = {
   groupDescription?: string | null
   productGroupDescription?: string | null
   mainGroupDescription?: string | null
+  /** Geen rij in nieuwkoop_products; aantal komt uit nieuwkoop_stock. */
+  stockOnly?: boolean
 }
 
 export type StockSyncExclusion = 'archived' | 'tag'
@@ -100,6 +102,11 @@ export type SkuDecision = {
   setOosMessage: boolean
   clearOosMessage: boolean
   oosMessage: string | null
+  /** Gematcht via nieuwkoop_stock omdat de productrij ontbreekt. */
+  matchedViaStock: boolean
+  /** Daling groter dan de drempel bij een Shopify-aantal boven het minimum. Niet schrijven. */
+  outlierReview: boolean
+  qtyDropPct: number | null
 }
 
 export type ProductDecision = {
@@ -159,6 +166,26 @@ export type SyncCounts = {
   excluded: number
   /** Varianten die een SKU delen met minstens één andere geplande variant. */
   duplicate_sku_variants: number
+  /** Unieke SKU's gematcht via nieuwkoop_stock zonder productrij. */
+  stock_fallback: number
+  /** Varianten waarvan het aantal niet geschreven wordt (te grote daling). */
+  outlier_review: number
+}
+
+export const QTY_DROP_REVIEW_RATIO = 0.8
+export const QTY_DROP_REVIEW_MIN_SHOPIFY_QTY = 20
+
+export type OutlierReviewRow = {
+  sku: string
+  variantId: string
+  old: number
+  new: number
+  pct: number
+}
+
+export type PlanOptions = {
+  qtyDropRatio?: number
+  qtyDropMinShopifyQty?: number
 }
 
 export function brusselsDate(date: Date): string {
@@ -225,10 +252,72 @@ export function isArtificialCatalog(catalog: CatalogStock | undefined): boolean 
   return /Artificial/i.test(pg) || /Artificial/i.test(group)
 }
 
+export function isCcItemcode(itemcode: string): boolean {
+  return /^cc/i.test(itemcode.trim())
+}
+
+/**
+ * Geen productrij, wel voorraad. CC krijgt de combinatie-regels.
+ * Zonder productgroep is een niet-CC-code niet te onderscheiden van artificial,
+ * dus daar blijft het bij het aantal.
+ */
+export function stockFallbackCatalog(itemcode: string, stockAvailable: number | null): CatalogStock {
+  const cc = isCcItemcode(itemcode)
+  return {
+    itemcode,
+    title: null,
+    discontinued: false,
+    discontinuedAt: null,
+    stockAvailable,
+    stockOnly: true,
+    groupDescription: cc ? 'Combinaties' : null,
+    productGroupDescription: cc ? 'All-in-1' : null,
+    mainGroupDescription: null,
+  }
+}
+
 export function zeroStockRulesApply(catalog: CatalogStock | undefined): boolean {
   if (!catalog) return false
+  if (catalog.stockOnly) return isCcItemcode(catalog.itemcode)
   return !isArtificialCatalog(catalog)
 }
+
+export function parseQtyDropRatio(raw: string | undefined | null): number {
+  if (raw == null || raw.trim() === '') return QTY_DROP_REVIEW_RATIO
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return QTY_DROP_REVIEW_RATIO
+  return n > 1 ? n / 100 : n
+}
+
+export function parseQtyDropMin(raw: string | undefined | null): number {
+  if (raw == null || raw.trim() === '') return QTY_DROP_REVIEW_MIN_SHOPIFY_QTY
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return QTY_DROP_REVIEW_MIN_SHOPIFY_QTY
+  return n
+}
+
+/** Daling strikt boven de drempel, en het huidige Shopify-aantal strikt boven het minimum. */
+export function isQtyDropOutlier(input: {
+  shopifyQty: number | null
+  targetQty: number
+  ratio?: number
+  minShopifyQty?: number
+}): boolean {
+  const shopifyQty = input.shopifyQty
+  if (shopifyQty == null || !Number.isFinite(shopifyQty)) return false
+  const min = input.minShopifyQty ?? QTY_DROP_REVIEW_MIN_SHOPIFY_QTY
+  if (shopifyQty <= min) return false
+  if (input.targetQty >= shopifyQty) return false
+  const ratio = input.ratio ?? QTY_DROP_REVIEW_RATIO
+  return (shopifyQty - input.targetQty) / shopifyQty > ratio
+}
+
+export function qtyDropPercent(shopifyQty: number, targetQty: number): number {
+  return Math.round(((shopifyQty - targetQty) / shopifyQty) * 1000) / 10
+}
+
+export const MISSING_STATE_WARNING =
+  'shopify_stock_state ontbreekt. Dry-run gaat door: zero_since start vandaag en restored blijft 0 tot de migratie is toegepast.'
 
 /** Zelfde SKU kan op meerdere varianten staan. De lijst houdt ze allemaal. */
 export function groupVariantsBySku(
@@ -286,6 +375,9 @@ function inertSku(variant: ShopifyVariantSnap, excluded: boolean): SkuDecision {
     setOosMessage: false,
     clearOosMessage: false,
     oosMessage: null,
+    matchedViaStock: false,
+    outlierReview: false,
+    qtyDropPct: null,
   }
 }
 
@@ -293,7 +385,8 @@ export function decideSku(
   variant: ShopifyVariantSnap,
   catalog: CatalogStock | undefined,
   state: SavedStockState | undefined,
-  today: string
+  today: string,
+  options?: PlanOptions
 ): SkuDecision {
   if (isExcludedFromStockSync(variant)) return inertSku(variant, true)
 
@@ -311,7 +404,18 @@ export function decideSku(
   const atZero = matched && targetQty === 0
   const inStock = matched && targetQty > 0
   const currentMessage = variant.voorraadstatus?.trim() || null
-
+  const outlierReview =
+    matched &&
+    isQtyDropOutlier({
+      shopifyQty: variant.shopifyQty,
+      targetQty,
+      ratio: options?.qtyDropRatio,
+      minShopifyQty: options?.qtyDropMinShopifyQty,
+    })
+  const dropPct =
+    outlierReview && variant.shopifyQty != null
+      ? qtyDropPercent(variant.shopifyQty, targetQty)
+      : null
   return {
     sku: variant.sku,
     title: catalog?.title || variant.title,
@@ -323,7 +427,11 @@ export function decideSku(
     targetQty: matched ? targetQty : variant.shopifyQty ?? 0,
     shopifyQty: variant.shopifyQty,
     previousQty: prev,
-    setQty: matched && variant.inventoryItemId != null && variant.shopifyQty !== targetQty,
+    setQty:
+      matched &&
+      variant.inventoryItemId != null &&
+      variant.shopifyQty !== targetQty &&
+      !outlierReview,
     activate: matched && variant.inventoryItemId != null && variant.shopifyQty == null,
     setPolicyDeny: rules && variant.inventoryPolicy !== 'DENY',
     setTracked: matched && variant.tracked !== true,
@@ -337,10 +445,11 @@ export function decideSku(
       matched && discontinued && isSameBrusselsDay(catalog?.discontinuedAt, today),
     returned:
       matched &&
+      state != null &&
       targetQty > 0 &&
-      ((prev != null && prev <= 0) ||
-        previousZeroSince != null ||
-        state?.hiddenReason === 'oos_14d'),
+      ((state.lastQty != null && state.lastQty <= 0) ||
+        state.zeroSince != null ||
+        state.hiddenReason === 'oos_14d'),
     inStock,
     atZero,
     oosDays1to13:
@@ -354,6 +463,9 @@ export function decideSku(
     setOosMessage: rules && atZero && currentMessage !== OOS_STATUS_TEXT,
     clearOosMessage: rules && inStock && currentMessage != null,
     oosMessage: rules && atZero ? OOS_STATUS_TEXT : null,
+    matchedViaStock: matched && catalog?.stockOnly === true,
+    outlierReview,
+    qtyDropPct: dropPct,
   }
 }
 
@@ -536,6 +648,8 @@ export function buildCounts(
     archive: products.filter((p) => p.archive).length,
     excluded,
     duplicate_sku_variants: duplicateSkuVariants,
+    stock_fallback: new Set(matched.filter((s) => s.matchedViaStock).map((s) => s.sku)).size,
+    outlier_review: matched.filter((s) => s.outlierReview).length,
   }
 }
 
@@ -558,6 +672,8 @@ export function planInventorySync(input: {
   today: string
   publicationKnown?: boolean
   errorCount?: number
+  qtyDropRatio?: number
+  qtyDropMinShopifyQty?: number
 }): {
   included: ShopifyVariantSnap[]
   excluded: ExcludedSnap[]
@@ -582,7 +698,10 @@ export function planInventorySync(input: {
     included.push(variant)
   }
   const skus = included.map((variant) =>
-    decideSku(variant, input.catalog.get(variant.sku), input.state.get(variant.sku), input.today)
+    decideSku(variant, input.catalog.get(variant.sku), input.state.get(variant.sku), input.today, {
+      qtyDropRatio: input.qtyDropRatio,
+      qtyDropMinShopifyQty: input.qtyDropMinShopifyQty,
+    })
   )
   const products = decideProducts(included, skus, {
     publicationKnown: input.publicationKnown,
@@ -594,6 +713,19 @@ export function planInventorySync(input: {
     products,
     counts: buildCounts(skus, products, input.errorCount ?? 0, excluded.length),
   }
+}
+
+export function outlierReviewRows(skus: SkuDecision[]): OutlierReviewRow[] {
+  return skus
+    .filter((s) => s.outlierReview && s.shopifyQty != null)
+    .slice(0, DETAIL_LIMIT)
+    .map((s) => ({
+      sku: s.sku,
+      variantId: s.variantId,
+      old: s.shopifyQty as number,
+      new: s.targetQty,
+      pct: s.qtyDropPct ?? qtyDropPercent(s.shopifyQty as number, s.targetQty),
+    }))
 }
 
 export function detailRows(skus: SkuDecision[], pred: (s: SkuDecision) => boolean): DetailRow[] {

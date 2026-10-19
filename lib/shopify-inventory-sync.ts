@@ -25,11 +25,17 @@ import {
   buildCounts,
   detailRows,
   evaluateGuards,
+  MISSING_STATE_WARNING,
+  parseQtyDropMin,
+  parseQtyDropRatio,
   planInventorySync,
+  outlierReviewRows,
   sourceIsFresh,
+  stockFallbackCatalog,
   type CatalogStock,
   type DetailRow,
   type ExcludedSnap,
+  type OutlierReviewRow,
   type ProductDecision,
   type SavedStockState,
   type ShopifyVariantSnap,
@@ -77,8 +83,10 @@ export type InventorySyncReport = {
     restored: DetailRow[]
     unmatched: DetailRow[]
     excluded: ExcludedSnap[]
+    outlier_review: OutlierReviewRow[]
     errors: string[]
   }
+  warnings: string[]
   status_unchanged: boolean
   report_persisted: boolean
   report_persist_error: string | null
@@ -579,11 +587,27 @@ export async function runShopifyInventorySync(opts: {
       mainGroupDescription: str(row.main_group_description_nl),
     })
   }
+  // Stock zonder productrij. sync-nieuwkoop-items.mjs --combos-only houdt alleen
+  // combinaties met substraat Grond, Hydrokorrels of Bims (plus mos in groep 275).
+  // Zonder --full schrijft dat script de eerste 100 items. De voorraad-syncs
+  // upserten nieuwkoop_stock alleen voor bekende productrijen en wissen oude
+  // stockrijen niet. Een CC-code kan daardoor in nieuwkoop_stock blijven terwijl
+  // de productrij ontbreekt. Die matchen we hier als combinatie.
   for (const row of stockRes.rows) {
     const itemcode = str(row.itemcode)
     if (!itemcode) continue
+    const qty = num(row.stock_available)
     const existing = catalog.get(itemcode)
-    if (existing) existing.stockAvailable = num(row.stock_available)
+    if (existing) {
+      existing.stockAvailable = qty
+      continue
+    }
+    catalog.set(itemcode, stockFallbackCatalog(itemcode, qty))
+  }
+  const warnings: string[] = []
+  if (stateRes.missing) {
+    warnings.push(MISSING_STATE_WARNING)
+    console.warn(MISSING_STATE_WARNING)
   }
   const state = new Map<string, SavedStockState>()
   for (const row of stateRes.rows) {
@@ -648,6 +672,8 @@ export async function runShopifyInventorySync(opts: {
     today,
     publicationKnown: Boolean(publicationId),
     errorCount: errors.length,
+    qtyDropRatio: parseQtyDropRatio(process.env.SHOPIFY_INVENTORY_QTY_DROP_RATIO),
+    qtyDropMinShopifyQty: parseQtyDropMin(process.env.SHOPIFY_INVENTORY_QTY_DROP_MIN),
   })
   const { skus, products } = planned
   let counts = planned.counts
@@ -703,6 +729,7 @@ export async function runShopifyInventorySync(opts: {
         from_qty: s.shopifyQty,
       })),
     excluded: planned.excluded.slice(0, DETAIL_LIMIT),
+    outlier_review: outlierReviewRows(skus),
     errors: errors.slice(0, DETAIL_LIMIT),
   }
 
@@ -734,7 +761,7 @@ export async function runShopifyInventorySync(opts: {
       }
     >()
     for (const s of skus) {
-      if (!s.matched || failedVariants.has(s.variantId) || failedProducts.has(s.productId)) continue
+      if (!s.matched || s.outlierReview || failedVariants.has(s.variantId) || failedProducts.has(s.productId)) continue
       if (stateByCode.has(s.sku)) continue
       const product = products.find((p) => p.productId === s.productId)
       const mark = product?.markHiddenSkus.includes(s.sku)
@@ -792,6 +819,7 @@ export async function runShopifyInventorySync(opts: {
     status_unchanged: !writes || products.every((p) => !p.archive),
     report_persisted: false,
     report_persist_error: null,
+    warnings,
   }
 
   const persistReport = opts.persistReport !== false
@@ -812,6 +840,8 @@ export async function runShopifyInventorySync(opts: {
         restored: details.restored,
         unmatched: details.unmatched,
         excluded: details.excluded,
+        outlier_review: details.outlier_review,
+        warnings,
         errors: details.errors,
       },
     })
