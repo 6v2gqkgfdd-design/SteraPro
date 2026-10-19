@@ -2,8 +2,8 @@
  * Beslissingen voor de dagelijkse Supabase → Shopify voorraad-sync.
  * Puur: geen netwerk. De runner past dit toe, of stopt bij een dry-run.
  *
- * Uitgesloten vóór elke planning: status ARCHIVED, tag `legacy-per-maat`
- * of `geen-voorraadsync`. Die varianten krijgen geen qty, tracking, DENY,
+ * Uitgesloten vóór elke planning: status ARCHIVED, tag `legacy-per-maat`,
+ * `legacy-serie` of `geen-voorraadsync`. Die varianten krijgen geen qty, tracking, DENY,
  * metafield of verbergen.
  *
  * CC-codes én niet-CC (planten, potten, elke productgroep behalve artificial)
@@ -19,7 +19,7 @@ export const OOS_METAFIELD_NAMESPACE = 'stera'
 export const OOS_METAFIELD_KEY = 'oos_sinds'
 export const OOS_STATUS_METAFIELD_KEY = 'voorraadstatus'
 export const OOS_STATUS_TEXT = 'voorlopig niet op voorraad'
-export const EXCLUDED_STOCK_SYNC_TAGS = ['legacy-per-maat', 'geen-voorraadsync'] as const
+export const EXCLUDED_STOCK_SYNC_TAGS = ['legacy-per-maat', 'legacy-serie', 'geen-voorraadsync'] as const
 export const STOCK_CAP = 100
 export const HIDE_AFTER_ELAPSED_DAYS = 14
 export const NEWLY_ZERO_ABORT_RATIO = 0.2

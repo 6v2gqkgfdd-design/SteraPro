@@ -6,7 +6,12 @@
  * en print het plan. Geen mutaties, geen insert in stock_sync_reports.
  * Zonder credentials: hetzelfde plan op vaste fixtures.
  *
- *   node --experimental-strip-types scripts/stock-sync-dry-run.mjs
+ *   node --experimental-strip-types --env-file=.env.local scripts/stock-sync-dry-run.mjs
+ *
+ * Verplichte env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+ * SHOPIFY_STORE_DOMAIN, en SHOPIFY_ADMIN_TOKEN of SHOPIFY_CLIENT_ID plus
+ * SHOPIFY_CLIENT_SECRET. Optioneel: SHOPIFY_API_VERSION (standaard 2026-04).
+ * De run zet live en persistReport uit. Het JSON-rapport heeft writes=false.
  */
 
 import { planInventorySync } from '../lib/shopify-inventory-plan.ts'
@@ -92,10 +97,11 @@ function fixturePlan() {
   })
   const archived = catalog({ itemcode: 'CCARCH', title: 'Archief', stockAvailable: 8 })
   const tagged = catalog({ itemcode: 'LEG1', title: 'Oude maat', stockAvailable: 1 })
+  const serie = catalog({ itemcode: 'SERIE1', title: 'Oude serie', stockAvailable: 4 })
   return planInventorySync({
     today: TODAY,
     publicationKnown: true,
-    catalog: new Map([cc, plant, pot, artificial, archived, tagged].map((row) => [row.itemcode, row])),
+    catalog: new Map([cc, plant, pot, artificial, archived, tagged, serie].map((row) => [row.itemcode, row])),
     state: new Map([
       [cc.itemcode, hidden],
       [plant.itemcode, hidden],
@@ -175,6 +181,15 @@ function fixturePlan() {
         variantId: 'gid://shopify/ProductVariant/leg',
         tags: ['legacy-per-maat'],
         shopifyQty: 1,
+        inventoryPolicy: 'CONTINUE',
+      }),
+      variant({
+        sku: serie.itemcode,
+        title: serie.title,
+        productId: 'gid://shopify/Product/serie',
+        variantId: 'gid://shopify/ProductVariant/serie',
+        tags: ['legacy-serie'],
+        shopifyQty: 4,
         inventoryPolicy: 'CONTINUE',
       }),
     ],

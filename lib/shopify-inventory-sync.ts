@@ -7,7 +7,7 @@
  * "voorlopig niet op voorraad". zero_since gaat naar stera.oos_sinds.
  * Na 14 dagen op 0 verdwijnt een gepubliceerd product alleen van Online Store.
  * Alleen een ongepubliceerde DRAFT wordt gearchiveerd.
- * ARCHIVED en de tags legacy-per-maat / geen-voorraadsync worden niet gepland.
+ * ARCHIVED en de tags legacy-per-maat / legacy-serie / geen-voorraadsync worden niet gepland.
  * Elke variant met dezelfde SKU krijgt de update.
  */
 

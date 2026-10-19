@@ -285,13 +285,24 @@ test('ARCHIVED en uitsluit-tags worden niet gepland', () => {
         productStatus: 'ACTIVE',
         shopifyQty: 1,
       }),
+      variant({
+        sku: 'SERIE1',
+        variantId: 'gid://shopify/ProductVariant/4',
+        productId: 'gid://shopify/Product/4',
+        tags: ['Legacy-Serie'],
+        productStatus: 'ACTIVE',
+        shopifyQty: 6,
+        inventoryPolicy: 'CONTINUE',
+        tracked: false,
+      }),
     ],
   })
-  assert.equal(planned.excluded.length, 3)
+  assert.equal(planned.excluded.length, 4)
   assert.deepEqual(
     planned.excluded.map((row) => row.reason).sort(),
-    ['archived', 'tag', 'tag']
+    ['archived', 'tag', 'tag', 'tag']
   )
+  assert.equal(planned.excluded.find((row) => row.sku === 'SERIE1')?.reason, 'tag')
   assert.equal(planned.skus.length, 0)
   assert.equal(planned.products.length, 0)
   assert.equal(planned.counts.qty_set, 0)
@@ -300,7 +311,7 @@ test('ARCHIVED en uitsluit-tags worden niet gepland', () => {
   assert.equal(planned.counts.metafield_set, 0)
   assert.equal(planned.counts.archive, 0)
   assert.equal(planned.counts.unpublish, 0)
-  assert.equal(planned.counts.excluded, 3)
+  assert.equal(planned.counts.excluded, 4)
 })
 
 test('elke variant met dezelfde SKU krijgt qty, DENY en de nulvoorraad-tekst', () => {
@@ -521,10 +532,13 @@ test('voorraad-job noemt de verboden Shopify-mutaties niet', () => {
   const plan = fs.readFileSync(path.join(root, 'lib/shopify-inventory-plan.ts'), 'utf8')
   assert.ok(plan.includes(SHOP_LOCATION_ID))
   assert.match(plan, /legacy-per-maat/)
+  assert.match(plan, /legacy-serie/)
   assert.match(plan, /geen-voorraadsync/)
   assert.match(plan, /voorlopig niet op voorraad/)
+  assert.match(sync, /legacy-serie/)
   const stockScript = fs.readFileSync(path.join(root, 'sync-shopify-stock.mjs'), 'utf8')
   assert.match(stockScript, /legacy-per-maat/)
+  assert.match(stockScript, /legacy-serie/)
   assert.match(stockScript, /geen-voorraadsync/)
   assert.match(stockScript, /ARCHIVED/)
   assert.match(stockScript, /product \{ status tags \}/)

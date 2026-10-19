@@ -5,7 +5,7 @@
  * Zet per variant (gematcht op SKU = itemcode) het beschikbare aantal op de
  * winkel-locatie, gelijk aan stock_available uit Nieuwkoop. Elke variant met
  * dezelfde SKU krijgt dat aantal. Producten met status ARCHIVED of met de tag
- * legacy-per-maat / geen-voorraadsync worden vóór de planning overgeslagen.
+ * legacy-per-maat / legacy-serie / geen-voorraadsync worden vóór de planning overgeslagen.
  * Nulvoorraad-tekst, DENY en archiveren na 14 dagen zitten in
  * lib/shopify-inventory-sync.ts (niet in dit script).
  *
@@ -86,7 +86,7 @@ for (;;) {
 const stockByCode = new Map(stockRows.map((r) => [r.itemcode, Math.max(0, Math.floor(Number(r.stock_available ?? 0)))]));
 console.log(`    ✅ ${stockByCode.size} voorraad-rijen`);
 
-const EXCLUDED_TAGS = new Set(["legacy-per-maat", "geen-voorraadsync"]);
+const EXCLUDED_TAGS = new Set(["legacy-per-maat", "legacy-serie", "geen-voorraadsync"]);
 function exclusionReason(product) {
   if (String(product?.status || "").toUpperCase() === "ARCHIVED") return "archived";
   const tags = Array.isArray(product?.tags) ? product.tags : [];
